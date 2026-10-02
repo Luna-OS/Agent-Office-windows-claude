@@ -5,3 +5,5 @@ dist
 .DS_Store
 pw.txt
 __pycache__/
+desktop/staging
+desktop/release

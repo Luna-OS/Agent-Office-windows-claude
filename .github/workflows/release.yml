@@ -98,7 +98,9 @@ jobs:
           kill -INT "$office"
 
       - name: Publish
-        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        # The npm tarball install.sh / install.ps1 fetch is published by the original repository only;
+        # this one publishes the Windows installer instead (see windows-app.yml).
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && github.repository == 'AgentSystemLabs/agent-office'
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: v${{ steps.pack.outputs.version }}

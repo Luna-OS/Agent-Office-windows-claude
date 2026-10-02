@@ -1,3 +1,10 @@
+> [!TIP]
+> **Windows-App mit Claude Code ohne API-Key.** Diese Version gibt es als Windows-Installer
+> (`Agent-Office-Setup-<version>.exe` unter *Releases*): das Office in einem eigenen Fenster, ohne Terminal
+> und ohne eigenes Node.js, plus eine Verknüpfung **„Claude Code (ohne API-Key)“**, die Claude Code mit deinem
+> Claude-Abo (Pro/Max) startet. Auch die Worker im Office nutzen das Abo statt eines `ANTHROPIC_API_KEY`.
+> Alles dazu: [docs/windows-app.md](docs/windows-app.md).
+
 > [!WARNING]
 > **Work in progress.** Agent Office is built for one person's workflow — mine — and it changes fast as I iterate on it.
 > Expect breaking changes between releases: keys that move, screens that get redrawn, features that come and go
@@ -53,6 +60,10 @@ On the machine that runs the office:
 - **git**, and the **GitHub CLI** (`gh auth login`) for cloning repos and the issue and PR boards
 
 ## Run locally
+
+On Windows, the easiest way is the Windows app: install `Agent-Office-Setup-<version>.exe` from the releases and start
+**Agent Office** from the Start menu. It brings its own Node.js and signs Claude Code in with your Claude subscription,
+no API key needed ([docs/windows-app.md](docs/windows-app.md)).
 
 Install the latest release and start the office:
 
@@ -354,6 +365,7 @@ Every change to the app that lands on `main` is published as a GitHub release by
 
 ## More
 
+- [Windows app](docs/windows-app.md): the Windows installer, and Claude Code on your Claude subscription without an API key
 - [Features](docs/features.md): everything in the office, room by room
 - [Agents](docs/agents.md): Claude Code, Codex and OpenCode, models and effort, and the office's prompts
 - [Configuration](docs/configuration.md): every command-line option, and where the office keeps its data
