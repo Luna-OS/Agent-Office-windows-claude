@@ -1,7 +1,7 @@
 > [!TIP]
 > **Windows-App mit Claude Code ohne API-Key.** Diese Version gibt es als Windows-Installer
-> (`Agent-Office-Setup-<version>.exe` unter *Releases*): das Office in einem eigenen Fenster, ohne Terminal
-> und ohne eigenes Node.js, plus eine Verknüpfung **„Claude Code (ohne API-Key)“**, die Claude Code mit deinem
+> (`Agent-Office-Setup-<version>.exe` unter *Releases*): das Office in einem eigenen Fenster, ohne Terminal,
+> ohne eigenes Node.js und mit eingebauter GitHub CLI, plus eine Verknüpfung **„Claude Code (ohne API-Key)“**, die Claude Code mit deinem
 > Claude-Abo (Pro/Max) startet. Auch die Worker im Office nutzen das Abo statt eines `ANTHROPIC_API_KEY`.
 > Alles dazu: [docs/windows-app.md](docs/windows-app.md).
 

@@ -3,7 +3,7 @@
 // the Claude subscription login, so neither the office's workers nor the "Claude Code" shortcut need
 // an Anthropic API key.
 const { app, BrowserWindow, Menu, dialog, desktopCapturer, session, shell } = require('electron');
-const { spawn, execFileSync } = require('node:child_process');
+const { spawn, execFile, execFileSync } = require('node:child_process');
 const fs = require('node:fs');
 const net = require('node:net');
 const os = require('node:os');
@@ -26,17 +26,24 @@ if (!primary) {
 
 // --- Where things are ------------------------------------------------------------------------------
 
-/** Packaged: resources/{office,node,claude}. From a checkout: the repository root and the PATH's node. */
+/**
+ * Packaged: resources/{office,node,claude,gh,tools}. From a checkout: the repository root, the
+ * PATH's node and gh, and the scripts in desktop/.
+ */
 const paths = app.isPackaged
   ? {
       root: path.join(process.resourcesPath, 'office'),
       node: path.join(process.resourcesPath, 'node', WIN ? 'node.exe' : 'node'),
       claudeCmd: path.join(process.resourcesPath, 'claude', 'claude-code.cmd'),
+      ghDir: path.join(process.resourcesPath, 'gh'),
+      tools: path.join(process.resourcesPath, 'tools'),
     }
   : {
       root: path.join(__dirname, '..'),
       node: process.env.AGENT_OFFICE_NODE || 'node',
       claudeCmd: path.join(__dirname, 'claude', 'claude-code.cmd'),
+      ghDir: null,
+      tools: path.join(__dirname, 'tools'),
     };
 const entry = app.isPackaged ? path.join(paths.root, 'office-entry.mjs') : path.join(__dirname, 'office-entry.mjs');
 
@@ -73,10 +80,36 @@ function envKey(env, name) {
 }
 
 /**
+ * The PATH Windows gives programs started from now on: the machine's and the user's from the
+ * registry, so git, gh or claude installed while the app was running are found on the office's
+ * next start. Empty off Windows, or when the registry can't be read.
+ */
+function registryPath() {
+  if (!WIN) return [];
+  const read = (key) => {
+    try {
+      const out = execFileSync('reg.exe', ['query', key, '/v', 'Path'], { encoding: 'utf8', windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] });
+      return out.match(/^\s*Path\s+REG_(?:EXPAND_)?SZ\s+(.*)$/im)?.[1].trim() ?? '';
+    } catch {
+      return '';
+    }
+  };
+  // %SystemRoot%\..., %USERPROFILE%\...: process.env looks names up without regard to case on Windows.
+  const expand = (p) => p.replace(/%([^%]+)%/g, (all, name) => process.env[name] ?? all);
+  return [read('HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment'), read('HKCU\\Environment')]
+    .flatMap((list) => list.split(';'))
+    .map((p) => expand(p.trim()))
+    .filter(Boolean);
+}
+
+/**
  * The environment the office (and so every worker it starts) runs with. Claude Code prefers an
  * ANTHROPIC_API_KEY over the subscription login, so with subscriptionOnly the API credentials are
- * left out and workers use whatever `claude` is signed in to. Claude Code's usual install folders go
- * on the PATH too, since an app started from the Start menu keeps the PATH it had at sign-in.
+ * left out and workers use whatever `claude` is signed in to.
+ *
+ * Its PATH is the app's, plus what's been installed since (registryPath), plus the usual homes of
+ * Claude Code, Git and the GitHub CLI, and last the gh.exe the app ships: a gh you installed
+ * yourself comes first.
  */
 function childEnv() {
   const env = { ...process.env };
@@ -87,22 +120,40 @@ function childEnv() {
     }
   }
   const pathKey = envKey(env, 'PATH');
-  const have = (env[pathKey] || '').split(path.delimiter).filter(Boolean);
-  const extra = [path.join(os.homedir(), '.local', 'bin')];
-  if (WIN && env[envKey(env, 'APPDATA')]) extra.push(path.join(env[envKey(env, 'APPDATA')], 'npm'));
-  const missing = extra.filter((d) => fs.existsSync(d) && !have.some((h) => h.toLowerCase() === d.toLowerCase()));
-  env[pathKey] = [...missing, ...have].join(path.delimiter);
+  const dirs = (env[pathKey] || '').split(path.delimiter).filter(Boolean);
+  const add = (dir, first = false) => {
+    if (!dir || !fs.existsSync(dir) || dirs.some((d) => d.toLowerCase() === dir.toLowerCase())) return;
+    if (first) dirs.unshift(dir);
+    else dirs.push(dir);
+  };
+  add(path.join(os.homedir(), '.local', 'bin'), true);
+  for (const dir of registryPath()) add(dir);
+  if (WIN) {
+    const programFiles = process.env.ProgramFiles || 'C:\\Program Files';
+    const local = process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local');
+    if (process.env.APPDATA) add(path.join(process.env.APPDATA, 'npm'));
+    for (const dir of [path.join(programFiles, 'Git', 'cmd'), path.join(local, 'Programs', 'Git', 'cmd'), path.join(programFiles, 'GitHub CLI'), path.join(local, 'Programs', 'GitHub CLI')]) add(dir);
+  }
+  add(paths.ghDir);
+  env[pathKey] = dirs.join(path.delimiter);
   return env;
 }
 
-/** Whether `claude` can be found the way the office will look for it. */
-function claudeInstalled() {
+/** Whether `cmd` (claude, git, gh) can be found the way the office will look for it. */
+function installed(cmd) {
   try {
-    execFileSync(WIN ? 'where.exe' : 'which', ['claude'], { env: childEnv(), stdio: 'ignore', windowsHide: true });
+    execFileSync(WIN ? 'where.exe' : 'which', [cmd], { env: childEnv(), stdio: 'ignore', windowsHide: true });
     return true;
   } catch {
     return false;
   }
+}
+
+/** Whether gh is signed in to GitHub (`gh auth status` succeeds). */
+function ghSignedIn() {
+  return new Promise((resolve) => {
+    execFile('gh', ['auth', 'status', '--hostname', 'github.com'], { env: childEnv(), timeout: 20_000, windowsHide: true }, (err) => resolve(!err));
+  });
 }
 
 // --- The office ----------------------------------------------------------------------------------
@@ -201,12 +252,14 @@ function stopOffice() {
 }
 
 async function restartOffice() {
+  if (restarting || quitting) return;
   restarting = true;
   try {
     await stopOffice();
     showLoading('Agent Office wird neu gestartet …');
     await startOffice();
     await openOffice();
+    checkTools();
   } catch (err) {
     showFailure(err);
   } finally {
@@ -217,34 +270,94 @@ async function restartOffice() {
 // --- Claude Code without an API key --------------------------------------------------------------
 
 /**
- * Opens a console running Claude Code through claude-code.cmd, which drops any API key for that
- * window, installs Claude Code if it's missing, and passes `args` on to claude.
+ * Opens a console window running one of the app's .cmd scripts with the office's environment.
+ * With `onExit`, that's called once the window is closed (start /wait).
  */
-function openClaudeCode(args = []) {
+function openConsole(title, script, args = [], onExit) {
   if (!WIN) {
-    dialog.showMessageBox(win, { message: 'Die Claude-Code-Verknüpfung gibt es nur unter Windows. Starte `claude` im Terminal und wähle beim Login dein Claude-Abo.' });
+    dialog.showMessageBox(win, { message: `„${title}“ gibt es nur unter Windows.` });
     return;
   }
   const cwd = fs.existsSync(settings.home) ? settings.home : os.homedir();
-  // cmd /s strips the outer quotes and keeps the rest verbatim: start "<title>" "<script>" args…
-  const line = `"start "Claude Code" "${paths.claudeCmd}"${args.length ? ' ' + args.join(' ') : ''}"`;
-  spawn(process.env.COMSPEC || 'cmd.exe', ['/d', '/s', '/c', line], { cwd, env: childEnv(), detached: true, stdio: 'ignore', windowsVerbatimArguments: true }).unref();
+  // cmd /s strips the outer quotes and keeps the rest verbatim: start "<title>" [/wait] "<script>" args…
+  const line = `"start "${title}" ${onExit ? '/wait ' : ''}"${script}"${args.length ? ' ' + args.join(' ') : ''}"`;
+  const child = spawn(process.env.COMSPEC || 'cmd.exe', ['/d', '/s', '/c', line], { cwd, env: childEnv(), detached: !onExit, stdio: 'ignore', windowsHide: true, windowsVerbatimArguments: true });
+  if (onExit) child.on('exit', onExit);
+  else child.unref();
 }
 
-async function offerClaudeInstall() {
-  if (claudeInstalled()) return;
-  const { response } = await dialog.showMessageBox(win, {
-    type: 'question',
-    title: 'Claude Code fehlt',
-    message: 'Claude Code ist auf diesem Computer noch nicht installiert.',
-    detail:
+/**
+ * Claude Code through claude-code.cmd, which drops any API key for that window, installs Claude
+ * Code if it's missing, and passes `args` on to claude.
+ */
+function openClaudeCode(args = []) {
+  openConsole('Claude Code', paths.claudeCmd, args);
+}
+
+/** Signs gh in to GitHub in a console, then restarts the office so it sees the new sign-in. */
+function githubLogin() {
+  openConsole('Bei GitHub anmelden', path.join(paths.tools, 'github-login.cmd'), [], () => restartOffice());
+}
+
+/** Installs Git for Windows with winget in a console, then restarts the office so it finds git. */
+function installGit() {
+  openConsole('Git installieren', path.join(paths.tools, 'install-git.cmd'), [], () => restartOffice());
+}
+
+/** Questions answered with "Später": not asked again until the app is started again. */
+const declined = new Set();
+async function ask(title, message, detail, yes) {
+  if (declined.has(title)) return false;
+  const { response } = await dialog.showMessageBox(win, { type: 'question', title, message, detail, buttons: [yes, 'Später'], defaultId: 0, cancelId: 1 });
+  if (response !== 0) declined.add(title);
+  return response === 0;
+}
+
+/**
+ * What the office needs from this computer, asked about once it's open: Git (projects, worktrees,
+ * and Claude Code's Git Bash), a GitHub sign-in for gh (the elevator's repository list, cloning,
+ * issues and PRs) and Claude Code itself. One at a time, each skippable; asked again after every
+ * restart of the office (an install or sign-in finishing restarts it), unless declined.
+ */
+let checking = false;
+async function checkTools() {
+  if (checking || !win) return;
+  checking = true;
+  try {
+    await askForTools();
+  } finally {
+    checking = false;
+  }
+}
+async function askForTools() {
+  if (!installed('git')) {
+    const yes = await ask(
+      'Git fehlt',
+      'Git for Windows ist auf diesem Computer noch nicht installiert.',
+      'Agent Office braucht Git für Projekte und die Arbeitskopien der Worker, und Claude Code braucht es unter Windows auch.\n\nJetzt mit winget installieren? Danach startet das Office neu.',
+      'Git installieren',
+    );
+    if (yes) return installGit();
+  }
+  if (installed('gh') && !(await ghSignedIn())) {
+    const yes = await ask(
+      'Bei GitHub anmelden',
+      'Die GitHub CLI ist noch nicht bei GitHub angemeldet.',
+      'Damit sieht das Office deine Repositorys (im Aufzug: Projekt hinzufügen), klont sie und zeigt Issues und Pull Requests.\n\nJetzt anmelden? Es öffnet sich ein Konsolenfenster und GitHub im Browser; danach startet das Office neu.',
+      'Bei GitHub anmelden',
+    );
+    if (yes) return githubLogin();
+  }
+  if (!installed('claude')) {
+    const yes = await ask(
+      'Claude Code fehlt',
+      'Claude Code ist auf diesem Computer noch nicht installiert.',
       'Die Worker im Office laufen mit Claude Code. Du brauchst dafür keinen API-Key: Claude Code meldet sich mit deinem Claude-Abo (Pro oder Max) an.\n\n' +
-      'Jetzt installieren und anmelden? Es öffnet sich ein Konsolenfenster mit dem offiziellen Installer; danach wählst du „Claude account with subscription“.',
-    buttons: ['Installieren und anmelden', 'Später'],
-    defaultId: 0,
-    cancelId: 1,
-  });
-  if (response === 0) openClaudeCode();
+        'Jetzt installieren und anmelden? Es öffnet sich ein Konsolenfenster mit dem offiziellen Installer; danach wählst du „Claude account with subscription“.',
+      'Installieren und anmelden',
+    );
+    if (yes) openClaudeCode();
+  }
 }
 
 // --- Window --------------------------------------------------------------------------------------
@@ -383,6 +496,13 @@ function buildMenu() {
       ],
     },
     {
+      label: 'GitHub',
+      submenu: [
+        { label: 'Bei GitHub anmelden …', click: () => githubLogin() },
+        { label: 'Git for Windows installieren …', click: () => installGit() },
+      ],
+    },
+    {
       label: 'Ansicht',
       submenu: [
         { role: 'zoomIn', label: 'Vergrößern' },
@@ -407,7 +527,7 @@ app.whenReady().then(async () => {
   try {
     await startOffice();
     await openOffice();
-    offerClaudeInstall();
+    checkTools();
   } catch (err) {
     showFailure(err);
   }
