@@ -1,0 +1,6 @@
+# The deploy scripts run under bash, and provision.sh is piped to a Linux server: CRLF breaks both
+# (Git for Windows checks text files out with CRLF by default).
+*.sh text eol=lf
+# cmd.exe misreads batch files with bare LF line endings (labels and gotos break).
+*.cmd text eol=crlf
+*.nsh text eol=crlf

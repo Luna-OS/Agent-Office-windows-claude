@@ -1,0 +1,64 @@
+{
+  "name": "agent-office-desktop",
+  "productName": "Agent Office",
+  "version": "0.1.0",
+  "description": "Agent Office as a Windows app, with Claude Code on the Claude subscription login (no API key).",
+  "main": "main.cjs",
+  "private": true,
+  "license": "MIT",
+  "author": "Agent Office",
+  "scripts": {
+    "icons": "node scripts/make-icons.mjs",
+    "stage": "node scripts/stage.mjs",
+    "start": "electron .",
+    "dist": "npm run stage && electron-builder --win nsis --x64 --publish never",
+    "dist:dir": "npm run stage && electron-builder --dir --publish never"
+  },
+  "devDependencies": {
+    "electron": "^44.5.1",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "com.agentoffice.desktop",
+    "productName": "Agent Office",
+    "copyright": "Copyright © 2026 AgentSystemLabs and contributors (MIT)",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.cjs",
+      "package.json"
+    ],
+    "afterPack": "scripts/after-pack.cjs",
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico",
+      "executableName": "AgentOffice"
+    },
+    "linux": {
+      "target": [
+        "dir"
+      ],
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": "always",
+      "createStartMenuShortcut": true,
+      "shortcutName": "Agent Office",
+      "include": "build/installer.nsh",
+      "artifactName": "Agent-Office-Setup-${version}.${ext}",
+      "deleteAppDataOnUninstall": false
+    }
+  }
+}

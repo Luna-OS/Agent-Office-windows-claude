@@ -1,0 +1,119 @@
+name: Windows app
+
+# Builds the Agent Office Windows installer (desktop/, see docs/windows-app.md) on a Windows runner:
+# the office itself, its production dependencies with their Windows native modules, a node.exe, and
+# the Electron app around them, packed by electron-builder into Agent-Office-Setup-<version>.exe.
+#
+# Every run uploads the installer as a workflow artifact. A push to main also publishes it as a
+# GitHub release (windows-v0.1.<commits on main>), so the newest one is always on the releases page.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'bin/**'
+      - 'desktop/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig*.json'
+      - 'vite.config.ts'
+      - '.github/workflows/windows-app.yml'
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'bin/**'
+      - 'desktop/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig*.json'
+      - 'vite.config.ts'
+      - '.github/workflows/windows-app.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-app-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  installer:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # the version counts the commits on main
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            desktop/package-lock.json
+
+      - name: Build the office
+        run: npm ci # its prepare script builds the client and the server
+
+      - name: Install the app's build tools
+        working-directory: desktop
+        run: npm ci
+
+      - name: Version
+        id: version
+        working-directory: desktop
+        run: |
+          version="$(node -p 'require("./package.json").version.split(".").slice(0, 2).join(".")').$(git rev-list --count HEAD)"
+          npm version "$version" --no-git-tag-version --allow-same-version
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Stage the office and node.exe
+        working-directory: desktop
+        run: npm run stage
+
+      - name: Start the staged office once
+        working-directory: desktop/staging
+        run: |
+          home="$RUNNER_TEMP/office-home"
+          mkdir -p "$home"
+          ./node/node.exe office/bin/agent-office.js --home "$home" --host 127.0.0.1 --port 4700 --password ci --no-open > "$RUNNER_TEMP/office.log" 2>&1 &
+          office=$!
+          for _ in $(seq 60); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:4700/login.html || true)
+            [ "$code" = 200 ] && break
+            sleep 1
+          done
+          cat "$RUNNER_TEMP/office.log"
+          kill "$office" || true
+          [ "$code" = 200 ] || { echo "the staged office didn't answer (last status: $code)"; exit 1; }
+
+      - name: Build the installer
+        working-directory: desktop
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: npx electron-builder --win nsis --x64 --publish never
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Agent-Office-Setup-${{ steps.version.outputs.version }}
+          path: desktop/release/*.exe
+          if-no-files-found: error
+
+      - name: Publish
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: windows-v${{ steps.version.outputs.version }}
+        run: |
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            echo "$TAG is already released"
+            exit 0
+          fi
+          gh release create "$TAG" desktop/release/*.exe --target "$GITHUB_SHA" --title "Agent Office für Windows $TAG" --generate-notes --latest
