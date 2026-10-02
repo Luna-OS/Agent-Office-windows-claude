@@ -74,9 +74,13 @@ jobs:
           npm version "$version" --no-git-tag-version --allow-same-version
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
-      - name: Stage the office and node.exe
+      - name: Stage the office, node.exe and gh.exe
         working-directory: desktop
-        run: npm run stage
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          npm run stage
+          ./staging/gh/gh.exe --version
 
       - name: Start the staged office once
         working-directory: desktop/staging

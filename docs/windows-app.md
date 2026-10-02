@@ -17,13 +17,23 @@ kommt eine Verknüpfung **„Claude Code (ohne API-Key)“**, die Claude Code mi
    - **Agent Office**: das 3D-Office in einem eigenen Fenster
    - **Claude Code (ohne API-Key)**: eine Konsole mit Claude Code, angemeldet über dein Claude-Abo
 
-Außerdem brauchst du, wie beim normalen Agent Office:
+Die **GitHub CLI** (`gh`) bringt die App selbst mit: damit listet das Office im Aufzug deine
+Repositorys, klont sie und zeigt Issues und Pull Requests. Hast du `gh` selbst installiert, wird
+deine Version benutzt.
 
-- **Git for Windows** (`winget install --id Git.Git -e`): für Projekte und Worker-Worktrees, und
-  Claude Code braucht es unter Windows auch selbst
-- **GitHub CLI** (`winget install GitHub.cli`, dann `gh auth login`): für Repositorys, Issues und PRs
-- **Claude Code**: fehlt es, bietet die App beim ersten Start an, es mit dem offiziellen Installer
-  (`irm https://claude.ai/install.ps1 | iex`) zu installieren. Die Verknüpfung macht das ebenfalls.
+Beim Start prüft die App, was noch fehlt, und bietet es nacheinander an (jeweils mit „Später“
+überspringbar):
+
+1. **Git for Windows**: für Projekte und Worker-Worktrees, und Claude Code braucht es unter Windows
+   auch selbst. Installiert per `winget install --id Git.Git -e`.
+2. **GitHub-Anmeldung**: `gh auth login` im Browser (Code eingeben, bestätigen). Ohne Anmeldung
+   meldet der Aufzug „Couldn't list your repositories with gh“.
+3. **Claude Code**: mit dem offiziellen Installer (`irm https://claude.ai/install.ps1 | iex`). Die
+   Verknüpfung macht das ebenfalls.
+
+Nach einer Installation oder Anmeldung startet das Office von selbst neu und findet das neue
+Programm, ohne dass du dich bei Windows neu anmelden musst. Dasselbe geht jederzeit über das Menü
+**GitHub → Bei GitHub anmelden …** bzw. **Git for Windows installieren …**.
 
 ## Claude Code ohne API-Key
 
@@ -73,8 +83,9 @@ npm run dist           # → desktop\release\Agent-Office-Setup-<version>.exe
 ```
 
 - `npm run stage` stellt `desktop\staging` zusammen: das gebaute Office mit seinen
-  Produktions-Abhängigkeiten, ein `node.exe` (geprüft gegen die SHA256-Summen von nodejs.org) und
-  die Claude-Code-Verknüpfung. Ein `afterPack`-Hook kopiert das in den `resources`-Ordner der App.
+  Produktions-Abhängigkeiten, ein `node.exe` (geprüft gegen die SHA256-Summen von nodejs.org), die
+  GitHub CLI (`gh.exe` der neuesten Version oder `GH_VERSION`, geprüft gegen ihre Checksummen),
+  die Claude-Code-Verknüpfung und die GitHub-Hilfsskripte (`desktop\tools`). Ein `afterPack`-Hook kopiert das in den `resources`-Ordner der App.
 - `npm start` startet die App aus dem Checkout (mit dem `node` aus dem PATH und dem `dist/` im
   Repository-Root).
 - `npm run icons` zeichnet die Icons (`build/icon.ico`, `claude/claude-code.ico`) neu.
