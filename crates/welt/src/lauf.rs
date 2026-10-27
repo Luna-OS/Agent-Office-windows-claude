@@ -67,6 +67,12 @@ pub async fn starten() {
             zusammenfuehren(&mut kx.aenderungen, a);
         }
         kx.bilder = bilder;
+        if let (Some(e), Some(ich)) = (
+            EINGANG.with_borrow_mut(|x| x.emote.take()),
+            kx.zustand.ich.clone(),
+        ) {
+            kx.aenderungen.emotes.push((ich, e));
+        }
         if let Some(etage) = zur_etage {
             features::aufzug::fahren(&mut kx, &etage);
         }
@@ -83,8 +89,9 @@ pub async fn starten() {
                     && (o.z - crate::grundriss::AUFZUG_ANKUNFT.1).abs() < 1.5
                 {
                     // Aus dem Aufzug des Büros in die Burg: vor dem Thron ankommen.
-                    let (x, z, blick) = crate::grundriss::burg::ANKUNFT;
-                    kx.spieler.versetzen(x, 0.0, z, blick);
+                    if let Some(a) = kx.halle().map(|p| p.ankunft) {
+                        kx.spieler.versetzen(a.x, 0.0, a.z, a.blick);
+                    }
                 }
             }
             // Für Tests und Screenshots: `?welt_ort=x,y,z,blick` setzt einen nach jedem Aufbau dorthin.
@@ -166,6 +173,7 @@ fn zusammenfuehren(z: &mut crate::zustand::Aenderungen, a: crate::zustand::Aende
     z.emotes.extend(a.emotes);
     z.hupen.extend(a.hupen);
     z.golf.extend(a.golf);
+    z.barwuerfe.extend(a.barwuerfe);
     if a.sitz_belegt.is_some() {
         z.sitz_belegt = a.sitz_belegt;
     }

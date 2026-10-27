@@ -9,6 +9,7 @@ pub mod aufgaben;
 pub mod aufzug;
 pub mod bar;
 pub mod buecher;
+pub mod dekor;
 pub mod einstellungen;
 pub mod github;
 pub mod hilfe;
@@ -60,6 +61,7 @@ pub fn ansicht(f: Fenster) -> AnyView {
         Fenster::Arcade => view! { <arcade::Arcade /> }.into_any(),
         Fenster::Meeting => view! { <meeting::Meeting /> }.into_any(),
         Fenster::Station(t) => view! { <station::Station tisch=t /> }.into_any(),
+        Fenster::Bild(b) => view! { <dekor::Bild id=b /> }.into_any(),
         Fenster::Minen => view! { <minen::Minen /> }.into_any(),
         Fenster::Kerker => view! { <kerker::Kerker /> }.into_any(),
         Fenster::Team => view! { <team::Team /> }.into_any(),

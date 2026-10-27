@@ -99,7 +99,7 @@ pub fn router(a: &Agenten) -> axum::Router {
         .layer(axum::middleware::from_fn(absender_einsetzen))
 }
 
-/// `burg`: gilt gerade die Burg-Karte (dann sperrt der Kerker heimgeschickte Arbeiter ein)?
+/// Hat die gewählte Karte einen Kerker (dann sperrt er heimgeschickte Arbeiter ein)?
 struct AgentenAnbindung(Agenten, std::sync::atomic::AtomicBool);
 
 impl Anbindung for AgentenAnbindung {
@@ -132,11 +132,10 @@ impl Anbindung for AgentenAnbindung {
         })
     }
 
-    fn karte_geaendert(&self, wahl: &str, etagen: &[String]) {
-        let burg = wahl == welt::grundriss::burg::BURG_ID;
-        self.1.store(burg, std::sync::atomic::Ordering::Relaxed);
+    fn karte_geaendert(&self, kerker: bool, etagen: &[String]) {
+        self.1.store(kerker, std::sync::atomic::Ordering::Relaxed);
         for e in etagen {
-            self.0.kerker_aktiv_setzen(e, burg);
+            self.0.kerker_aktiv_setzen(e, kerker);
         }
     }
 
@@ -191,7 +190,7 @@ fn meldungen_an_webhook(o: &OfficeRef, a: &Agenten) {
 /// Ereignisse von `agenten` an die Browser verteilen.
 pub fn verbinden(o: &OfficeRef, a: Agenten) {
     let mut rx = a.ereignisse();
-    let burg = o.einstellungen.karte().wahl == welt::grundriss::burg::BURG_ID;
+    let burg = o.kerker();
     o.anbinden(Arc::new(AgentenAnbindung(
         a.clone(),
         std::sync::atomic::AtomicBool::new(burg),

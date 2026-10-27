@@ -4,6 +4,7 @@
 use std::f32::consts::{FRAC_PI_2, PI};
 
 use kiss3d::prelude::*;
+use protokoll::praesenz::Emote;
 
 use crate::bau::{farbe, toenen};
 use crate::farben;
@@ -19,6 +20,51 @@ pub enum Haltung {
     Tippen,
 }
 
+/// Was eine Figur in der rechten Hand halten kann.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Halt {
+    Zigarette,
+    Golfschlaeger,
+    /// Ein Getränk: Farbe des Inhalts, großes oder kleines Glas.
+    Getraenk(&'static str, bool),
+    Dart,
+    Axt,
+    /// Eine Issue-Karte vom Board.
+    Karte,
+}
+
+/// Was eine Person laut Protokoll gerade in der Hand hat.
+pub fn halt_von(p: &protokoll::praesenz::Person) -> Option<Halt> {
+    use protokoll::praesenz::{Barspiel, Getraenk as G};
+    if let Some(w) = p.wirft {
+        return Some(match w {
+            Barspiel::Darts => Halt::Dart,
+            Barspiel::Axt => Halt::Axt,
+        });
+    }
+    if p.golft {
+        return Some(Halt::Golfschlaeger);
+    }
+    if p.raucht {
+        return Some(Halt::Zigarette);
+    }
+    if let Some(g) = p.getraenk {
+        return Some(match g {
+            G::Bier => Halt::Getraenk("#f2b134", true),
+            G::Wein => Halt::Getraenk("#8e1c3c", false),
+            G::Martini => Halt::Getraenk("#e6f0c8", false),
+            G::MaiTai => Halt::Getraenk("#ff8c42", true),
+            G::Kurzer => Halt::Getraenk("#f7d488", false),
+            G::Mojito => Halt::Getraenk("#b7e4a0", true),
+            G::Wasser => Halt::Getraenk("#d6f1ff", true),
+        });
+    }
+    p.traegt.as_ref().map(|_| Halt::Karte)
+}
+
+/// So lange läuft ein Emote (Sekunden).
+pub const EMOTE_DAUER: f32 = 3.0;
+
 pub struct Figur {
     pub wurzel: SceneNode3d,
     koerper: SceneNode3d,
@@ -30,6 +76,12 @@ pub struct Figur {
     lampe: SceneNode3d,
     phase: f32,
     pub haltung: Haltung,
+    /// Ein laufendes Emote und wie lange schon (Sekunden).
+    emote: Option<(Emote, f32)>,
+    /// Was die rechte Hand hält, und sein Knoten.
+    hand: Option<(Halt, SceneNode3d)>,
+    /// Bart (in der Halle, wächst mit der Arbeit) und wie verbraucht (0..1).
+    bart: Option<(SceneNode3d, f32)>,
 }
 
 /// Aussehen einer Figur.
@@ -104,6 +156,9 @@ impl Figur {
             bein_r,
             lampe,
             phase: 0.0,
+            emote: None,
+            hand: None,
+            bart: None,
             haltung: Haltung::Stehen,
         }
     }
@@ -189,6 +244,163 @@ impl Figur {
         };
         self.kopf
             .set_rotation(Quat::from_axis_angle(Vec3::X, wippen));
+        if self.hand.is_some() && self.emote.is_none() && self.haltung != Haltung::Tippen {
+            self.arm_r
+                .set_rotation(Quat::from_axis_angle(Vec3::X, -0.9));
+        }
+        self.emote_spielen(dt);
+    }
+
+    /// Wie verbraucht die Figur aussieht (0 frisch … 1 ganz): Bart, Farbe, krummer Rücken.
+    /// `None` nimmt den Bart ab (im Büro).
+    pub fn altern(&mut self, v: Option<f32>) {
+        use crate::grundriss::verschleiss::{bartfarbe, bartlaenge, haltung};
+        let Some(v) = v else {
+            if let Some((mut b, _)) = self.bart.take() {
+                b.detach();
+            }
+            return;
+        };
+        if self
+            .bart
+            .as_ref()
+            .is_none_or(|(_, alt)| (alt - v).abs() > 0.01)
+        {
+            if let Some((mut b, _)) = self.bart.take() {
+                b.detach();
+            }
+            let mut g = self.kopf.add_group();
+            let l = bartlaenge(v);
+            let [r, gg, bb] = bartfarbe(v);
+            let mut bart = g.add_cone(0.16, l);
+            bart.set_rotation(Quat::from_axis_angle(Vec3::X, PI));
+            bart.set_position(Vec3::new(0.0, -0.12 - l / 2.0, 0.12));
+            bart.set_color(Color::new(r * r, gg * gg, bb * bb, 1.0));
+            self.bart = Some((g, v));
+        }
+        let (krumm, _) = haltung(v);
+        self.koerper
+            .set_rotation(Quat::from_axis_angle(Vec3::X, krumm));
+        self.kopf
+            .set_position(Vec3::new(0.0, 1.62 - krumm * 0.25, krumm * 0.45));
+    }
+
+    /// Etwas in die rechte Hand geben (oder nichts). Baut nur neu, wenn es sich ändert.
+    pub fn halten(&mut self, h: Option<Halt>) {
+        if self.hand.as_ref().map(|(alt, _)| *alt) == h {
+            return;
+        }
+        if let Some((_, mut k)) = self.hand.take() {
+            k.detach();
+        }
+        let Some(h) = h else { return };
+        let mut g = self.arm_r.add_group();
+        g.set_position(Vec3::new(0.0, -0.6, 0.06));
+        match h {
+            Halt::Zigarette => {
+                let mut z = g.add_cylinder(0.008, 0.08);
+                z.set_rotation(Quat::from_axis_angle(Vec3::X, FRAC_PI_2));
+                z.set_position(Vec3::new(0.0, 0.0, 0.05));
+                z.set_color(farbe("#f8f9fa"));
+                let mut glut = g.add_sphere(0.01);
+                glut.set_position(Vec3::new(0.0, 0.0, 0.09));
+                glut.set_color(farbe("#ff6b35"));
+                glut.set_emissive(farbe("#ff6b35"));
+            }
+            Halt::Golfschlaeger => {
+                let mut s = g.add_cylinder(0.012, 0.95);
+                s.set_position(Vec3::new(0.0, -0.45, 0.0));
+                s.set_color(farbe("#adb5bd"));
+                let mut kopf = g.add_cube(0.05, 0.04, 0.12);
+                kopf.set_position(Vec3::new(0.0, -0.93, 0.04));
+                kopf.set_color(farbe("#343a40"));
+            }
+            Halt::Getraenk(farbe_glas, gross) => {
+                let (r, hh) = if gross { (0.045, 0.16) } else { (0.03, 0.06) };
+                let mut glas = g.add_cylinder(r, hh);
+                glas.set_position(Vec3::new(0.0, 0.02, 0.05));
+                glas.set_color(Color::new(0.85, 0.95, 1.0, 0.5));
+                let mut inhalt = g.add_cylinder(r * 0.85, hh * 0.75);
+                inhalt.set_position(Vec3::new(0.0, 0.0, 0.05));
+                inhalt.set_color(farbe(farbe_glas));
+            }
+            Halt::Dart => {
+                let mut d = g.add_cylinder(0.006, 0.15);
+                d.set_rotation(Quat::from_axis_angle(Vec3::X, FRAC_PI_2));
+                d.set_position(Vec3::new(0.0, 0.0, 0.06));
+                d.set_color(farbe("#ef476f"));
+            }
+            Halt::Axt => {
+                let mut stiel = g.add_cube(0.035, 0.45, 0.035);
+                stiel.set_position(Vec3::new(0.0, 0.15, 0.04));
+                stiel.set_color(farbe("#8a5a3b"));
+                let mut klinge = g.add_cube(0.02, 0.12, 0.14);
+                klinge.set_position(Vec3::new(0.0, 0.34, 0.1));
+                klinge.set_color(farbe("#ced4da"));
+            }
+            Halt::Karte => {
+                let mut k = g.add_cube(0.16, 0.12, 0.01);
+                k.set_position(Vec3::new(0.0, 0.0, 0.08));
+                k.set_color(farbe("#ffd166"));
+            }
+        }
+        self.hand = Some((h, g));
+    }
+
+    /// Ein Emote beginnen (läuft `EMOTE_DAUER` Sekunden über die Haltung).
+    pub fn emote(&mut self, e: Emote) {
+        self.emote = Some((e, 0.0));
+    }
+
+    /// Arme, Kopf und Körper für das laufende Emote (nach der Haltung, überschreibt sie).
+    fn emote_spielen(&mut self, dt: f32) {
+        let Some((e, t)) = self.emote.as_mut() else {
+            return;
+        };
+        *t += dt;
+        let (e, t) = (*e, *t);
+        if t > EMOTE_DAUER {
+            self.emote = None;
+            return;
+        }
+        let arm = |n: &mut SceneNode3d, x: f32, z: f32| {
+            n.set_rotation(Quat::from_axis_angle(Vec3::Z, z) * Quat::from_axis_angle(Vec3::X, x));
+        };
+        // Hinein und wieder heraus blenden, damit es nicht ruckt.
+        let k = (t / 0.25).min(1.0).min((EMOTE_DAUER - t) / 0.25);
+        match e {
+            Emote::Winken => {
+                arm(&mut self.arm_r, -2.8 * k, (t * 9.0).sin() * 0.45 * k);
+            }
+            Emote::Daumen => {
+                arm(&mut self.arm_r, -1.5 * k, 0.0);
+            }
+            Emote::Zeigen => {
+                arm(&mut self.arm_r, -1.6 * k, 0.15 * k);
+            }
+            Emote::Klatschen => {
+                let auf = (t * 12.0).sin().abs() * 0.35;
+                arm(&mut self.arm_l, -1.3 * k, (-0.25 - auf) * k);
+                arm(&mut self.arm_r, -1.3 * k, (0.25 + auf) * k);
+            }
+            Emote::Tanzen => {
+                let s = (t * 7.0).sin();
+                arm(&mut self.arm_l, -2.6 * k * (0.5 + 0.5 * s), -0.3 * k);
+                arm(&mut self.arm_r, -2.6 * k * (0.5 - 0.5 * s), 0.3 * k);
+                self.koerper.set_position(Vec3::new(
+                    s * 0.06 * k,
+                    1.06 + (t * 14.0).sin().abs() * 0.08 * k,
+                    0.0,
+                ));
+                self.kopf
+                    .set_rotation(Quat::from_axis_angle(Vec3::Z, s * 0.2 * k));
+            }
+            Emote::Facepalm => {
+                arm(&mut self.arm_r, -2.3 * k, 0.55 * k);
+                self.kopf
+                    .set_rotation(Quat::from_axis_angle(Vec3::X, 0.35 * k));
+            }
+        }
     }
 
     /// Wie weit die Füße beim Sitzen absinken: die Figur ist so gebaut, dass die Hüfte bei 0.78 liegt.

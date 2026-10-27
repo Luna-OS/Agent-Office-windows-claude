@@ -91,7 +91,8 @@ pub fn installieren(reg: &mut Register<Kontext>) {
         }
         for (id, e) in &kx.aenderungen.emotes {
             if let Some(a) = st.andere.get_mut(id) {
-                a.emote = Some((*e, kx.zeit + 3.0));
+                a.emote = Some((*e, kx.zeit + crate::figur::EMOTE_DAUER as f64));
+                a.figur.emote(*e);
             }
         }
         let mut abstaende = Vec::with_capacity(st.andere.len());
@@ -122,6 +123,7 @@ pub fn installieren(reg: &mut Register<Kontext>) {
                     .map(|pl| Figur::sitz_versatz(pl.huefte))
                     .unwrap_or(0.0);
             a.figur.setzen(a.pos.x, y, a.pos.z, a.blick);
+            a.figur.halten(crate::figur::halt_von(p));
             a.figur.animieren(dt);
             let mut text = p.name.clone();
             if let Some((e, bis)) = a.emote {
@@ -158,6 +160,11 @@ pub fn installieren(reg: &mut Register<Kontext>) {
         let Some((f, _)) = st.ich.as_mut() else {
             return;
         };
+        for (id, e) in &kx.aenderungen.emotes {
+            if Some(id) == kx.zustand.ich.as_ref() {
+                f.emote(*e);
+            }
+        }
         f.sichtbar(kx.kamera.abstand > 0.0);
         let p = kx.spieler.pos();
         let sitzt = kx.ich_sitze;
@@ -168,6 +175,12 @@ pub fn installieren(reg: &mut Register<Kontext>) {
         };
         let y = p[1] + sitzt.map(Figur::sitz_versatz).unwrap_or(0.0);
         f.setzen(p[0], y, p[2], kx.spieler.blick);
+        f.halten(
+            kx.zustand
+                .ich_selbst
+                .as_ref()
+                .and_then(crate::figur::halt_von),
+        );
         f.animieren(dt);
     });
 }

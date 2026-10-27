@@ -81,6 +81,10 @@ pub enum WeltAktion {
     MinesweeperOeffnen,
     /// E an der Kerkertür (Burg-Karte): wer eingesperrt ist.
     KerkerOeffnen,
+    /// E an einem Bild an der Wand: ändern (Adresse, Titel, Größe, Rahmen) oder abnehmen.
+    BildOeffnen {
+        id: String,
+    },
     /// H: die Steuerung.
     HilfeOeffnen,
     /// Eine kurze Meldung für die Hinweisleiste oder als Toast.
@@ -215,6 +219,8 @@ pub(crate) struct Eingang {
     /// Ich-Ansicht (true) oder hinter dem Kopf (false), aus den Einstellungen der Oberfläche.
     pub perspektive: Option<bool>,
     pub zur_garage: bool,
+    /// Ein eigenes Emote (der Server schickt es nur an die anderen).
+    pub emote: Option<protokoll::praesenz::Emote>,
 }
 
 thread_local! {
@@ -291,6 +297,12 @@ pub fn bildschirm_leeren(ziel: Bildschirm) {
 /// geht es direkt hinunter, sonst fährt man mit dem Aufzug dorthin (`Gehen` mit Ort in der Garage).
 pub fn zur_garage() {
     EINGANG.with_borrow_mut(|e| e.zur_garage = true);
+}
+
+/// Das eigene Emote auch an der eigenen Figur zeigen (der Server schickt es nur an die anderen).
+/// Die Oberfläche ruft das zusätzlich zu `praesenz::Client::Emote`.
+pub fn eigenes_emote(e: protokoll::praesenz::Emote) {
+    EINGANG.with_borrow_mut(|x| x.emote = Some(e));
 }
 
 /// Ich-Ansicht (`true`) oder Kamera hinter dem Kopf (`false`). Das Mausrad wechselt auch.

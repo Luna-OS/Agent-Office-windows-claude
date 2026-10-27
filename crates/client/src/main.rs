@@ -37,6 +37,7 @@ fn main() {
             Befehl::ZurEtage(etage) => welt_anbindung::zur_etage(&etage),
             Befehl::Perspektive(ich) => welt_anbindung::perspektive(ich),
             Befehl::ZurGarage => welt_anbindung::zur_garage(),
+            Befehl::EigenesEmote(e) => welt_anbindung::eigenes_emote(e),
             andere => medien_anbindung::befehl(&andere),
         }),
     });

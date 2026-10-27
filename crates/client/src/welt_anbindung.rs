@@ -46,6 +46,10 @@ mod an {
         welt::zur_garage();
     }
 
+    pub fn eigenes_emote(e: protokoll::praesenz::Emote) {
+        welt::eigenes_emote(e);
+    }
+
     /// Was man in der Welt benutzt hat, als Fenster (oder direkt als Nachricht).
     fn aktion(a: A) {
         let f = match a {
@@ -110,6 +114,7 @@ mod an {
             A::StationOeffnen { tisch } => Fenster::Station(tisch),
             A::KerkerOeffnen => Fenster::Kerker,
             A::MinesweeperOeffnen => Fenster::Minen,
+            A::BildOeffnen { id } => Fenster::Bild(id),
             A::BuecherregalOeffnen => Fenster::Buecher,
             A::WhiteboardOeffnen => Fenster::Whiteboard,
             A::ArcadeOeffnen => Fenster::Arcade,
@@ -139,6 +144,7 @@ mod an {
     }
     pub fn perspektive(_ich: bool) {}
     pub fn zur_garage() {}
+    pub fn eigenes_emote(_e: protokoll::praesenz::Emote) {}
 }
 
 /// Startet die Welt (einmal, beim ersten Verbinden).
@@ -159,6 +165,11 @@ pub fn nachricht(n: &protokoll::ServerNachricht) {
 /// Ich-Perspektive oder Schulterblick.
 pub fn perspektive(ich: bool) {
     an::perspektive(ich);
+}
+
+/// Das eigene Emote an der eigenen Figur.
+pub fn eigenes_emote(e: protokoll::praesenz::Emote) {
+    an::eigenes_emote(e);
 }
 
 /// Mit dem Aufzug in die Garage.

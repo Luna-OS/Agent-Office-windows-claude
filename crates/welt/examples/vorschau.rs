@@ -16,7 +16,7 @@ async fn main() {
     let w = Werte::lesen();
     let person = |id: &str, name: &str, farbe: &str, x: f32, z: f32| {
         json!({"id": id, "name": name, "farbe": farbe, "aussehen": {"haut": 2, "haare": 3, "frisur": 2},
-               "x": x, "y": 0.0, "z": z, "rot_y": 3.1, "laeuft": false, "etage": "e1"})
+               "x": x, "y": 0.0, "z": z, "rot_y": 3.1, "laeuft": false, "etage": ETAGE, "getraenk": "bier"})
     };
     let etage = |id: &str, name: &str, pal: u32| {
         json!({"id": id, "name": name, "ordner": "/tmp", "palette": pal, "hinzugefuegt_von": "x", "hinzugefuegt_um": 0,
@@ -28,7 +28,11 @@ async fn main() {
         ));
     }
     welt::nachricht(&n(
-        json!({"domaene": "etagen", "nachricht": {"typ": "liste", "etagen": [etage("e1", "office", w.palette), etage("e2", "docs", 1)]}}),
+        json!({"domaene": "etagen", "nachricht": {"typ": "liste", "etagen": if w.oben {
+            vec![etage("e2", "docs", 1), etage("e1", "office", w.palette)]
+        } else {
+            vec![etage("e1", "office", w.palette), etage("e2", "docs", 1)]
+        }}}),
     ));
     let ziel = if w.dach {
         protokoll::etagen::DACH
@@ -41,9 +45,9 @@ async fn main() {
         "ort": {"x": w.x, "y": w.y, "z": w.z, "rot_y": w.blick}}}),
     ));
     let arbeiter = |id: &str, tisch: &str, name: &str, farbe: &str, status: &str| {
-        json!({"id": id, "etage": "e1", "art": "agent", "tisch": tisch, "name": name, "farbe": farbe, "status": status,
+        json!({"id": id, "etage": ETAGE, "art": "agent", "tisch": tisch, "name": name, "farbe": farbe, "status": status,
                "gesehen": false, "angelegt_von": "x", "angelegt_um": 0, "pr_oeffnet": false, "spalten": 80, "zeilen": 24,
-               "zuschauer": [], "wartet_seit": 1})
+               "zuschauer": [], "wartet_seit": 1, "gearbeitet_ms": 1500000})
     };
     welt::nachricht(&n(
         json!({"domaene": "arbeiter", "nachricht": {"typ": "liste", "arbeiter": [
@@ -67,8 +71,27 @@ async fn main() {
             ]}}}),
         ));
     }
+    if w.abgang {
+        // Nach zwei Sekunden geht Vega nach Hause (oben: am Fallschirm vom Balkon).
+        #[cfg(target_arch = "wasm32")]
+        {
+            use wasm_bindgen::JsCast;
+            let f = wasm_bindgen::closure::Closure::once_into_js(|| {
+                welt::nachricht(&n(
+                    json!({"domaene": "arbeiter", "nachricht": {"typ": "entfernt", "arbeiter": "a5"}}),
+                ));
+            });
+            if let Some(fenster) = web_sys::window() {
+                let _ = fenster
+                    .set_timeout_with_callback_and_timeout_and_arguments_0(f.unchecked_ref(), 2000);
+            }
+        }
+    }
     welt::starten().await;
 }
+
+/// Die Etage der Vorschau (mit `oben=1` steht sie im Gebäude über einer anderen).
+const ETAGE: &str = "e1";
 
 struct Werte {
     x: f32,
@@ -78,6 +101,8 @@ struct Werte {
     palette: u32,
     dach: bool,
     burg: bool,
+    abgang: bool,
+    oben: bool,
 }
 
 impl Werte {
@@ -98,6 +123,8 @@ impl Werte {
             palette: wert("palette").unwrap_or(0.0) as u32,
             dach: wert("dach").is_some(),
             burg: wert("burg").is_some(),
+            abgang: wert("abgang").is_some(),
+            oben: wert("oben").is_some(),
         }
     }
 }

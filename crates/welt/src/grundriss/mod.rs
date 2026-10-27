@@ -6,11 +6,13 @@
 
 pub mod burg;
 pub mod dach;
+pub mod halle;
 mod karte;
 
 pub use karte::Karte;
 pub mod draussen;
 pub mod sitze;
+pub mod verschleiss;
 
 use std::f32::consts::PI;
 

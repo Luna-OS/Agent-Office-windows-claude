@@ -44,6 +44,7 @@ pub enum Fenster {
     Station(String),
     Kerker,
     Minen,
+    Bild(String),
     Anlegen(String),
     Repos,
 }

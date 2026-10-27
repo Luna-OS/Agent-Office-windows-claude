@@ -1,95 +1,82 @@
-//! Die Burg-Karte (wie `shared/maps/castle.ts`): eine lange Steinhalle mit Holzdach, Tafeln an
-//! beiden Seiten, am Nordende auf einem Podest ein Thron aus Eisenklingen, davor die Schlange der
-//! Arbeiter, die fertig sind oder warten. Unter dem Südende der Kerker mit neun Zellen.
+//! Die Burg und andere Hallen-Karten (wie `shared/maps/castle.ts`): eine lange Steinhalle mit Tafeln,
+//! am Nordende auf einem Podest ein Thron, davor die Schlange der Arbeiter, die fertig sind oder
+//! warten. Unter dem Südende der Kerker mit neun Zellen. Wo was steht, sagt der `Hallenplan`
+//! (`halle.rs`); die Burg ist der eingebaute Plan, eigene Karten überschreiben ihn.
 //!
-//! Die Halle läuft von Norden (-z, Thron) nach Süden (+z, Tor). Die Arbeitsplätze haben dieselben
-//! IDs wie im Büro (desk-1 …, beanbag-1 …, station-…, meeting-…), damit Arbeiter beim Kartenwechsel
-//! ihren Platz behalten.
+//! Die Arbeitsplätze haben dieselben IDs wie im Büro (desk-1 …, beanbag-1 …, station-…, meeting-…),
+//! damit Arbeiter beim Kartenwechsel ihren Platz behalten.
 
-use std::f32::consts::{FRAC_PI_2, PI};
+use std::f32::consts::PI;
 
+use super::halle::Hallenplan;
 use super::sitze::besprechungs_tische;
 use super::{Board, Flaeche, Tafel, Tisch, TischArt};
 
-/// Die ID der Karte in den Einstellungen (`einstellungen::Karte::wahl`).
+/// Die ID der Burg in den Einstellungen (`einstellungen::Karte::wahl`).
 pub const BURG_ID: &str = "burg";
 
-pub const BREITE: f32 = 26.0;
-pub const LAENGE: f32 = 60.0;
-pub const HOEHE: f32 = 13.0;
-pub const HALLE: Flaeche = Flaeche::neu(-BREITE / 2.0, BREITE / 2.0, -LAENGE / 2.0, LAENGE / 2.0);
-/// Säulen an beiden Seiten, alle 6 m.
-pub const SAEULE_X: f32 = 10.4;
-pub const SAEULEN_Z: [f32; 9] = [-24.0, -18.0, -12.0, -6.0, 0.0, 6.0, 12.0, 18.0, 24.0];
-/// Wo man ankommt: vor dem Podest, mit Blick zum Thron.
-pub const ANKUNFT: (f32, f32, f32) = (-2.6, -21.0, PI);
-/// Der Thron auf dem Podest (Breite, Tiefe, Höhe).
-pub const THRON: (f32, f32) = (0.0, -27.4);
+/// Das Podest des Throns (Breite, Tiefe, Höhe).
 pub const PODEST: (f32, f32, f32) = (12.0, 5.0, 0.9);
 /// Der Schlüssel des Throns als Sitzplatz (`Person::sitz`).
 pub const THRON_SITZ: &str = "throne:0";
+pub const SCHLANGE_SCHRITT: f32 = 1.3;
+pub const SCHLANGE_PLAETZE: usize = 8;
+/// Radius des runden Ratstischs.
+pub const RAT_RADIUS: f32 = 1.15;
+pub const TAFEL_BREITE: f32 = 1.4;
+
+/// Die Fläche der Halle.
+pub fn halle(p: &Hallenplan) -> Flaeche {
+    Flaeche::neu(
+        -p.breite / 2.0,
+        p.breite / 2.0,
+        -p.laenge / 2.0,
+        p.laenge / 2.0,
+    )
+}
 
 /// Der Platz auf dem Thron: oben auf dem Podest, Blick zur Halle (+z).
-pub fn thron_platz() -> super::sitze::Platz {
-    super::sitze::Platz {
+pub fn thron_platz(p: &Hallenplan) -> Option<super::sitze::Platz> {
+    let t = p.thron?;
+    Some(super::sitze::Platz {
         schluessel: THRON_SITZ.into(),
-        x: THRON.0,
+        x: t.x,
         y: PODEST.2,
-        z: THRON.1 + 0.1,
+        z: t.z + 0.1,
         rot_y: 0.0,
         huefte: 0.55,
         raus: 1.2,
-    }
+    })
 }
 
-/// Die Hand des Königs, links vom Thron.
-pub const HAND: (f32, f32, f32) = (3.3, -26.3, -0.35);
-/// Die Schlange vor dem Thron: Anfang, Abstand, höchstens so viele.
-pub const SCHLANGE: (f32, f32) = (0.0, -25.6);
-pub const SCHLANGE_SCHRITT: f32 = 1.3;
-pub const SCHLANGE_PLAETZE: usize = 8;
-/// Der Ratstisch (Besprechung): Mitte und Radius.
-pub const RAT: (f32, f32, f32) = (7.2, -18.8, 1.15);
-/// Gong westlich vom Podest, Fass Bier an der Ostwand, Kamin an der Westwand.
-pub const GONG: (f32, f32) = (-7.6, -19.6);
-pub const FASS: (f32, f32) = (BREITE / 2.0 - 0.65, 15.0);
-pub const KAMIN: (f32, f32) = (-BREITE / 2.0 + 0.55, 15.0);
-
-/// Eine lange Tafel: Mitte, Länge, Plätze je Seite.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Tafelreihe {
-    pub x: f32,
-    pub z: f32,
-    pub laenge: f32,
-    pub plaetze: usize,
+/// Der Anfang der Schlange vor dem Thron.
+pub fn schlange(p: &Hallenplan) -> Option<(f32, f32)> {
+    p.thron.map(|t| (t.x, t.z + 1.8))
 }
-pub const TAFEL_BREITE: f32 = 1.4;
-pub const TAFELN: [Tafelreihe; 4] = [
-    Tafelreihe {
-        x: -6.8,
-        z: -8.0,
-        laenge: 10.0,
-        plaetze: 4,
-    },
-    Tafelreihe {
-        x: 6.8,
-        z: -8.0,
-        laenge: 10.0,
-        plaetze: 4,
-    },
-    Tafelreihe {
-        x: -6.8,
-        z: 6.0,
-        laenge: 10.0,
-        plaetze: 4,
-    },
-    Tafelreihe {
-        x: 6.8,
-        z: 6.0,
-        laenge: 10.0,
-        plaetze: 4,
-    },
-];
+
+/// Die Hand des Königs, links vom Thron (x, z, Blick).
+pub fn hand(p: &Hallenplan) -> Option<(f32, f32, f32)> {
+    p.thron.map(|t| (t.x + 3.3, t.z + 1.1, -0.35))
+}
+
+/// Gong westlich vom Podest.
+pub fn gong(p: &Hallenplan) -> (f32, f32) {
+    let (tx, tz) = p
+        .thron
+        .map(|t| (t.x, t.z))
+        .unwrap_or((0.0, -p.laenge / 2.0 + 2.6));
+    (tx - 7.6, tz + 7.8)
+}
+
+/// Fass Bier an der Ostwand.
+pub fn fass(p: &Hallenplan) -> (f32, f32) {
+    (p.breite / 2.0 - 0.65, p.laenge / 2.0 - 15.0)
+}
+
+/// Kamin an der Westwand.
+pub fn kamin(p: &Hallenplan) -> (f32, f32) {
+    (-p.breite / 2.0 + 0.55, p.laenge / 2.0 - 15.0)
+}
 
 /// Die IDs der Plätze, in der Reihenfolge, in der die Tafeln sie füllen (Schreibtische, dann Sitzsäcke).
 fn platz_ids() -> Vec<String> {
@@ -98,22 +85,22 @@ fn platz_ids() -> Vec<String> {
     v
 }
 
-/// Alle Arbeitsplätze der Burg: erst die Tafelseiten zur Hallenmitte, dann die äußeren.
-pub fn tische() -> Vec<Tisch> {
+/// Alle Arbeitsplätze der Halle: erst die Tafelseiten zur Hallenmitte, dann die äußeren.
+pub fn tische(p: &Hallenplan) -> Vec<Tisch> {
     let mut innen = Vec::new();
     let mut aussen = Vec::new();
-    for t in TAFELN {
+    for t in &p.tafeln {
         for seite in [1.0f32, -1.0] {
             // Die Tafeln laufen nord-süd; +x ist die Ostseite.
             let nach_innen = (seite > 0.0) == (t.x < 0.0);
             let rand = TAFEL_BREITE / 2.0 - 0.35;
-            for k in 0..t.plaetze {
-                let entlang =
-                    (k as f32 - (t.plaetze as f32 - 1.0) / 2.0) * (t.laenge / t.plaetze as f32);
+            let n = t.plaetze as usize;
+            for k in 0..n {
+                let entlang = (k as f32 - (n as f32 - 1.0) / 2.0) * (t.laenge / n as f32);
                 let platz = (
                     t.x + seite * rand,
                     t.z + entlang,
-                    if seite > 0.0 { FRAC_PI_2 } else { -FRAC_PI_2 },
+                    if seite > 0.0 { PI / 2.0 } else { -PI / 2.0 },
                 );
                 if nach_innen {
                     innen.push(platz)
@@ -136,33 +123,27 @@ pub fn tische() -> Vec<Tisch> {
             fluegel: 0,
         })
         .collect();
-    // Die Pulte der Board-Agenten an den Seitenwänden.
-    for (id, b, x, z, rot) in [
-        ("station-issues", Board::Issues, -11.3, -15.0, -FRAC_PI_2),
-        (
-            "station-queue",
-            Board::Warteschlange,
-            -11.3,
-            -3.0,
-            -FRAC_PI_2,
-        ),
-        ("station-pulls", Board::PullRequests, 11.3, -15.0, FRAC_PI_2),
+    // Die Pulte der Board-Agenten.
+    for (id, b, o) in [
+        ("station-issues", Board::Issues, p.pulte.issues),
+        ("station-queue", Board::Warteschlange, p.pulte.queue),
+        ("station-pulls", Board::PullRequests, p.pulte.pulls),
     ] {
         v.push(Tisch {
             id: id.into(),
-            x,
-            z,
-            rot_y: rot,
+            x: o.x,
+            z: o.z,
+            rot_y: o.blick,
             art: TischArt::Kiosk(b),
             fluegel: 0,
         });
     }
     // Die fünf Stühle am runden Ratstisch.
     for (i, m) in besprechungs_tische().into_iter().enumerate() {
-        let w = i as f32 * std::f32::consts::TAU / 5.0;
+        let w = p.rat.blick + i as f32 * std::f32::consts::TAU / 5.0;
         v.push(Tisch {
-            x: RAT.0 + w.sin() * 0.5,
-            z: RAT.1 + w.cos() * 0.5,
+            x: p.rat.x + w.sin() * 0.5,
+            z: p.rat.z + w.cos() * 0.5,
             rot_y: w,
             ..m
         });
@@ -170,26 +151,25 @@ pub fn tische() -> Vec<Tisch> {
     v
 }
 
-pub fn tisch_nach_id(id: &str) -> Option<Tisch> {
-    tische().into_iter().find(|t| t.id == id)
+pub fn tisch_nach_id(p: &Hallenplan, id: &str) -> Option<Tisch> {
+    tische(p).into_iter().find(|t| t.id == id)
 }
 
-/// Die Wandtafeln an den Seitenwänden.
-pub fn tafel(b: Board) -> Tafel {
-    let w = BREITE / 2.0 - 0.08;
-    let (x, z, rot) = match b {
-        Board::Issues => (-w, -15.0, FRAC_PI_2),
-        Board::Warteschlange => (-w, -3.0, FRAC_PI_2),
-        Board::PullRequests => (w, -15.0, -FRAC_PI_2),
-        Board::Dienste => (w, -3.0, -FRAC_PI_2),
+/// Die Wandtafeln.
+pub fn tafel(p: &Hallenplan, b: Board) -> Tafel {
+    let w = match b {
+        Board::Issues => p.wandtafeln.issues,
+        Board::Warteschlange => p.wandtafeln.queue,
+        Board::PullRequests => p.wandtafeln.pulls,
+        Board::Dienste => p.wandtafeln.dienste,
     };
     Tafel {
-        x,
-        y: 3.5,
-        z,
-        rot_y: rot,
-        breite: 4.4,
-        hoehe: 2.6,
+        x: w.x,
+        y: w.y,
+        z: w.z,
+        rot_y: w.blick,
+        breite: w.breite,
+        hoehe: w.hoehe,
     }
 }
 
@@ -278,7 +258,8 @@ mod tests {
 
     #[test]
     fn alle_plaetze_des_bueros_gibt_es_auch_in_der_burg() {
-        let burg = tische();
+        let p = Hallenplan::burg();
+        let burg = tische(&p);
         for id in [
             "desk-1",
             "desk-20",
@@ -293,17 +274,17 @@ mod tests {
                 .iter()
                 .find(|t| t.id == id)
                 .unwrap_or_else(|| panic!("{id} fehlt"));
-            assert!(HALLE.enthaelt(t.x, t.z), "{id} liegt außerhalb der Halle");
+            assert!(
+                halle(&p).enthaelt(t.x, t.z),
+                "{id} liegt außerhalb der Halle"
+            );
         }
         let ids: std::collections::HashSet<_> = burg.iter().map(|t| t.id.clone()).collect();
         assert_eq!(ids.len(), burg.len());
-    }
-
-    #[test]
-    fn innen_zuerst() {
-        // desk-1 sitzt an der Seite zur Hallenmitte.
-        let t = tisch_nach_id("desk-1").unwrap();
-        assert!(t.x.abs() < 6.8);
+        assert!(
+            tisch_nach_id(&p, "desk-1").unwrap().x.abs() < 6.8,
+            "innen zuerst"
+        );
     }
 
     #[test]
@@ -321,12 +302,32 @@ mod tests {
     #[test]
     fn sitze_je_karte() {
         use crate::grundriss::Karte;
-        assert!(Karte::Burg.sitz(THRON_SITZ, false).is_some());
-        assert!(Karte::Burg.sitz("couch:0", false).is_none());
+        let burg = Karte::aus_wahl(BURG_ID);
+        assert!(burg.sitz(THRON_SITZ, false).is_some());
+        assert!(burg.sitz("couch:0", false).is_none());
         assert!(Karte::Buero.sitz("couch:0", false).is_some());
         assert!(Karte::Buero.sitz("roof-stool-1:0", false).is_none());
-        assert!(Karte::Burg.sitz("roof-stool-1:0", true).is_some());
+        assert!(burg.sitz("roof-stool-1:0", true).is_some());
         assert!(Karte::Buero.sitz(THRON_SITZ, false).is_none());
+    }
+
+    #[test]
+    fn eigene_karte_aus_den_einstellungen() {
+        use crate::grundriss::Karte;
+        let k: protokoll::einstellungen::Karte = serde_json::from_value(serde_json::json!({
+            "wahl": "meine",
+            "eigene": [{"id": "meine", "name": "Meine", "daten": {"name": "Meine", "kerker": false, "thron": null}}]
+        }))
+        .unwrap();
+        let karte = Karte::aus_einstellungen(&k);
+        let p = karte.halle().expect("eine Halle");
+        assert_eq!(p.name, "Meine");
+        assert!(!karte.kerker());
+        assert!(
+            karte.sitz(THRON_SITZ, false).is_none(),
+            "ohne Thron kein Thronsitz"
+        );
+        assert!(karte.tisch("desk-1").is_some());
     }
 
     #[test]

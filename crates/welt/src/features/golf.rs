@@ -58,7 +58,7 @@ impl Aktivitaet<Kontext> for Golfen {
             *a += dt;
         }
         let (x, z) = GOLF_ABSCHLAG;
-        kx.spieler.versetzen(x + 0.5, 0.0, z, kx.spieler.blick);
+        kx.spieler.koerper.pos = [x + 0.5, 0.0, z];
         true
     }
     fn hinweis(&self, _kx: &Kontext) -> Option<String> {

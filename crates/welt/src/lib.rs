@@ -11,6 +11,7 @@
 //! wasm_bindgen_futures::spawn_local(welt::starten());
 //! ```
 
+pub mod barspiele;
 pub mod bewegung;
 pub mod farben;
 pub mod grundriss;
@@ -24,6 +25,8 @@ pub mod zustand;
 pub mod api;
 #[cfg(feature = "3d")]
 mod bau;
+#[cfg(feature = "3d")]
+mod bilder;
 #[cfg(feature = "3d")]
 pub mod eingabe;
 #[cfg(feature = "3d")]
@@ -45,7 +48,8 @@ pub mod welt;
 pub use api::{
     Bildschirm, CANVAS_ID, Hoerer, Klang, LeinwandBlick, Umgebung, WeltAktion, bei_abstaende,
     bei_aktion, bei_hinweis, bei_hoerer, bei_klang, bei_leinwand, bei_senden, bildschirm_leeren,
-    bildschirm_setzen, eingabe_sperren, nachricht, perspektive_setzen, zur_etage, zur_garage,
+    bildschirm_setzen, eigenes_emote, eingabe_sperren, nachricht, perspektive_setzen, zur_etage,
+    zur_garage,
 };
 #[cfg(feature = "3d")]
 pub use eingabe::{zeiger_fangen, zeiger_freigeben};

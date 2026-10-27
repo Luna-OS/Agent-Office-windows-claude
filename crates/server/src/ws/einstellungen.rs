@@ -166,11 +166,21 @@ impl Domaene for EinstellungenDomaene {
                 o.an_alle(&s(Server::Thema { stand: e.thema() }), None);
             }
             Client::KarteSetzen { karte } => {
+                // Eigene Karten frisch lesen: eine eben abgelegte Datei soll gleich wählbar sein.
+                e.karten_neu_lesen(&o.konfig.daten);
                 if let Some(k) = karte {
                     let k: String = k.chars().take(64).collect();
-                    let bekannt = k == "office"
-                        || k == welt::grundriss::burg::BURG_ID
-                        || e.karte().eigene.iter().any(|x| x.id == k);
+                    let eigene = e.karte().eigene.into_iter().find(|x| x.id == k);
+                    if let Some(f) = eigene.as_ref().and_then(|x| x.fehler.clone()) {
+                        o.hinweis(
+                            von,
+                            format!("Die Karte {k} lässt sich nicht laden: {f}"),
+                            Stufe::Warnung,
+                        );
+                        return fertig();
+                    }
+                    let bekannt =
+                        k == "office" || k == welt::grundriss::burg::BURG_ID || eigene.is_some();
                     if !bekannt {
                         o.hinweis(von, "Diese Karte gibt es nicht", Stufe::Warnung);
                         return fertig();
@@ -181,7 +191,6 @@ impl Domaene for EinstellungenDomaene {
                         d.karte.um = Some(jetzt_ms());
                     });
                 }
-                e.karten_neu_lesen(&o.konfig.daten);
                 o.karte_geaendert();
                 o.an_alle(&s(Server::Karte { stand: e.karte() }), None);
             }

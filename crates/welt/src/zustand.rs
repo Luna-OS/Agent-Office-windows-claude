@@ -25,6 +25,8 @@ pub struct Aenderungen {
     pub hupen: Vec<u32>,
     /// Golf-Abschläge: wer, Gier, Neigung, Kraft.
     pub golf: Vec<(String, f32, f32, f32)>,
+    /// Würfe der anderen an der Dachbar: wer, Spiel, u, v, steckt, n-ter Wurf.
+    pub barwuerfe: Vec<(String, protokoll::praesenz::Barspiel, f32, f32, bool, u32)>,
     /// Der Platz, auf den man sich setzen wollte, ist besetzt (von wem).
     pub sitz_belegt: Option<String>,
 }
@@ -108,13 +110,13 @@ impl Zustand {
             ServerNachricht::Spielzeug(s) => self.spielzeug(s, &mut a),
             ServerNachricht::Einstellungen(e) => {
                 use protokoll::einstellungen::Server as E;
-                let wahl = match e {
-                    E::Stand { stand } => Some(stand.karte.wahl.clone()),
-                    E::Karte { stand } => Some(stand.wahl.clone()),
+                let karte = match e {
+                    E::Stand { stand } => Some(&stand.karte),
+                    E::Karte { stand } => Some(stand),
                     _ => None,
                 };
-                if let Some(w) = wahl {
-                    let k = crate::grundriss::Karte::aus_wahl(&w);
+                if let Some(karte) = karte {
+                    let k = crate::grundriss::Karte::aus_einstellungen(karte);
                     if k != self.karte {
                         self.karte = k;
                         a.etage = true;
@@ -268,6 +270,14 @@ impl Zustand {
             S::ArcadeBild { bild } => st.arcade.bild = Some(bild.clone()),
             S::WbLeute { leute } => st.whiteboard_leute = leute.clone(),
             S::Hupe { auto } => a.hupen.push(*auto),
+            S::Barwurf {
+                id,
+                spiel,
+                u,
+                v,
+                steckt,
+                n,
+            } => a.barwuerfe.push((id.clone(), *spiel, *u, *v, *steckt, *n)),
             S::Golf {
                 id,
                 gier,
@@ -355,7 +365,7 @@ mod tests {
         ))
         .unwrap();
         assert!(z.anwenden(&n).etage);
-        assert_eq!(z.karte, crate::grundriss::Karte::Burg);
+        assert_eq!(z.karte, crate::grundriss::Karte::aus_wahl("burg"));
         assert!(!z.anwenden(&n).etage, "gleiche Karte: nichts neu");
     }
 

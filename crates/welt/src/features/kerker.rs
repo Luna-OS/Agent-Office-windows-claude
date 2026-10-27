@@ -21,7 +21,7 @@ use crate::welt::Kontext;
 
 /// Der erste freie Platz an den Tafeln (in der Reihenfolge, in der sie sich füllen).
 fn erster_freier_platz(kx: &Kontext) -> Option<String> {
-    burg::tische()
+    burg::tische(kx.halle()?)
         .into_iter()
         .filter(|t| t.id.starts_with("desk-") || t.id.starts_with("beanbag-"))
         .find(|t| kx.zustand.arbeiter_am_tisch(&t.id).is_none())
@@ -111,6 +111,7 @@ pub fn installieren(reg: &mut Register<Kontext>) {
         });
         let jetzt = crate::grafik::jetzt_ms();
         let y = -KERKER_TIEFE;
+        let dz = kx.halle().map(|p| p.kerker_versatz()).unwrap_or(0.0);
         for (i, g) in gefangene.iter().enumerate() {
             let stunden = jetzt.saturating_sub(g.um) as f32 / 3_600_000.0;
             let zustand = verfall(stunden);
@@ -137,6 +138,7 @@ pub fn installieren(reg: &mut Register<Kontext>) {
             }
             let (x, zz) = gefangenen_platz(i);
             let blick = if zz < burg::GANG_Z { 0.0 } else { PI };
+            let zz = zz + dz;
             match zustand {
                 Verfall::Lebt(a) => {
                     z.figur.haltung = Haltung::Sitzen(0.3);
@@ -170,7 +172,7 @@ pub fn installieren(reg: &mut Register<Kontext>) {
             }
         }
         if kx.zustand.kerker.knochen > 0 {
-            let (kx_, kz) = burg::KNOCHEN;
+            let (kx_, kz) = (burg::KNOCHEN.0, burg::KNOCHEN.1 + dz);
             kx.beschriften(
                 format!("{} Knochen", kx.zustand.kerker.knochen),
                 [kx_, y + 1.0, kz],

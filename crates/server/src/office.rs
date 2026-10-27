@@ -93,8 +93,9 @@ pub trait Anbindung: Send + Sync {
     }
     /// Der Ausbau des Hinterbüros einer Etage hat sich geändert (beim Anmelden auch einmal).
     fn fluegel_geaendert(&self, _id: &str, _fluegel: u32) {}
-    /// Die Karte des Gebäudes ist jetzt `wahl` (beim Start einmal); `etagen` sind alle Etagen.
-    fn karte_geaendert(&self, _wahl: &str, _etagen: &[String]) {}
+    /// Die Karte des Gebäudes hat sich geändert; `kerker`: sperrt sie heimgeschickte Arbeiter ein?
+    /// `etagen` sind alle Etagen.
+    fn karte_geaendert(&self, _kerker: bool, _etagen: &[String]) {}
     /// Arbeiter-Zahlen für die Aufzugtafel.
     fn zahlen(&self, _etage: &str) -> Option<Zahlen> {
         None
@@ -297,8 +298,13 @@ impl Office {
         }
     }
 
+    /// Hat die gewählte Karte einen Kerker (Burg, eigene Hallen mit `"kerker": true`)?
+    pub fn kerker(&self) -> bool {
+        welt::grundriss::Karte::aus_einstellungen(&self.einstellungen.karte()).kerker()
+    }
+
     pub fn karte_geaendert(&self) {
-        let wahl = self.einstellungen.karte().wahl;
+        let kerker = self.kerker();
         let etagen: Vec<String> = self
             .etagen
             .liste
@@ -308,7 +314,7 @@ impl Office {
             .map(|e| e.id.clone())
             .collect();
         for a in self.anbindungen() {
-            a.karte_geaendert(&wahl, &etagen);
+            a.karte_geaendert(kerker, &etagen);
         }
     }
 

@@ -199,7 +199,7 @@ fn lounge(b: &mut Bau) {
         let mut a = b.gruppe(ax, 0.0, az, -FRAC_PI_2);
         a.fester_block(0.0, 0.0, 0.0, 0.8, 1.9, 0.8, farbe("#3a0ca3"));
         a.block(0.0, 0.95, 0.5, 0.7, 0.08, 0.3, farbe("#f72585"));
-        let mut schirm = a.flaeche(0.0, 1.35, 0.41, 0.6, 0.48, 0.0, farbe("#000000"));
+        let mut schirm = a.flaeche(0.0, 1.38, 0.41, 0.34, 0.62, 0.0, farbe("#000000"));
         schirm.set_emissive(farbe("#06d6a0"));
         schirm
     };

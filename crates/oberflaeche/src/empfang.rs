@@ -23,6 +23,7 @@ pub fn empfangen(n: &ServerNachricht) {
         ServerNachricht::Spielzeug(m) => {
             crate::fenster::whiteboard::empfangen(m);
             crate::fenster::arcade::empfangen(m);
+            crate::fenster::dekor::empfangen(m);
         }
         ServerNachricht::Dach(m) => dach(m),
         ServerNachricht::Fehler { text } => melden(text.clone(), praesenz::Stufe::Fehler),

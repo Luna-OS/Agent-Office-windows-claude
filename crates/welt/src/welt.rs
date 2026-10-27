@@ -143,7 +143,15 @@ impl Kontext {
 
     /// Ob man gerade in der Burg ist (auf dem Dach bleibt es immer das Dach).
     pub fn in_der_burg(&self) -> bool {
-        self.zustand.karte == grundriss::Karte::Burg && !self.zustand.auf_dem_dach()
+        self.halle().is_some()
+    }
+
+    /// Der Plan der Halle, wenn die Karte eine Halle ist (und man nicht auf dem Dach steht).
+    pub fn halle(&self) -> Option<&grundriss::halle::Hallenplan> {
+        if self.zustand.auf_dem_dach() {
+            return None;
+        }
+        self.zustand.karte.halle()
     }
 
     /// Ein Arbeitsplatz auf der aktuellen Karte.
@@ -166,10 +174,10 @@ impl Kontext {
             .fluegel
             .min(grundriss::FLUEGEL_REIHEN);
         {
-            let burg = self.in_der_burg();
+            let halle = self.halle().cloned();
             let mut b = Bau::neu(self.etage.clone(), &mut self.gebaut);
-            if burg {
-                bau::burg::bauen(&mut b);
+            if let Some(plan) = &halle {
+                bau::burg::bauen(&mut b, plan);
                 b.block(
                     0.0,
                     -crate::grundriss::burg::KERKER_TIEFE - 1.0,

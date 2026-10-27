@@ -28,67 +28,6 @@ struct Sitzend {
     sack: Option<SceneNode3d>,
 }
 
-/// Ein Arbeiter, der nach Hause geht: mit einem Karton unter dem Arm vom Tisch zum Aufzug.
-struct Abgang {
-    figur: Figur,
-    karton: SceneNode3d,
-    von: Vec3,
-    nach: Vec3,
-    t: f32,
-}
-
-const ABGANG_TEMPO: f32 = 1.6;
-
-impl Abgang {
-    fn neu(kx: &mut Kontext, figur: Figur, tisch: &str) -> Self {
-        let von = kx.tisch(tisch).map(|t| {
-            let (x, z) = tisch_sitz(&t, 1.3);
-            Vec3::new(x, 0.0, z)
-        });
-        let von = von.unwrap_or_else(|| figur.wurzel.position());
-        // In der Burg geht es nicht zum Aufzug, sondern die Treppe hinunter in den Kerker.
-        let (ax, az) = if kx.in_der_burg() {
-            (
-                crate::grundriss::burg::TREPPE_X,
-                crate::grundriss::burg::KERKER.min_z + 0.5,
-            )
-        } else {
-            crate::grundriss::AUFZUG_ANKUNFT
-        };
-        let mut karton = kx.etage.add_cube(0.5, 0.35, 0.4);
-        karton.set_color(farbe("#c98b5a"));
-        Self {
-            figur,
-            karton,
-            von,
-            nach: Vec3::new(ax, 0.0, az),
-            t: 0.0,
-        }
-    }
-
-    /// Ein Schritt; `false`, wenn er im Aufzug verschwunden ist.
-    fn schritt(&mut self, dt: f32) -> bool {
-        let weg = self.nach - self.von;
-        let dauer = weg.length() / ABGANG_TEMPO;
-        self.t += dt;
-        if self.t >= dauer {
-            self.figur.entfernen();
-            self.karton.detach();
-            return false;
-        }
-        let p = self.von + weg * (self.t / dauer.max(0.01));
-        let blick = weg.x.atan2(weg.z);
-        self.figur.haltung = Haltung::Laufen;
-        self.figur.setzen(p.x, 0.0, p.z, blick);
-        self.figur.animieren(dt);
-        self.karton
-            .set_position(p + Vec3::new(blick.sin() * 0.35, 1.0, blick.cos() * 0.35));
-        self.karton
-            .set_rotation(Quat::from_axis_angle(Vec3::Y, blick));
-        true
-    }
-}
-
 pub fn statusfarbe(s: ArbeiterStatus) -> &'static str {
     match s {
         ArbeiterStatus::Arbeitet => status::ARBEITET,
@@ -111,13 +50,20 @@ pub fn statustext(s: ArbeiterStatus) -> &'static str {
     }
 }
 
-fn look(a: &ArbeiterInfo) -> Look {
+/// Bauernkittel in der Halle (die Farbe des Arbeiters bleibt am Namen).
+const KITTEL: &str = "#a68a64";
+
+fn look(a: &ArbeiterInfo, halle: bool) -> Look {
     // Arbeiter haben kein Aussehen im Protokoll: aus der ID gewürfelt, aber immer gleich.
     let h =
         a.id.bytes()
             .fold(7u32, |h, b| h.wrapping_mul(31).wrapping_add(b as u32));
     Look {
-        hemd: a.farbe.clone(),
+        hemd: if halle {
+            KITTEL.to_string()
+        } else {
+            a.farbe.clone()
+        },
         haut: (h % 8) as u8,
         haare: (h / 8 % 10) as u8,
         frisur: (h / 80 % 7) as u8,
@@ -127,7 +73,7 @@ fn look(a: &ArbeiterInfo) -> Look {
 /// In der Burg: wer vor dem Thron ansteht (fertig oder wartend, noch nicht angesehen), wer am
 /// längsten wartet zuerst, höchstens `SCHLANGE_PLAETZE`.
 pub fn schlange(kx: &Kontext) -> Vec<String> {
-    if !kx.in_der_burg() {
+    if kx.halle().is_none_or(|p| p.thron.is_none()) {
         return Vec::new();
     }
     let mut v: Vec<&ArbeiterInfo> = kx
@@ -157,9 +103,11 @@ pub fn installieren(reg: &mut Register<Kontext>) {
     let figuren: Rc<RefCell<BTreeMap<String, Sitzend>>> = Rc::default();
 
     let f = figuren.clone();
-    let mut abgaenge: Vec<Abgang> = Vec::new();
+    let mut abgaenge: Vec<crate::features::abgang::Abgang> = Vec::new();
     reg.tick(Phase::Welt, move |kx: &mut Kontext, dt| {
         let mut figuren = f.borrow_mut();
+        let halle = kx.in_der_burg();
+        let jetzt = crate::grafik::jetzt_ms();
         if kx.neu_gebaut {
             abgaenge.clear();
         }
@@ -175,7 +123,7 @@ pub fn installieren(reg: &mut Register<Kontext>) {
                 !kx.zustand
                     .arbeiter
                     .get(*id)
-                    .is_some_and(|a| a.tisch == s.tisch && look(a) == s.look)
+                    .is_some_and(|a| a.tisch == s.tisch && look(a, halle) == s.look)
             })
             .map(|(id, _)| id.clone())
             .collect();
@@ -190,11 +138,16 @@ pub fn installieren(reg: &mut Register<Kontext>) {
                 // Umgezogen oder neu eingekleidet: gleich neu bauen.
                 s.figur.entfernen();
             } else {
-                // Nach Hause geschickt: packt einen Karton und geht zum Aufzug.
-                abgaenge.push(Abgang::neu(kx, s.figur, &s.tisch));
+                // Nach Hause geschickt: packt einen Karton und geht (Aufzug, Kerker oder Fallschirm).
+                abgaenge.push(crate::features::abgang::Abgang::neu(kx, s.figur, &s.tisch));
             }
         }
         abgaenge.retain_mut(|a| a.schritt(dt));
+        for a in &abgaenge {
+            for (text, ort) in a.sprechblasen() {
+                kx.beschriften(text, ort, Color::new(1.0, 0.95, 0.85, 1.0));
+            }
+        }
         let arbeiter: Vec<ArbeiterInfo> = kx.zustand.arbeiter.values().cloned().collect();
         let schlange = schlange(kx);
         for a in &arbeiter {
@@ -202,7 +155,7 @@ pub fn installieren(reg: &mut Register<Kontext>) {
                 continue;
             };
             let s = figuren.entry(a.id.clone()).or_insert_with(|| {
-                let l = look(a);
+                let l = look(a, halle);
                 let figur = Figur::neu(&mut kx.etage, &l);
                 let sack = (t.art == TischArt::Sitzsack).then(|| {
                     let mut gebaut = crate::bau::Gebaut::default();
@@ -251,7 +204,10 @@ pub fn installieren(reg: &mut Register<Kontext>) {
             match schlange.iter().position(|id| id == &a.id) {
                 // In der Burg: vor dem Thron anstehen.
                 Some(i) => {
-                    let (sx, sz) = crate::grundriss::burg::SCHLANGE;
+                    let (sx, sz) = kx
+                        .halle()
+                        .and_then(crate::grundriss::burg::schlange)
+                        .unwrap_or((0.0, 0.0));
                     s.figur.haltung = Haltung::Stehen;
                     s.figur.setzen(
                         sx,
@@ -263,6 +219,9 @@ pub fn installieren(reg: &mut Register<Kontext>) {
                 None => s.figur.setzen(x, y, z, t.rot_y + PI),
             }
             s.figur.animieren(dt);
+            let verbraucht =
+                crate::grundriss::verschleiss::verbraucht(a.gearbeitet_ms, a.arbeitet_seit, jetzt);
+            s.figur.altern(halle.then_some(verbraucht));
             // Wartet: das Lämpchen blinkt.
             let blink = a.status != ArbeiterStatus::Wartet || (kx.zeit * 3.0).fract() < 0.6;
             s.figur.lampe(blink.then(|| statusfarbe(a.status)));

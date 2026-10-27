@@ -13,6 +13,7 @@ const QUELLEN: &[&str] = &[
     include_str!("aufzug.rs"),
     include_str!("bar.rs"),
     include_str!("buecher.rs"),
+    include_str!("dekor.rs"),
     include_str!("einstellungen.rs"),
     include_str!("github.rs"),
     include_str!("hilfe.rs"),

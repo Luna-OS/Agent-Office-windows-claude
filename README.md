@@ -259,6 +259,7 @@ Damit parallele Builds sich nicht blockieren, baut jeder mit eigenem Zielordner 
 - [Agenten](docs/agents.md): Anbieter, Modelle, Agent-zu-Agent-Kommunikation und die Prompts des Office
 - [Konfiguration](docs/configuration.md): jede Kommandozeilenoption, Umgebungsvariablen und wo die Daten liegen
 - [Steuerung](docs/controls.md): alle Tasten
+- [Karten](docs/karten.md): das Büro, die Burg und eigene Karten aus JSON
 - [AWS](docs/aws.md) · [Azure](docs/azure.md) · [Railway](docs/railway.md) · [Fly.io](docs/fly.md) · [Dokploy](docs/dokploy.md) · [Eigener Server](docs/self-hosting.md)
 - [Funktionsweise](docs/how-it-works.md): die Architektur und Sicherheitshinweise
 - [Code-Aufbau](docs/code-layout.md): Crates, Register, ein Feature oder einen Anbieter hinzufügen, der Größen-Wächter

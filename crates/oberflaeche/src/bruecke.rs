@@ -37,6 +37,8 @@ pub enum Befehl {
     ZurEtage(String),
     /// Mit dem Aufzug in die Garage (unter der untersten Etage).
     ZurGarage,
+    /// Das eigene Emote auch an der eigenen Figur zeigen (der Server schickt es nur an die anderen).
+    EigenesEmote(protokoll::praesenz::Emote),
     /// Ich-Perspektive (`true`) oder Schulterblick.
     Perspektive(bool),
 }

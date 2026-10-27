@@ -100,7 +100,7 @@ pub fn installieren(reg: &mut Register<Kontext>) {
                     };
                     knoten.set_texture(tex);
                     knoten.set_color(Color::new(1.0, 1.0, 1.0, 1.0));
-                    knoten.set_emissive(Color::new(0.9, 0.9, 0.9, 1.0));
+                    knoten.set_emissive(Color::new(0.0, 0.0, 0.0, 1.0));
                 }
                 None => {
                     texturen.remove(&ziel);
@@ -116,7 +116,7 @@ pub fn installieren(reg: &mut Register<Kontext>) {
 }
 
 /// Neue Pixel in eine vorhandene Textur gleicher Größe.
-fn schreiben(t: &Texture, b: u32, h: u32, rgba: &[u8]) {
+pub fn schreiben(t: &Texture, b: u32, h: u32, rgba: &[u8]) {
     let ctx = Context::get();
     ctx.queue.write_texture(
         wgpu::TexelCopyTextureInfo {

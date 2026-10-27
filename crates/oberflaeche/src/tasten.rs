@@ -47,6 +47,7 @@ pub fn emote(i: usize) {
         crate::bruecke::senden(ClientNachricht::Praesenz(praesenz::Client::Emote {
             emote: *e,
         }));
+        befehl(Befehl::EigenesEmote(*e));
     }
     let z = zustand();
     if z.emotes_offen.get_untracked() {

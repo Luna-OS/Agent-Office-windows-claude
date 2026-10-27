@@ -45,8 +45,8 @@ impl Domaene for Praesenz {
 }
 
 /// Gibt es den Sitzplatz ("couch:1", "throne:0") auf dieser Karte, auf dem Dach bzw. einer Etage?
-fn sitz_gibt_es(karte: &str, schluessel: &str, auf_dach: bool) -> bool {
-    welt::grundriss::Karte::aus_wahl(karte)
+fn sitz_gibt_es(karte: &protokoll::einstellungen::Karte, schluessel: &str, auf_dach: bool) -> bool {
+    welt::grundriss::Karte::aus_einstellungen(karte)
         .sitz(schluessel, auf_dach)
         .is_some()
 }
@@ -118,7 +118,7 @@ fn bearbeiten(o: &OfficeRef, von: &str, c: Client) {
         Client::Sitzen { sitz } => {
             let auf_dach = o.etage_von(von).as_deref() == Some(DACH);
             // Nur Plätze, die es dort gibt, wo man ist.
-            let karte = o.einstellungen.karte().wahl;
+            let karte = o.einstellungen.karte();
             let sitz = sitz
                 .map(|s| eingabe::text(&s, 40))
                 .filter(|s| sitz_gibt_es(&karte, s, auf_dach));

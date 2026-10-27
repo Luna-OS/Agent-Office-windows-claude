@@ -119,7 +119,11 @@ impl Einstellungen {
                     match std::fs::read(&p).map_err(|e| e.to_string()).and_then(|b| {
                         serde_json::from_slice::<serde_json::Value>(&b).map_err(|e| e.to_string())
                     }) {
-                        Ok(v) => (Some(v), None),
+                        // Ob die Karte taugt, sagt `welt` (deutscher Grund, sonst nichts).
+                        Ok(v) => {
+                            let f = welt::grundriss::Karte::pruefen(&v).err();
+                            (Some(v), f)
+                        }
                         Err(e) => (None, Some(format!("Lässt sich nicht lesen: {e}"))),
                     };
                 let name = daten
@@ -192,6 +196,23 @@ impl Einstellungen {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn kaputte_karte_hat_fehler() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join("karten")).unwrap();
+        std::fs::write(dir.path().join("karten/kaputt.json"), "{nicht json").unwrap();
+        std::fs::write(dir.path().join("karten/leer.json"), r#"{"breite": 1}"#).unwrap();
+        let e = Einstellungen::laden(&Konfig::fuer_test(dir.path().into()));
+        e.karten_neu_lesen(dir.path());
+        let k = e.karte();
+        assert_eq!(k.eigene.len(), 2);
+        assert!(
+            k.eigene.iter().all(|x| x.fehler.is_some()),
+            "{:?}",
+            k.eigene
+        );
+    }
 
     #[test]
     fn webhook_wird_versteckt() {
