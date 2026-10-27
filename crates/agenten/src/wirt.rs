@@ -8,7 +8,7 @@
 
 use std::collections::HashMap;
 use std::path::Path;
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -35,13 +35,32 @@ pub struct WirtInfo {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "typ", rename_all = "snake_case")]
 pub enum AnWirt {
-    Hallo { token: String, version: u32 },
-    Starten { id: String, befehl: Befehl, spalten: u16, zeilen: u16 },
+    Hallo {
+        token: String,
+        version: u32,
+    },
+    Starten {
+        id: String,
+        befehl: Befehl,
+        spalten: u16,
+        zeilen: u16,
+    },
     /// Die Ausgabe einer Sitzung, die schon lief, wieder an diesen Server.
-    Anhaengen { id: String },
-    Schreiben { id: String, daten: String },
-    Groesse { id: String, spalten: u16, zeilen: u16 },
-    Beenden { id: String },
+    Anhaengen {
+        id: String,
+    },
+    Schreiben {
+        id: String,
+        daten: String,
+    },
+    Groesse {
+        id: String,
+        spalten: u16,
+        zeilen: u16,
+    },
+    Beenden {
+        id: String,
+    },
     /// Alle Terminals beenden, Wirt beenden.
     Stopp,
 }
@@ -50,13 +69,36 @@ pub enum AnWirt {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "typ", rename_all = "snake_case")]
 pub enum VomWirt {
-    Bereit { version: u32, sitzungen: Vec<String> },
-    Gestartet { id: String, pid: Option<u32> },
-    Angehaengt { id: String, pid: Option<u32>, spalten: u16, zeilen: u16, bildschirm: String, titel: Option<String>, arbeitet: Option<bool> },
+    Bereit {
+        version: u32,
+        sitzungen: Vec<String>,
+    },
+    Gestartet {
+        id: String,
+        pid: Option<u32>,
+    },
+    Angehaengt {
+        id: String,
+        pid: Option<u32>,
+        spalten: u16,
+        zeilen: u16,
+        bildschirm: String,
+        titel: Option<String>,
+        arbeitet: Option<bool>,
+    },
     /// Die Sitzung gibt es nicht (mehr).
-    Weg { id: String },
-    Daten { id: String, daten: String },
-    Ende { id: String, code: Option<i32>, fehler: Option<String> },
+    Weg {
+        id: String,
+    },
+    Daten {
+        id: String,
+        daten: String,
+    },
+    Ende {
+        id: String,
+        code: Option<i32>,
+        fehler: Option<String>,
+    },
 }
 
 type BeiDaten = Box<dyn FnMut(&[u8], &Antworter) + Send>;
@@ -87,6 +129,8 @@ pub struct Wirt {
     wartend: Arc<Mutex<HashMap<String, oneshot::Sender<Option<Uebernommen>>>>>,
     /// Sitzungen, die der Wirt beim Verbinden noch hatte.
     pub vorhanden: Vec<String>,
+    /// Der Server fährt herunter: die Terminals laufen weiter, er hört nur nicht mehr zu.
+    losgelassen: Arc<AtomicBool>,
 }
 
 /// Ein Terminal im Wirt, wie es der Server hält.
@@ -101,13 +145,22 @@ impl WirtPty {
         Some(self.pid.load(Ordering::Relaxed)).filter(|p| *p != 0)
     }
     pub fn schreiben(&self, daten: &[u8]) {
-        let _ = self.tx.send(AnWirt::Schreiben { id: self.id.clone(), daten: String::from_utf8_lossy(daten).into_owned() });
+        let _ = self.tx.send(AnWirt::Schreiben {
+            id: self.id.clone(),
+            daten: String::from_utf8_lossy(daten).into_owned(),
+        });
     }
     pub fn groesse(&self, spalten: u16, zeilen: u16) {
-        let _ = self.tx.send(AnWirt::Groesse { id: self.id.clone(), spalten, zeilen });
+        let _ = self.tx.send(AnWirt::Groesse {
+            id: self.id.clone(),
+            spalten,
+            zeilen,
+        });
     }
     pub fn beenden(&self) {
-        let _ = self.tx.send(AnWirt::Beenden { id: self.id.clone() });
+        let _ = self.tx.send(AnWirt::Beenden {
+            id: self.id.clone(),
+        });
     }
 }
 
@@ -118,7 +171,9 @@ fn sperre<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
 impl Wirt {
     /// Verbindet sich mit dem laufenden Wirt oder startet einen neuen (`programm`). `None`: ohne Wirt.
     pub async fn verbinden_oder_starten(daten: &Path, programm: &Path) -> Option<Arc<Wirt>> {
-        if std::env::var("OFFICE_PTY_WIRT").is_ok_and(|v| v == "aus" || v == "0") || !programm.is_file() {
+        if std::env::var("OFFICE_PTY_WIRT").is_ok_and(|v| v == "aus" || v == "0")
+            || !programm.is_file()
+        {
             return None;
         }
         if let Some(w) = Self::verbinden(daten).await {
@@ -142,15 +197,34 @@ impl Wirt {
     }
 
     async fn verbinden(daten: &Path) -> Option<Arc<Wirt>> {
-        let info: WirtInfo = serde_json::from_str(&std::fs::read_to_string(daten.join(INFO_DATEI)).ok()?).ok()?;
+        let info: WirtInfo =
+            serde_json::from_str(&std::fs::read_to_string(daten.join(INFO_DATEI)).ok()?).ok()?;
         let token = std::fs::read_to_string(daten.join(TOKEN_DATEI)).ok()?;
-        let strom = tokio::time::timeout(Duration::from_secs(2), TcpStream::connect(("127.0.0.1", info.port))).await.ok()?.ok()?;
+        let strom = tokio::time::timeout(
+            Duration::from_secs(2),
+            TcpStream::connect(("127.0.0.1", info.port)),
+        )
+        .await
+        .ok()?
+        .ok()?;
         let (lesen, mut schreiben) = strom.into_split();
         let mut zeilen = BufReader::new(lesen).lines();
-        let hallo = serde_json::to_string(&AnWirt::Hallo { token: token.trim().to_string(), version: VERSION }).ok()?;
-        schreiben.write_all(format!("{hallo}\n").as_bytes()).await.ok()?;
-        let antwort = tokio::time::timeout(Duration::from_secs(3), zeilen.next_line()).await.ok()?.ok()??;
-        let Ok(VomWirt::Bereit { version, sitzungen }) = serde_json::from_str(&antwort) else { return None };
+        let hallo = serde_json::to_string(&AnWirt::Hallo {
+            token: token.trim().to_string(),
+            version: VERSION,
+        })
+        .ok()?;
+        schreiben
+            .write_all(format!("{hallo}\n").as_bytes())
+            .await
+            .ok()?;
+        let antwort = tokio::time::timeout(Duration::from_secs(3), zeilen.next_line())
+            .await
+            .ok()?
+            .ok()??;
+        let Ok(VomWirt::Bereit { version, sitzungen }) = serde_json::from_str(&antwort) else {
+            return None;
+        };
         if version != VERSION {
             // Ein älterer Wirt: beenden, ein neuer wird gestartet.
             let stopp = serde_json::to_string(&AnWirt::Stopp).ok()?;
@@ -160,21 +234,40 @@ impl Wirt {
         let (tx, mut rx) = mpsc::unbounded_channel::<AnWirt>();
         tokio::spawn(async move {
             while let Some(n) = rx.recv().await {
-                let Ok(text) = serde_json::to_string(&n) else { continue };
-                if schreiben.write_all(format!("{text}\n").as_bytes()).await.is_err() {
+                let Ok(text) = serde_json::to_string(&n) else {
+                    continue;
+                };
+                if schreiben
+                    .write_all(format!("{text}\n").as_bytes())
+                    .await
+                    .is_err()
+                {
                     break;
                 }
             }
         });
-        let wirt = Arc::new(Wirt { tx, sitzungen: Default::default(), wartend: Default::default(), vorhanden: sitzungen });
-        let (s, w) = (wirt.sitzungen.clone(), wirt.wartend.clone());
+        let wirt = Arc::new(Wirt {
+            tx,
+            sitzungen: Default::default(),
+            wartend: Default::default(),
+            vorhanden: sitzungen,
+            losgelassen: Default::default(),
+        });
+        let (s, w, los) = (
+            wirt.sitzungen.clone(),
+            wirt.wartend.clone(),
+            wirt.losgelassen.clone(),
+        );
         tokio::spawn(async move {
             while let Ok(Some(z)) = zeilen.next_line().await {
                 if let Ok(n) = serde_json::from_str::<VomWirt>(&z) {
                     verteilen(&s, &w, n);
                 }
             }
-            // Der Wirt ist weg: seine Terminals auch.
+            // Der Wirt ist weg: seine Terminals auch – außer der Server hat ihn selbst losgelassen.
+            if los.load(Ordering::Relaxed) {
+                return;
+            }
             let alle: Vec<Rueckrufe> = sperre(&s).drain().map(|(_, r)| r).collect();
             for r in alle {
                 if let Some(ende) = r.ende {
@@ -196,9 +289,25 @@ impl Wirt {
     ) -> Pty {
         let id = crate::zufall_hex(12);
         let pid = Arc::new(AtomicU32::new(0));
-        sperre(&self.sitzungen).insert(id.clone(), Rueckrufe { daten: Some(Box::new(bei_daten)), ende: Some(Box::new(bei_ende)), pid: pid.clone() });
-        let _ = self.tx.send(AnWirt::Starten { id: id.clone(), befehl: befehl.clone(), spalten, zeilen });
-        Pty::im_wirt(WirtPty { id, pid, tx: self.tx.clone() })
+        sperre(&self.sitzungen).insert(
+            id.clone(),
+            Rueckrufe {
+                daten: Some(Box::new(bei_daten)),
+                ende: Some(Box::new(bei_ende)),
+                pid: pid.clone(),
+            },
+        );
+        let _ = self.tx.send(AnWirt::Starten {
+            id: id.clone(),
+            befehl: befehl.clone(),
+            spalten,
+            zeilen,
+        });
+        Pty::im_wirt(WirtPty {
+            id,
+            pid,
+            tx: self.tx.clone(),
+        })
     }
 
     /// Übernimmt eine Sitzung, die schon im Wirt läuft. `None`: die gibt es nicht mehr.
@@ -211,16 +320,40 @@ impl Wirt {
         let pid = Arc::new(AtomicU32::new(0));
         let (otx, orx) = oneshot::channel();
         sperre(&self.wartend).insert(id.to_string(), otx);
-        sperre(&self.sitzungen).insert(id.to_string(), Rueckrufe { daten: Some(Box::new(bei_daten)), ende: Some(Box::new(bei_ende)), pid: pid.clone() });
+        sperre(&self.sitzungen).insert(
+            id.to_string(),
+            Rueckrufe {
+                daten: Some(Box::new(bei_daten)),
+                ende: Some(Box::new(bei_ende)),
+                pid: pid.clone(),
+            },
+        );
         let _ = self.tx.send(AnWirt::Anhaengen { id: id.to_string() });
-        let ergebnis = tokio::time::timeout(Duration::from_secs(5), orx).await.ok().flatten().flatten();
+        let ergebnis = tokio::time::timeout(Duration::from_secs(5), orx)
+            .await
+            .ok()
+            .and_then(Result::ok)
+            .flatten();
         match ergebnis {
-            Some(u) => Some((Pty::im_wirt(WirtPty { id: id.to_string(), pid, tx: self.tx.clone() }), u)),
+            Some(u) => Some((
+                Pty::im_wirt(WirtPty {
+                    id: id.to_string(),
+                    pid,
+                    tx: self.tx.clone(),
+                }),
+                u,
+            )),
             None => {
                 sperre(&self.sitzungen).remove(id);
                 None
             }
         }
+    }
+
+    /// Beim Herunterfahren: nicht mehr zuhören, die Terminals laufen im Wirt weiter.
+    pub fn loslassen(&self) {
+        self.losgelassen.store(true, Ordering::Relaxed);
+        sperre(&self.sitzungen).clear();
     }
 
     /// Beendet alle Terminals im Wirt und ihn selbst.
@@ -229,7 +362,11 @@ impl Wirt {
     }
 }
 
-fn verteilen(s: &Mutex<HashMap<String, Rueckrufe>>, w: &Mutex<HashMap<String, oneshot::Sender<Option<Uebernommen>>>>, n: VomWirt) {
+fn verteilen(
+    s: &Mutex<HashMap<String, Rueckrufe>>,
+    w: &Mutex<HashMap<String, oneshot::Sender<Option<Uebernommen>>>>,
+    n: VomWirt,
+) {
     match n {
         VomWirt::Daten { id, daten } => {
             let rueckruf = sperre(s).get_mut(&id).and_then(|r| r.daten.take());
@@ -245,12 +382,26 @@ fn verteilen(s: &Mutex<HashMap<String, Rueckrufe>>, w: &Mutex<HashMap<String, on
                 r.pid.store(pid.unwrap_or(0), Ordering::Relaxed);
             }
         }
-        VomWirt::Angehaengt { id, pid, spalten, zeilen, bildschirm, titel, arbeitet } => {
+        VomWirt::Angehaengt {
+            id,
+            pid,
+            spalten,
+            zeilen,
+            bildschirm,
+            titel,
+            arbeitet,
+        } => {
             if let Some(r) = sperre(s).get(&id) {
                 r.pid.store(pid.unwrap_or(0), Ordering::Relaxed);
             }
             if let Some(tx) = sperre(w).remove(&id) {
-                let _ = tx.send(Some(Uebernommen { spalten, zeilen, bildschirm, titel, arbeitet }));
+                let _ = tx.send(Some(Uebernommen {
+                    spalten,
+                    zeilen,
+                    bildschirm,
+                    titel,
+                    arbeitet,
+                }));
             }
         }
         VomWirt::Weg { id } => {
@@ -275,12 +426,19 @@ fn verteilen(s: &Mutex<HashMap<String, Rueckrufe>>, w: &Mutex<HashMap<String, on
 /// Startet den Wirt so, dass er den Server überlebt.
 fn abgekoppelt_starten(programm: &Path, daten: &Path) -> std::io::Result<()> {
     let mut cmd = std::process::Command::new(programm);
-    cmd.arg(daten).stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null());
+    cmd.arg(daten)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null());
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
         // DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP, möglichst auch aus dem Job des Servers heraus.
-        if cmd.creation_flags(0x0000_0008 | 0x0000_0200 | 0x0100_0000).spawn().is_ok() {
+        if cmd
+            .creation_flags(0x0000_0008 | 0x0000_0200 | 0x0100_0000)
+            .spawn()
+            .is_ok()
+        {
             return Ok(());
         }
         cmd.creation_flags(0x0000_0008 | 0x0000_0200);

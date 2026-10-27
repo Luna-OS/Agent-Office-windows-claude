@@ -15,7 +15,10 @@ struct AbUndZu {
 
 impl AbUndZu {
     fn neu(jetzt: f64, erst: f64, abstand: fn() -> f64) -> Self {
-        Self { naechstes: jetzt + erst, abstand }
+        Self {
+            naechstes: jetzt + erst,
+            abstand,
+        }
     }
 
     fn faellig(&mut self, jetzt: f64) -> bool {
@@ -50,36 +53,72 @@ impl Umgebung {
         let jetzt = k.jetzt();
         // Manchmal antwortet ein zweiter Vogel von einem anderen Fenster.
         self.voegel = Some(AbUndZu::neu(jetzt, zufall(5.0, 15.0), || {
-            if js_sys::Math::random() < 0.35 { zufall(1.5, 4.0) } else { zufall(12.0, 35.0) }
+            if js_sys::Math::random() < 0.35 {
+                zufall(1.5, 4.0)
+            } else {
+                zufall(12.0, 35.0)
+            }
         }));
         self.grillen = Some(AbUndZu::neu(jetzt, zufall(2.0, 6.0), || zufall(3.0, 8.0)));
-        self.telefone = Some(AbUndZu::neu(jetzt, zufall(60.0, 150.0), || zufall(90.0, 240.0)));
+        self.telefone = Some(AbUndZu::neu(jetzt, zufall(60.0, 150.0), || {
+            zufall(90.0, 240.0)
+        }));
     }
 
     pub fn takt(&mut self, k: &Kern, lage: &Lage) {
         let jetzt = k.jetzt();
         if let Some(f) = &mut self.kuehlschrank
-            && jetzt >= f.naechstes {
-                // Der Kompressor springt an, läuft eine Weile und klonkt wieder aus.
-                f.an = !f.an;
-                let _ = f.pegel.gain().set_target_at_time(if f.an { 0.06 } else { 0.0 }, jetzt, if f.an { 0.6 } else { 0.3 });
-                f.naechstes = jetzt + if f.an { zufall(25.0, 50.0) } else { zufall(20.0, 45.0) };
-                let p = k.panner(lage.orte.kuehlschrank, 1.0, 1.6);
-                let _ = p.connect_with_audio_node(&k.drinnen);
-                k.schlag(0.0, 0.25, 0.6, &p);
-            }
+            && jetzt >= f.naechstes
+        {
+            // Der Kompressor springt an, läuft eine Weile und klonkt wieder aus.
+            f.an = !f.an;
+            let _ = f.pegel.gain().set_target_at_time(
+                if f.an { 0.06 } else { 0.0 },
+                jetzt,
+                if f.an { 0.6 } else { 0.3 },
+            );
+            f.naechstes = jetzt
+                + if f.an {
+                    zufall(25.0, 50.0)
+                } else {
+                    zufall(20.0, 45.0)
+                };
+            let p = k.panner(lage.orte.kuehlschrank, 1.0, 1.6);
+            let _ = p.connect_with_audio_node(&k.drinnen);
+            k.schlag(0.0, 0.25, 0.6, &p);
+        }
         let fenster = &lage.orte.fenster;
-        if self.voegel.as_mut().is_some_and(|v| v.faellig(jetzt)) && lage.nacht < 0.5 && lage.regen < 0.1 && !fenster.is_empty() {
+        if self.voegel.as_mut().is_some_and(|v| v.faellig(jetzt))
+            && lage.nacht < 0.5
+            && lage.regen < 0.1
+            && !fenster.is_empty()
+        {
             voegel(k, *waehle(fenster), jetzt);
         }
-        if self.grillen.as_mut().is_some_and(|v| v.faellig(jetzt)) && lage.nacht > 0.6 && lage.regen < 0.05 && !fenster.is_empty() {
+        if self.grillen.as_mut().is_some_and(|v| v.faellig(jetzt))
+            && lage.nacht > 0.6
+            && lage.regen < 0.05
+            && !fenster.is_empty()
+        {
             grillen(k, *waehle(fenster), jetzt);
         }
-        if self.telefone.as_mut().is_some_and(|v| v.faellig(jetzt)) && !lage.draussen && !lage.orte.tische.is_empty() {
+        if self.telefone.as_mut().is_some_and(|v| v.faellig(jetzt))
+            && !lage.draussen
+            && !lage.orte.tische.is_empty()
+        {
             let l = lage.kopf;
-            let fern: Vec<Ort> =
-                lage.orte.tische.iter().copied().filter(|t| (t.x - l.x).hypot(t.z - l.z) > 7.0).collect();
-            let tisch = *waehle(if fern.is_empty() { &lage.orte.tische } else { &fern });
+            let fern: Vec<Ort> = lage
+                .orte
+                .tische
+                .iter()
+                .copied()
+                .filter(|t| (t.x - l.x).hypot(t.z - l.z) > 7.0)
+                .collect();
+            let tisch = *waehle(if fern.is_empty() {
+                &lage.orte.tische
+            } else {
+                &fern
+            });
             telefon(k, tisch, jetzt);
         }
         self.regen.takt(k, lage, jetzt);
@@ -144,7 +183,11 @@ fn kuehlschrank(k: &Kern, ort: Ort) -> Kuehlschrank {
     kette(&[&ton, &pegel, &p, &k.drinnen]);
     let _ = brumm.start();
     let _ = sirren.start();
-    Kuehlschrank { pegel, an: false, naechstes: k.jetzt() + zufall(3.0, 12.0) }
+    Kuehlschrank {
+        pegel,
+        an: false,
+        naechstes: k.jetzt() + zufall(3.0, 12.0),
+    }
 }
 
 /// Durchs Glas gehört: ein Panner am Fenster, hinter einem Tiefpass.
@@ -164,12 +207,20 @@ fn voegel(k: &Kern, ort: Ort, jetzt: f64) {
     for _ in 0..zufall_ganz(2, 6) {
         let len = zufall(0.06, 0.14);
         let o = k.oszillator(OscillatorType::Sine);
-        let _ = o.frequency().set_value_at_time(basis * zufall_f(0.9, 1.05), t);
+        let _ = o
+            .frequency()
+            .set_value_at_time(basis * zufall_f(0.9, 1.05), t);
         if form < 0.5 {
-            let _ = o.frequency().exponential_ramp_to_value_at_time(basis * zufall_f(1.25, 1.6), t + len * 0.6);
-            let _ = o.frequency().exponential_ramp_to_value_at_time(basis * zufall_f(0.8, 1.0), t + len);
+            let _ = o
+                .frequency()
+                .exponential_ramp_to_value_at_time(basis * zufall_f(1.25, 1.6), t + len * 0.6);
+            let _ = o
+                .frequency()
+                .exponential_ramp_to_value_at_time(basis * zufall_f(0.8, 1.0), t + len);
         } else {
-            let _ = o.frequency().exponential_ramp_to_value_at_time(basis * zufall_f(0.6, 0.75), t + len);
+            let _ = o
+                .frequency()
+                .exponential_ramp_to_value_at_time(basis * zufall_f(0.6, 0.75), t + len);
         }
         let g = k.verstaerker(0.0);
         let _ = g.gain().set_value_at_time(0.0001, t);
@@ -197,14 +248,25 @@ fn grillen(k: &Kern, ort: Ort, jetzt: f64) {
 
 /// Ein Tischtelefon trillert ein paar Mal irgendwo im Raum, dann nimmt jemand ab.
 fn telefon(k: &Kern, tisch: Ort, jetzt: f64) {
-    let p = k.panner(Ort { x: tisch.x, y: 0.9, z: tisch.z }, 1.5, 1.2);
+    let p = k.panner(
+        Ort {
+            x: tisch.x,
+            y: 0.9,
+            z: tisch.z,
+        },
+        1.5,
+        1.2,
+    );
     let tp = k.filter(BiquadFilterType::Lowpass, 3000.0, 0.7);
     kette(&[&p, &tp, &k.umgebung]);
     for r in 0..zufall_ganz(2, 3) {
         let t = jetzt + 0.05 + r as f64 * 2.4;
         let o = k.oszillator(OscillatorType::Triangle);
         for i in 0..18 {
-            let _ = o.frequency().set_value_at_time(if i % 2 == 1 { 1450.0 } else { 1150.0 }, t + i as f64 / 18.0);
+            let _ = o.frequency().set_value_at_time(
+                if i % 2 == 1 { 1450.0 } else { 1150.0 },
+                t + i as f64 / 18.0,
+            );
         }
         let g = k.verstaerker(0.0);
         huelle(&g.gain(), t, &[(0.02, 0.045), (0.95, 0.045), (1.0, 0.0)]);

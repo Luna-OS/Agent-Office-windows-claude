@@ -37,7 +37,11 @@ struct Verbindung {
 impl Verbindung {
     fn aus_umgebung() -> Result<Self, String> {
         let var = |n: &str| std::env::var(n).ok().filter(|v| !v.is_empty());
-        let (Some(url), Some(id), Some(token)) = (var("OFFICE_HOOK_URL"), var("OFFICE_ARBEITER_ID"), var("OFFICE_HOOK_TOKEN")) else {
+        let (Some(url), Some(id), Some(token)) = (
+            var("OFFICE_HOOK_URL"),
+            var("OFFICE_ARBEITER_ID"),
+            var("OFFICE_HOOK_TOKEN"),
+        ) else {
             return Err("Nicht im Office: OFFICE_HOOK_URL, OFFICE_ARBEITER_ID und OFFICE_HOOK_TOKEN fehlen. \
 `office-agenten` läuft nur im Terminal eines Arbeiters."
                 .into());
@@ -47,14 +51,24 @@ impl Verbindung {
             .timeout_global(Some(Duration::from_secs(30)))
             .build()
             .into();
-        Ok(Self { url: url.trim_end_matches('/').to_string(), id, token, agent })
+        Ok(Self {
+            url: url.trim_end_matches('/').to_string(),
+            id,
+            token,
+            agent,
+        })
     }
 
     fn anfrage(&self, methode: &str, pfad: &str, koerper: Option<Value>) -> Result<Value, String> {
         let url = format!("{}{pfad}", self.url);
         let auth = format!("Bearer {}", self.token);
         let antwort = match (methode, koerper) {
-            ("GET", _) => self.agent.get(&url).header("x-office-arbeiter", &self.id).header("authorization", &auth).call(),
+            ("GET", _) => self
+                .agent
+                .get(&url)
+                .header("x-office-arbeiter", &self.id)
+                .header("authorization", &auth)
+                .call(),
             (_, k) => self
                 .agent
                 .post(&url)
@@ -66,7 +80,11 @@ impl Verbindung {
         let status = antwort.status().as_u16();
         let wert: Value = antwort.body_mut().read_json().unwrap_or(Value::Null);
         if status >= 400 {
-            return Err(wert.get("fehler").and_then(Value::as_str).map(str::to_string).unwrap_or_else(|| format!("Fehler {status}")));
+            return Err(wert
+                .get("fehler")
+                .and_then(Value::as_str)
+                .map(str::to_string)
+                .unwrap_or_else(|| format!("Fehler {status}")));
         }
         Ok(wert)
     }
@@ -82,16 +100,41 @@ fn nachrichten_zeigen(liste: &Value) {
         return;
     };
     for n in liste {
-        let an = n.get("an").and_then(Value::as_str).map(|a| format!(" an {a}")).unwrap_or_else(|| " an alle".into());
-        println!("#{} {}{}: {}", n.get("id").and_then(Value::as_u64).unwrap_or(0), s(n, "von"), an, s(n, "text"));
+        let an = n
+            .get("an")
+            .and_then(Value::as_str)
+            .map(|a| format!(" an {a}"))
+            .unwrap_or_else(|| " an alle".into());
+        println!(
+            "#{} {}{}: {}",
+            n.get("id").and_then(Value::as_u64).unwrap_or(0),
+            s(n, "von"),
+            an,
+            s(n, "text")
+        );
     }
 }
 
 fn wer_zeigen(v: &Value) {
     println!("Etage „{}“:", s(v, "etage"));
-    for a in v.get("arbeiter").and_then(Value::as_array).into_iter().flatten() {
-        let du = if a.get("du").and_then(Value::as_bool) == Some(true) { " (du)" } else { "" };
-        println!("- {}{} [{}] – {}", s(a, "name"), du, a.get("provider").and_then(Value::as_str).unwrap_or("shell"), s(a, "status_text"));
+    for a in v
+        .get("arbeiter")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+    {
+        let du = if a.get("du").and_then(Value::as_bool) == Some(true) {
+            " (du)"
+        } else {
+            ""
+        };
+        println!(
+            "- {}{} [{}] – {}",
+            s(a, "name"),
+            du,
+            a.get("provider").and_then(Value::as_str).unwrap_or("shell"),
+            s(a, "status_text")
+        );
         if !s(a, "notiz").is_empty() {
             println!("    Stand: {}", s(a, "notiz"));
         }
@@ -101,7 +144,13 @@ fn wer_zeigen(v: &Value) {
         if !s(a, "branch").is_empty() {
             println!("    Branch: {}", s(a, "branch"));
         }
-        let dateien: Vec<&str> = a.get("dateien").and_then(Value::as_array).into_iter().flatten().filter_map(Value::as_str).collect();
+        let dateien: Vec<&str> = a
+            .get("dateien")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(Value::as_str)
+            .collect();
         if !dateien.is_empty() {
             println!("    Dateien: {}", dateien.join(", "));
         }
@@ -109,13 +158,28 @@ fn wer_zeigen(v: &Value) {
 }
 
 fn aufgaben_zeigen(v: &Value) {
-    let liste: Vec<&Value> = v.get("aufgaben").and_then(Value::as_array).into_iter().flatten().collect();
+    let liste: Vec<&Value> = v
+        .get("aufgaben")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .collect();
     if liste.is_empty() {
         println!("Das Board ist leer.");
     }
     for a in liste {
-        let besitzer = a.get("besitzer").and_then(Value::as_str).map(|b| format!(" – {b}")).unwrap_or_default();
-        println!("#{} [{}] {}{}", a.get("id").and_then(Value::as_u64).unwrap_or(0), s(a, "status"), s(a, "titel"), besitzer);
+        let besitzer = a
+            .get("besitzer")
+            .and_then(Value::as_str)
+            .map(|b| format!(" – {b}"))
+            .unwrap_or_default();
+        println!(
+            "#{} [{}] {}{}",
+            a.get("id").and_then(Value::as_u64).unwrap_or(0),
+            s(a, "status"),
+            s(a, "titel"),
+            besitzer
+        );
         if !s(a, "notiz").is_empty() {
             println!("    {}", s(a, "notiz"));
         }
@@ -125,10 +189,16 @@ fn aufgaben_zeigen(v: &Value) {
 /// Für Agent-Hooks: Nutzlast von stdin an den Hook-Server. Schweigt immer und endet mit 0,
 /// damit ein Hook nie den Agenten stört.
 fn hook(args: &[String]) -> ExitCode {
-    let (Some(provider), Some(ereignis)) = (args.first(), args.get(1)) else { return ExitCode::SUCCESS };
+    let (Some(provider), Some(ereignis)) = (args.first(), args.get(1)) else {
+        return ExitCode::SUCCESS;
+    };
     let mut nutzlast = Vec::new();
-    let _ = std::io::stdin().take(1024 * 1024).read_to_end(&mut nutzlast);
-    let Ok(v) = Verbindung::aus_umgebung() else { return ExitCode::SUCCESS };
+    let _ = std::io::stdin()
+        .take(1024 * 1024)
+        .read_to_end(&mut nutzlast);
+    let Ok(v) = Verbindung::aus_umgebung() else {
+        return ExitCode::SUCCESS;
+    };
     let url = format!("{}/hooks/{provider}?ereignis={ereignis}", v.url);
     // Startet das Office gerade neu, kurz warten und es noch einmal versuchen.
     for _ in 0..6 {
@@ -158,9 +228,21 @@ fn ausfuehren(args: &[String]) -> Result<(), String> {
     match befehl {
         "wer" => wer_zeigen(&v.anfrage("GET", "/office/wer", None)?),
         "senden" => {
-            let (Some(an), true) = (rest.first(), rest.len() >= 2) else { return Err("So: office-agenten senden <name|alle> <text>".into()) };
-            let r = v.anfrage("POST", "/office/senden", Some(json!({ "an": an, "text": rest[1..].join(" ") })))?;
-            let empfaenger: Vec<&str> = r.get("empfaenger").and_then(Value::as_array).into_iter().flatten().filter_map(Value::as_str).collect();
+            let (Some(an), true) = (rest.first(), rest.len() >= 2) else {
+                return Err("So: office-agenten senden <name|alle> <text>".into());
+            };
+            let r = v.anfrage(
+                "POST",
+                "/office/senden",
+                Some(json!({ "an": an, "text": rest[1..].join(" ") })),
+            )?;
+            let empfaenger: Vec<&str> = r
+                .get("empfaenger")
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+                .filter_map(Value::as_str)
+                .collect();
             if let Some(h) = r.get("hinweis").and_then(Value::as_str) {
                 println!("{h}");
             } else if empfaenger.is_empty() {
@@ -172,7 +254,11 @@ fn ausfuehren(args: &[String]) -> Result<(), String> {
         "posteingang" => nachrichten_zeigen(&v.anfrage("GET", "/office/posteingang", None)?),
         "verlauf" => nachrichten_zeigen(&v.anfrage("GET", "/office/verlauf", None)?),
         "status" => {
-            v.anfrage("POST", "/office/status", Some(json!({ "text": rest.join(" ") })))?;
+            v.anfrage(
+                "POST",
+                "/office/status",
+                Some(json!({ "text": rest.join(" ") })),
+            )?;
             println!("Status gemeldet.");
         }
         "aufgaben" => aufgaben_zeigen(&v.anfrage("GET", "/office/aufgaben", None)?),
@@ -181,34 +267,60 @@ fn ausfuehren(args: &[String]) -> Result<(), String> {
                 Some("--auto") => (true, &rest[1..]),
                 _ => (false, rest),
             };
-            let titel = rest.first().ok_or("So: office-agenten aufgabe-neu [--auto] <titel> [notiz bzw. auftrag]")?;
+            let titel = rest
+                .first()
+                .ok_or("So: office-agenten aufgabe-neu [--auto] <titel> [notiz bzw. auftrag]")?;
             let notiz = (rest.len() > 1).then(|| rest[1..].join(" "));
             if auto && notiz.is_none() {
                 return Err("Mit --auto braucht die Aufgabe einen vollständigen Auftrag".into());
             }
-            let r = v.anfrage("POST", "/office/aufgaben", Some(json!({ "titel": titel, "notiz": notiz, "automatisch": auto })))?;
-            println!("Aufgabe #{} angelegt.", r.get("id").and_then(Value::as_u64).unwrap_or(0));
+            let r = v.anfrage(
+                "POST",
+                "/office/aufgaben",
+                Some(json!({ "titel": titel, "notiz": notiz, "automatisch": auto })),
+            )?;
+            println!(
+                "Aufgabe #{} angelegt.",
+                r.get("id").and_then(Value::as_u64).unwrap_or(0)
+            );
         }
         "aufgabe" => {
             let (Some(id), Some(status)) = (rest.first(), rest.get(1)) else {
-                return Err("So: office-agenten aufgabe <id> <offen|in_arbeit|erledigt|blockiert> [notiz]".into());
+                return Err(
+                    "So: office-agenten aufgabe <id> <offen|in_arbeit|erledigt|blockiert> [notiz]"
+                        .into(),
+                );
             };
             let id = id.trim_start_matches('#');
             let notiz = (rest.len() > 2).then(|| rest[2..].join(" "));
-            let r = v.anfrage("POST", &format!("/office/aufgaben/{id}"), Some(json!({ "status": status, "notiz": notiz })))?;
+            let r = v.anfrage(
+                "POST",
+                &format!("/office/aufgaben/{id}"),
+                Some(json!({ "status": status, "notiz": notiz })),
+            )?;
             println!("Aufgabe #{} ist jetzt „{}“.", id, s(&r, "status"));
         }
         "aufgabe-weg" => {
-            let id = rest.first().ok_or("So: office-agenten aufgabe-weg <id>")?.trim_start_matches('#').to_string();
+            let id = rest
+                .first()
+                .ok_or("So: office-agenten aufgabe-weg <id>")?
+                .trim_start_matches('#')
+                .to_string();
             v.anfrage("POST", &format!("/office/aufgaben/{id}/weg"), None)?;
             println!("Aufgabe #{id} ist vom Board.");
         }
         "anlegen" => {
             let (provider, auftrag) = match rest {
-                [flag, p, auftrag @ ..] if flag == "--provider" => (Some(p.clone()), auftrag.join(" ")),
+                [flag, p, auftrag @ ..] if flag == "--provider" => {
+                    (Some(p.clone()), auftrag.join(" "))
+                }
                 _ => (None, rest.join(" ")),
             };
-            let r = v.anfrage("POST", "/office/anlegen", Some(json!({ "prompt": auftrag, "provider": provider })))?;
+            let r = v.anfrage(
+                "POST",
+                "/office/anlegen",
+                Some(json!({ "prompt": auftrag, "provider": provider })),
+            )?;
             println!("{} ist angelegt und arbeitet daran.", s(&r, "name"));
         }
         _ => return Err(format!("Unbekannter Befehl „{befehl}“.\n\n{HILFE}")),

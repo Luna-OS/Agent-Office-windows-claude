@@ -5,7 +5,10 @@ use tw_merge::tw_merge;
 
 #[component]
 pub fn Karte(#[prop(into, optional)] class: String, children: Children) -> impl IntoView {
-    let k = tw_merge!("bg-card text-card-foreground flex flex-col gap-4 rounded-xl border py-6 shadow-sm", class);
+    let k = tw_merge!(
+        "bg-card text-card-foreground flex flex-col gap-4 rounded-xl border py-6 shadow-sm",
+        class
+    );
     view! { <div data-name="Karte" class=k>{children()}</div> }
 }
 

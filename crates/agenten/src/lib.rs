@@ -11,30 +11,35 @@ pub mod bus;
 pub mod provider;
 pub mod pty;
 pub mod terminal;
+pub mod wirt;
 pub mod worktree;
 
+mod acp;
 mod aenderungen;
 mod anleitung;
 mod arbeiter;
 mod besprechung;
 mod browser;
+mod cli_api;
 mod dienste;
 mod etage;
-mod kerker;
-mod meldungen;
 mod github;
 mod hooks;
 mod http;
+mod kerker;
 mod kommunikation;
-mod cli_api;
-mod server;
-mod speicher;
+mod mehrrepo;
+mod meldungen;
 mod nach_merge;
 mod nutzung;
+mod pr;
 mod prompts;
+mod server;
+mod speicher;
 mod start;
 mod stationen;
 mod steuerung;
+mod uebernahme;
 mod verbrauch;
 mod wache;
 
@@ -114,6 +119,8 @@ pub(crate) struct Innen {
     pub(crate) konto_umgebung: Mutex<Option<KontoUmgebung>>,
     pub(crate) meldungen: Mutex<Option<MeldungsEmpfaenger>>,
     pub(crate) dienste_beobachter: Mutex<Option<DiensteBeobachter>>,
+    /// Der PTY-Wirt, wenn die Terminals dort laufen (sie überleben dann einen Neustart).
+    pub(crate) wirt: Option<Arc<wirt::Wirt>>,
 }
 
 #[derive(Default)]
@@ -133,13 +140,18 @@ pub(crate) struct Zustand {
 }
 
 pub(crate) fn jetzt_ms() -> u64 {
-    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0)
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0)
 }
 
 pub(crate) fn zufall_hex(laenge: usize) -> String {
     use rand::Rng;
     let mut rng = rand::rng();
-    (0..laenge).map(|_| char::from_digit(rng.random_range(0..16), 16).unwrap_or('0')).collect()
+    (0..laenge)
+        .map(|_| char::from_digit(rng.random_range(0..16), 16).unwrap_or('0'))
+        .collect()
 }
 
 impl Innen {
@@ -157,7 +169,11 @@ impl Innen {
 
     /// Die Umgebung eines Kontos für seine Arbeiter (leer ohne Konto oder Rückruf).
     pub(crate) fn umgebung_von(&self, konto: Option<&str>) -> Vec<(String, String)> {
-        let f = self.konto_umgebung.lock().unwrap_or_else(|e| e.into_inner()).clone();
+        let f = self
+            .konto_umgebung
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone();
         match (konto, f) {
             (Some(k), Some(f)) => f(k),
             _ => Vec::new(),
@@ -165,7 +181,10 @@ impl Innen {
     }
 
     pub(crate) fn fehler(&self, verbindung: &str, text: impl Into<String>) {
-        self.senden(Ziel::Verbindung(verbindung.to_string()), ServerNachricht::Fehler { text: text.into() });
+        self.senden(
+            Ziel::Verbindung(verbindung.to_string()),
+            ServerNachricht::Fehler { text: text.into() },
+        );
     }
 }
 
@@ -176,6 +195,15 @@ impl Agenten {
         let (listener, port) = server::lauschen(&e.daten_verzeichnis, e.hook_port).await?;
         let cli = e.cli_pfad.clone().unwrap_or_else(cli_neben_programm);
         let (sender, _) = broadcast::channel(4096);
+        let wirt_programm = cli.with_file_name(if cfg!(windows) {
+            "office-pty-wirt.exe"
+        } else {
+            "office-pty-wirt"
+        });
+        let wirt = wirt::Wirt::verbinden_oder_starten(&e.daten_verzeichnis, &wirt_programm).await;
+        if wirt.is_some() {
+            tracing::info!("Terminals laufen im PTY-Wirt und überleben einen Neustart");
+        }
         let innen = Arc::new_cyclic(|selbst| Innen {
             zustand: Mutex::new(Zustand {
                 nach_merge: nach_merge::laden(&e.daten_verzeichnis),
@@ -193,6 +221,7 @@ impl Agenten {
             konto_umgebung: Mutex::new(None),
             meldungen: Mutex::new(None),
             dienste_beobachter: Mutex::new(None),
+            wirt,
         });
         let agenten = Agenten { innen };
         server::hook_server_starten(agenten.clone(), listener);
@@ -264,11 +293,20 @@ impl Agenten {
     pub fn zahlen(&self, etage: &str) -> (usize, usize, usize) {
         use protokoll::arbeiter::ArbeiterStatus as S;
         let z = self.innen.zustand();
-        let Some(e) = z.etagen.get(etage) else { return (0, 0, 0) };
-        let status = || e.arbeiter.values().filter(|a| a.info.station.is_none()).map(|a| a.info.status);
+        let Some(e) = z.etagen.get(etage) else {
+            return (0, 0, 0);
+        };
+        let status = || {
+            e.arbeiter
+                .values()
+                .filter(|a| a.info.station.is_none())
+                .map(|a| a.info.status)
+        };
         (
             status().count(),
-            status().filter(|s| matches!(s, S::Startet | S::Arbeitet)).count(),
+            status()
+                .filter(|s| matches!(s, S::Startet | S::Arbeitet))
+                .count(),
             status().filter(|s| *s == S::Wartet).count(),
         )
     }
@@ -276,7 +314,11 @@ impl Agenten {
     /// Wie ein Konto seine Anmeldungen an Arbeiter weitergibt: `f(konto)` liefert Umgebungsvariablen
     /// (z. B. `GH_CONFIG_DIR`, `CLAUDE_CONFIG_DIR`), die jeder Arbeiter dieses Kontos beim Start bekommt.
     pub fn konto_umgebung_setzen(&self, f: KontoUmgebung) {
-        *self.innen.konto_umgebung.lock().unwrap_or_else(|e| e.into_inner()) = Some(f);
+        *self
+            .innen
+            .konto_umgebung
+            .lock()
+            .unwrap_or_else(|e| e.into_inner()) = Some(f);
     }
 
     /// Eine Browser-Verbindung ist weg: sie schaut in kein Terminal mehr.
@@ -286,17 +328,30 @@ impl Agenten {
 
     /// Meldungen für den Team-Webhook (wartet, fertig, PR gemergt, heimgegangen).
     pub fn benachrichtigung_setzen(&self, f: MeldungsEmpfaenger) {
-        *self.innen.meldungen.lock().unwrap_or_else(|e| e.into_inner()) = Some(f);
+        *self
+            .innen
+            .meldungen
+            .lock()
+            .unwrap_or_else(|e| e.into_inner()) = Some(f);
     }
 
     /// Alle Dienste (Server, die Arbeiter gestartet haben) auf allen Etagen.
     pub fn dienste(&self) -> Vec<protokoll::agenten::Dienst> {
-        self.innen.zustand().etagen.values().flat_map(|e| e.dienste.clone()).collect()
+        self.innen
+            .zustand()
+            .etagen
+            .values()
+            .flat_map(|e| e.dienste.clone())
+            .collect()
     }
 
     /// Wird mit allen Dienst-Ports aufgerufen, sobald sich die Dienste ändern.
     pub fn dienste_beobachten(&self, f: DiensteBeobachter) {
-        *self.innen.dienste_beobachter.lock().unwrap_or_else(|e| e.into_inner()) = Some(f);
+        *self
+            .innen
+            .dienste_beobachter
+            .lock()
+            .unwrap_or_else(|e| e.into_inner()) = Some(f);
     }
 
     /// HTTP-Routen für den Hauptserver (unter `/api/agenten/...`).
@@ -304,15 +359,38 @@ impl Agenten {
         http::router(self.clone())
     }
 
-    /// Beim Herunterfahren: alles speichern, Terminals beenden.
+    /// Beim Herunterfahren: alles speichern. Laufen die Terminals im PTY-Wirt, arbeiten sie dort
+    /// weiter und der nächste Start übernimmt sie; sonst werden sie beendet.
     pub async fn beenden(&self) {
         let ids: Vec<String> = {
             let mut z = self.innen.zustand();
             z.schliesst = true;
             z.etagen.keys().cloned().collect()
         };
+        if let Some(w) = &self.innen.wirt {
+            {
+                let z = self.innen.zustand();
+                for e in z.etagen.values() {
+                    speicher::speichern(&self.innen.daten, e);
+                }
+            }
+            w.loslassen();
+        } else {
+            for id in ids {
+                etage::abmelden(self, &id);
+            }
+        }
+        self.innen.beenden.notify_waiters();
+    }
+
+    /// Beendet alle Terminals, auch die im PTY-Wirt, und den Wirt selbst.
+    pub async fn alles_beenden(&self) {
+        let ids: Vec<String> = self.innen.zustand().etagen.keys().cloned().collect();
         for id in ids {
             etage::abmelden(self, &id);
+        }
+        if let Some(w) = &self.innen.wirt {
+            w.stoppen();
         }
         self.innen.beenden.notify_waiters();
     }
@@ -320,7 +398,11 @@ impl Agenten {
 
 /// `office-agenten(.exe)` im Ordner des laufenden Programms.
 fn cli_neben_programm() -> PathBuf {
-    let name = if cfg!(windows) { "office-agenten.exe" } else { "office-agenten" };
+    let name = if cfg!(windows) {
+        "office-agenten.exe"
+    } else {
+        "office-agenten"
+    };
     std::env::current_exe()
         .ok()
         .and_then(|p| p.parent().map(|d| d.join(name)))

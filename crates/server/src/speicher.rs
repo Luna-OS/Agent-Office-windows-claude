@@ -34,20 +34,28 @@ fn versuchen<T: Serialize + ?Sized>(pfad: &Path, wert: &T) -> std::io::Result<()
         std::fs::create_dir_all(dir)?;
     }
     let tmp = pfad.with_extension("tmp");
-    std::fs::write(&tmp, serde_json::to_vec_pretty(wert).map_err(std::io::Error::other)?)?;
+    std::fs::write(
+        &tmp,
+        serde_json::to_vec_pretty(wert).map_err(std::io::Error::other)?,
+    )?;
     std::fs::rename(&tmp, pfad)
 }
 
 /// Jetzt in ms seit 1970.
 pub fn jetzt_ms() -> u64 {
-    SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0)
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0)
 }
 
 /// Eine zufällige ID aus `laenge` Hex-Zeichen.
 pub fn zufalls_id(laenge: usize) -> String {
     use rand::Rng;
     let mut rng = rand::rng();
-    (0..laenge).map(|_| char::from_digit(rng.random_range(0..16), 16).unwrap_or('0')).collect()
+    (0..laenge)
+        .map(|_| char::from_digit(rng.random_range(0..16), 16).unwrap_or('0'))
+        .collect()
 }
 
 /// Ein zufälliges Geheimnis, base64url, aus `bytes` Zufallsbytes.

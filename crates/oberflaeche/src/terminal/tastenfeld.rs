@@ -21,7 +21,11 @@ const TASTEN: &[(&str, &str, &str)] = &[
 
 /// Ob dieses Gerät eher getippt als geklickt wird.
 pub fn beruehrung() -> bool {
-    window().match_media("(pointer: coarse)").ok().flatten().is_some_and(|m| m.matches())
+    window()
+        .match_media("(pointer: coarse)")
+        .ok()
+        .flatten()
+        .is_some_and(|m| m.matches())
 }
 
 #[component]

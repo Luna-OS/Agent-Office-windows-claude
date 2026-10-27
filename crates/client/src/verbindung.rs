@@ -14,7 +14,11 @@ thread_local! {
 
 fn adresse() -> String {
     let ort = web_sys::window().expect("Browserfenster").location();
-    let schema = if ort.protocol().unwrap_or_default() == "https:" { "wss" } else { "ws" };
+    let schema = if ort.protocol().unwrap_or_default() == "https:" {
+        "wss"
+    } else {
+        "ws"
+    };
     // Nach einem Abbruch auf dieselbe Etage zurück; die 2D-Ansicht steht nirgends.
     let mut abfrage = Vec::new();
     if let Some(e) = oberflaeche::zustand::zustand().etage_jetzt() {
@@ -23,7 +27,11 @@ fn adresse() -> String {
     if oberflaeche::ist_lite() {
         abfrage.push("lite=1".into());
     }
-    let abfrage = if abfrage.is_empty() { String::new() } else { format!("?{}", abfrage.join("&")) };
+    let abfrage = if abfrage.is_empty() {
+        String::new()
+    } else {
+        format!("?{}", abfrage.join("&"))
+    };
     format!("{schema}://{}/ws{abfrage}", ort.host().unwrap_or_default())
 }
 
@@ -48,10 +56,14 @@ pub fn verbinden() {
     auf.forget();
 
     let nachricht = Closure::<dyn Fn(MessageEvent)>::new(|e: MessageEvent| {
-        let Some(text) = e.data().as_string() else { return };
+        let Some(text) = e.data().as_string() else {
+            return;
+        };
         match serde_json::from_str::<ServerNachricht>(&text) {
             Ok(n) => crate::register::verteilen(&n),
-            Err(f) => web_sys::console::warn_1(&format!("Unbekannter Frame vom Server: {f}").into()),
+            Err(f) => {
+                web_sys::console::warn_1(&format!("Unbekannter Frame vom Server: {f}").into())
+            }
         }
     });
     ws.set_onmessage(Some(nachricht.as_ref().unchecked_ref()));

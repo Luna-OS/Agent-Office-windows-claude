@@ -67,7 +67,7 @@ rm -rf "$BIN"
 mkdir -p "$BIN"
 cp -R "$quelle"/. "$BIN"/
 chmod +x "$BIN/open-agentic-office" 2>/dev/null || true
-[ -f "$BIN/office-agenten" ] && chmod +x "$BIN/office-agenten"
+for b in office-agenten office-pty-wirt; do [ -f "$BIN/$b" ] && chmod +x "$BIN/$b"; done
 # macOS: heruntergeladene Programme tragen die Quarantäne-Markierung
 [ "$os" = macos ] && xattr -dr com.apple.quarantine "$BIN" 2>/dev/null || true
 

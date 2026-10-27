@@ -15,7 +15,10 @@ pub struct Rechner {
 
 impl Default for Rechner {
     fn default() -> Self {
-        Self { sys: Mutex::new(System::new()), verlauf: Mutex::default() }
+        Self {
+            sys: Mutex::new(System::new()),
+            verlauf: Mutex::default(),
+        }
     }
 }
 
@@ -26,7 +29,11 @@ impl Rechner {
         s.refresh_cpu_usage();
         s.refresh_memory();
         let cpu = s.global_cpu_usage();
-        let mem = if s.total_memory() > 0 { s.used_memory() as f32 * 100.0 / s.total_memory() as f32 } else { 0.0 };
+        let mem = if s.total_memory() > 0 {
+            s.used_memory() as f32 * 100.0 / s.total_memory() as f32
+        } else {
+            0.0
+        };
         let mut v = self.verlauf.lock().unwrap();
         v.push_back([cpu.round(), mem.round()]);
         while v.len() > VERLAUF {

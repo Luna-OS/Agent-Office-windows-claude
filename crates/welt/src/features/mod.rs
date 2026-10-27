@@ -4,8 +4,8 @@
 pub mod arbeiter;
 pub mod aufzug;
 pub mod autos;
-pub mod golf;
 pub mod ball;
+pub mod golf;
 pub mod hund;
 pub mod leinwand;
 pub mod moebel;

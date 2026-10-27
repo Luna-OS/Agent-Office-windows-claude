@@ -99,7 +99,9 @@ impl Spiel {
     fn passt(&self, teil: u8, drehung: u8, x: i32, y: i32) -> bool {
         Self::zellen(teil, drehung).iter().all(|(dx, dy)| {
             let (cx, cy) = (x + dx, y + dy);
-            (0..SPALTEN as i32).contains(&cx) && cy < ZEILEN as i32 && (cy < 0 || self.schacht[cy as usize][cx as usize] == 0)
+            (0..SPALTEN as i32).contains(&cx)
+                && cy < ZEILEN as i32
+                && (cy < 0 || self.schacht[cy as usize][cx as usize] == 0)
         })
     }
 
@@ -191,14 +193,18 @@ impl Spiel {
             self.schacht[cy as usize][cx as usize] = self.teil;
         }
         self.teile += 1;
-        let voll: Vec<usize> = (0..ZEILEN).filter(|&z| self.schacht[z].iter().all(|&c| c != 0)).collect();
+        let voll: Vec<usize> = (0..ZEILEN)
+            .filter(|&z| self.schacht[z].iter().all(|&c| c != 0))
+            .collect();
         for &z in &voll {
             for r in (1..=z).rev() {
                 self.schacht[r] = self.schacht[r - 1];
             }
             self.schacht[0] = [0; SPALTEN];
         }
-        self.punkte = self.punkte.saturating_add(PUNKTE[voll.len().min(4)] * self.level());
+        self.punkte = self
+            .punkte
+            .saturating_add(PUNKTE[voll.len().min(4)] * self.level());
         self.reihen += voll.len() as u32;
         self.neues_teil();
     }
@@ -231,7 +237,9 @@ impl Spiel {
                 }
             }
         }
-        b.iter().flat_map(|z| z.iter().map(|&c| c as char)).collect()
+        b.iter()
+            .flat_map(|z| z.iter().map(|&c| c as char))
+            .collect()
     }
 }
 

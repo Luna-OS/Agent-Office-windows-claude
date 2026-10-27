@@ -29,7 +29,10 @@ mod an {
 
     pub fn zur_etage(etage: &str) {
         if oberflaeche::ist_lite() {
-            crate::verbindung::senden(ClientNachricht::Etagen(protokoll::etagen::Client::Gehen { etage: etage.to_string(), an: None }));
+            crate::verbindung::senden(ClientNachricht::Etagen(protokoll::etagen::Client::Gehen {
+                etage: etage.to_string(),
+                an: None,
+            }));
         } else {
             welt::zur_etage(etage);
         }
@@ -37,6 +40,10 @@ mod an {
 
     pub fn perspektive(ich: bool) {
         welt::perspektive_setzen(ich);
+    }
+
+    pub fn zur_garage() {
+        welt::zur_garage();
     }
 
     /// Was man in der Welt benutzt hat, als Fenster (oder direkt als Nachricht).
@@ -58,18 +65,26 @@ mod an {
                 }));
                 return;
             }
-            A::PromptOeffnen { arbeiter } => match oberflaeche::zustand::zustand().arbeiter_mit(&arbeiter) {
-                Some(a) => Fenster::Anlegen(a.tisch),
-                None => return,
-            },
+            A::PromptOeffnen { arbeiter } => {
+                match oberflaeche::zustand::zustand().arbeiter_mit(&arbeiter) {
+                    Some(a) => Fenster::Anlegen(a.tisch),
+                    None => return,
+                }
+            }
             A::AenderungenOeffnen { arbeiter } => Fenster::Aenderungen(arbeiter),
             A::NachHauseSchicken { arbeiter } => Fenster::Heimschicken(arbeiter),
             A::PullRequest { arbeiter } => {
-                match oberflaeche::zustand::zustand().arbeiter_mit(&arbeiter).and_then(|a| a.pr) {
+                match oberflaeche::zustand::zustand()
+                    .arbeiter_mit(&arbeiter)
+                    .and_then(|a| a.pr)
+                {
                     Some(pr) => {
-                        let _ = web_sys::window().and_then(|w| w.open_with_url_and_target(&pr.url, "_blank").ok());
+                        let _ = web_sys::window()
+                            .and_then(|w| w.open_with_url_and_target(&pr.url, "_blank").ok());
                     }
-                    None => crate::verbindung::senden(ClientNachricht::Arbeiter(arbeiter::Client::PrOeffnen { arbeiter })),
+                    None => crate::verbindung::senden(ClientNachricht::Arbeiter(
+                        arbeiter::Client::PrOeffnen { arbeiter },
+                    )),
                 }
                 return;
             }
@@ -92,6 +107,9 @@ mod an {
             }
             A::HilfeOeffnen => Fenster::Hilfe,
             A::BarKarte => Fenster::Bar,
+            A::StationOeffnen { tisch } => Fenster::Station(tisch),
+            A::KerkerOeffnen => Fenster::Kerker,
+            A::MinesweeperOeffnen => Fenster::Minen,
             A::BuecherregalOeffnen => Fenster::Buecher,
             A::WhiteboardOeffnen => Fenster::Whiteboard,
             A::ArcadeOeffnen => Fenster::Arcade,
@@ -114,9 +132,13 @@ mod an {
     pub fn fenster(_offen: bool) {}
     pub fn nachricht(_n: &protokoll::ServerNachricht) {}
     pub fn zur_etage(etage: &str) {
-        crate::verbindung::senden(ClientNachricht::Etagen(etagen::Client::Gehen { etage: etage.to_string(), an: None }));
+        crate::verbindung::senden(ClientNachricht::Etagen(etagen::Client::Gehen {
+            etage: etage.to_string(),
+            an: None,
+        }));
     }
     pub fn perspektive(_ich: bool) {}
+    pub fn zur_garage() {}
 }
 
 /// Startet die Welt (einmal, beim ersten Verbinden).
@@ -137,6 +159,11 @@ pub fn nachricht(n: &protokoll::ServerNachricht) {
 /// Ich-Perspektive oder Schulterblick.
 pub fn perspektive(ich: bool) {
     an::perspektive(ich);
+}
+
+/// Mit dem Aufzug in die Garage.
+pub fn zur_garage() {
+    an::zur_garage();
 }
 
 /// Mit dem Aufzug zu einer Etage.

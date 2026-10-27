@@ -12,7 +12,7 @@ use protokoll::spielzeug::Client as S;
 
 use crate::api::{Klang, WeltAktion, klang, melden};
 use crate::bau::farbe;
-use crate::grundriss::{GOLF_ABSCHLAG, GOLF_LOCH, TELESKOP, EMPORE_Y};
+use crate::grundriss::{EMPORE_Y, GOLF_ABSCHLAG, GOLF_LOCH, TELESKOP};
 use crate::register::{Aktivitaet, Phase, Register};
 use crate::spiellogik::golfflug;
 use crate::welt::Kontext;
@@ -38,7 +38,11 @@ impl Aktivitaet<Kontext> for Golfen {
                     let kraft = (a / AUSHOLEN).min(1.0);
                     let gier = crate::bewegung::winkel(kx.spieler.gier + std::f32::consts::PI);
                     let neigung = (kx.spieler.neigung + 0.45).clamp(0.15, 1.1);
-                    kx.senden(ClientNachricht::Spielzeug(S::Golf { gier, neigung, kraft }));
+                    kx.senden(ClientNachricht::Spielzeug(S::Golf {
+                        gier,
+                        neigung,
+                        kraft,
+                    }));
                 }
                 true
             }
@@ -59,12 +63,20 @@ impl Aktivitaet<Kontext> for Golfen {
     }
     fn hinweis(&self, _kx: &Kontext) -> Option<String> {
         Some(match self.ausholen {
-            Some(a) => format!("Loslassen zum Schlagen · Kraft {}%", ((a / AUSHOLEN).min(1.0) * 100.0) as u32),
+            Some(a) => format!(
+                "Loslassen zum Schlagen · Kraft {}%",
+                ((a / AUSHOLEN).min(1.0) * 100.0) as u32
+            ),
             None => "Maus: zielen · Leertaste halten: ausholen · E: Schläger weglegen".into(),
         })
     }
     fn stoppen(&mut self, kx: &mut Kontext) {
-        kx.senden(ClientNachricht::Praesenz(P::Handlung { rauchen: None, golfen: Some(false), getraenk: None, wirft: None }));
+        kx.senden(ClientNachricht::Praesenz(P::Handlung {
+            rauchen: None,
+            golfen: Some(false),
+            getraenk: None,
+            wirft: None,
+        }));
     }
 }
 
@@ -107,19 +119,33 @@ impl Aktivitaet<Kontext> for Teleskop {
 }
 
 pub fn installieren(reg: &mut Register<Kontext>) {
-    reg.interaktion("golf", |_, _| Some("E: Golfschläger nehmen".into()), |kx: &mut Kontext, _| {
-        kx.senden(ClientNachricht::Praesenz(P::Handlung { rauchen: None, golfen: Some(true), getraenk: None, wirft: None }));
-        // Blick zum Loch über der Straße.
-        let (x, z) = GOLF_ABSCHLAG;
-        let gier = (GOLF_LOCH.0 - x).atan2(GOLF_LOCH.1 - z);
-        kx.spieler.versetzen(x + 0.5, 0.0, z, gier);
-        kx.aktivitaet(Golfen { ausholen: None });
-    });
-    reg.interaktion("teleskop", |_, _| Some("E: durchs Teleskop schauen".into()), |kx: &mut Kontext, _| {
-        let (x, z) = TELESKOP;
-        kx.spieler.versetzen(x, EMPORE_Y, z, (-3.5f32 - 8.45).atan2(-1.5 - 7.75));
-        kx.aktivitaet(Teleskop);
-    });
+    reg.interaktion(
+        "golf",
+        |_, _| Some("E: Golfschläger nehmen".into()),
+        |kx: &mut Kontext, _| {
+            kx.senden(ClientNachricht::Praesenz(P::Handlung {
+                rauchen: None,
+                golfen: Some(true),
+                getraenk: None,
+                wirft: None,
+            }));
+            // Blick zum Loch über der Straße.
+            let (x, z) = GOLF_ABSCHLAG;
+            let gier = (GOLF_LOCH.0 - x).atan2(GOLF_LOCH.1 - z);
+            kx.spieler.versetzen(x + 0.5, 0.0, z, gier);
+            kx.aktivitaet(Golfen { ausholen: None });
+        },
+    );
+    reg.interaktion(
+        "teleskop",
+        |_, _| Some("E: durchs Teleskop schauen".into()),
+        |kx: &mut Kontext, _| {
+            let (x, z) = TELESKOP;
+            kx.spieler
+                .versetzen(x, EMPORE_Y, z, (-3.5f32 - 8.45).atan2(-1.5 - 7.75));
+            kx.aktivitaet(Teleskop);
+        },
+    );
 
     let fluege: Rc<RefCell<Vec<Flug>>> = Rc::default();
     reg.tick(Phase::Welt, move |kx: &mut Kontext, _| {
@@ -132,8 +158,17 @@ pub fn installieren(reg: &mut Register<Kontext>) {
         for (_, gier, neigung, kraft) in std::mem::take(&mut kx.aenderungen.golf) {
             let mut knoten = kx.etage.add_sphere(0.06);
             knoten.set_color(farbe("#ffffff"));
-            klang(Klang::Golfschlag { pos: [GOLF_ABSCHLAG.0, 0.1, GOLF_ABSCHLAG.1] });
-            fl.push(Flug { knoten, start: kx.zeit, gier, neigung, kraft, gelandet: false });
+            klang(Klang::Golfschlag {
+                pos: [GOLF_ABSCHLAG.0, 0.1, GOLF_ABSCHLAG.1],
+            });
+            fl.push(Flug {
+                knoten,
+                start: kx.zeit,
+                gier,
+                neigung,
+                kraft,
+                gelandet: false,
+            });
         }
         let boden = kx.strasse();
         let start = [GOLF_ABSCHLAG.0 - 0.2, 0.05, GOLF_ABSCHLAG.1];
@@ -146,9 +181,13 @@ pub fn installieren(reg: &mut Register<Kontext>) {
                 let weit = (p[0] - GOLF_LOCH.0).hypot(p[2] - GOLF_LOCH.1);
                 if weit < 1.0 {
                     klang(Klang::GolfLoch { pos: p });
-                    melden(WeltAktion::Meldung { text: "⛳ Eingelocht!".into() });
+                    melden(WeltAktion::Meldung {
+                        text: "⛳ Eingelocht!".into(),
+                    });
                 } else if weit < 5.5 {
-                    melden(WeltAktion::Meldung { text: format!("Auf dem Grün, {weit:.1} m vom Loch.") });
+                    melden(WeltAktion::Meldung {
+                        text: format!("Auf dem Grün, {weit:.1} m vom Loch."),
+                    });
                 }
             }
             let bleibt = t < 20.0;

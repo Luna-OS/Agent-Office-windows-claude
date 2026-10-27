@@ -58,17 +58,26 @@ impl Zustand {
         if self.auf_dem_dach() {
             return self.etagen.len().max(1);
         }
-        self.etage.as_ref().and_then(|id| self.etagen.iter().position(|e| &e.id == id)).unwrap_or(0)
+        self.etage
+            .as_ref()
+            .and_then(|id| self.etagen.iter().position(|e| &e.id == id))
+            .unwrap_or(0)
     }
 
     /// Die Palette (Wand-/Bodenfarben) der eigenen Etage.
     pub fn palette(&self) -> u32 {
-        self.etage.as_ref().and_then(|id| self.etagen.iter().find(|e| &e.id == id)).map(|e| e.palette).unwrap_or(0)
+        self.etage
+            .as_ref()
+            .and_then(|id| self.etagen.iter().find(|e| &e.id == id))
+            .map(|e| e.palette)
+            .unwrap_or(0)
     }
 
     /// Die Menschen auf der eigenen Etage (ohne einen selbst).
     pub fn personen_hier(&self) -> impl Iterator<Item = &Person> {
-        self.personen.values().filter(move |p| p.etage == self.etage && !p.lite)
+        self.personen
+            .values()
+            .filter(move |p| p.etage == self.etage && !p.lite)
     }
 
     /// Der Arbeiter an einem Tisch.
@@ -78,7 +87,10 @@ impl Zustand {
 
     /// Wer am längsten auf einen Menschen wartet (für N).
     pub fn laengster_wartender(&self) -> Option<&ArbeiterInfo> {
-        self.arbeiter.values().filter(|a| a.status == ArbeiterStatus::Wartet).min_by_key(|a| a.wartet_seit.unwrap_or(u64::MAX))
+        self.arbeiter
+            .values()
+            .filter(|a| a.status == ArbeiterStatus::Wartet)
+            .min_by_key(|a| a.wartet_seit.unwrap_or(u64::MAX))
     }
 
     /// Eine Nachricht vom Server anwenden.
@@ -114,7 +126,14 @@ impl Zustand {
                 }
                 a.personen = true;
             }
-            S::PersonBewegt { id, x, y, z, rot_y, laeuft } => {
+            S::PersonBewegt {
+                id,
+                x,
+                y,
+                z,
+                rot_y,
+                laeuft,
+            } => {
                 if let Some(p) = self.personen.get_mut(id) {
                     (p.x, p.y, p.z, p.rot_y, p.laeuft) = (*x, *y, *z, *rot_y, *laeuft);
                     a.personen = true;
@@ -132,11 +151,21 @@ impl Zustand {
     fn etagen(&mut self, e: &etagen::Server, a: &mut Aenderungen) {
         use etagen::Server as S;
         match e {
-            S::Betreten { etage, grundriss, personen, ort, .. } => {
+            S::Betreten {
+                etage,
+                grundriss,
+                personen,
+                ort,
+                ..
+            } => {
                 self.etage = etage.clone();
                 self.grundriss = grundriss.clone();
                 self.ankunft = Some(*ort);
-                self.personen = personen.iter().filter(|p| Some(&p.id) != self.ich.as_ref()).map(|p| (p.id.clone(), p.clone())).collect();
+                self.personen = personen
+                    .iter()
+                    .filter(|p| Some(&p.id) != self.ich.as_ref())
+                    .map(|p| (p.id.clone(), p.clone()))
+                    .collect();
                 // Arbeiter und Spielzeug kommen gleich frisch hinterher.
                 self.arbeiter.clear();
                 self.spielzeug = Default::default();
@@ -161,15 +190,21 @@ impl Zustand {
 
     fn arbeiter(&mut self, m: &protokoll::arbeiter::Server, a: &mut Aenderungen) {
         use protokoll::arbeiter::Server as S;
-        let hier = |w: &ArbeiterInfo, etage: &Option<String>| etage.as_deref() == Some(w.etage.as_str());
+        let hier =
+            |w: &ArbeiterInfo, etage: &Option<String>| etage.as_deref() == Some(w.etage.as_str());
         match m {
             S::Liste { arbeiter } => {
-                self.arbeiter = arbeiter.iter().filter(|w| hier(w, &self.etage)).map(|w| (w.id.clone(), w.clone())).collect();
+                self.arbeiter = arbeiter
+                    .iter()
+                    .filter(|w| hier(w, &self.etage))
+                    .map(|w| (w.id.clone(), w.clone()))
+                    .collect();
                 a.arbeiter = true;
             }
             S::Aktualisiert { arbeiter } => {
                 if hier(arbeiter, &self.etage) {
-                    self.arbeiter.insert(arbeiter.id.clone(), (**arbeiter).clone());
+                    self.arbeiter
+                        .insert(arbeiter.id.clone(), (**arbeiter).clone());
                 } else {
                     self.arbeiter.remove(&arbeiter.id);
                 }
@@ -192,7 +227,14 @@ impl Zustand {
             S::Hund { hund } => st.hund = Some(hund.clone()),
             S::Ball { ball } => st.ball = ball.clone(),
             S::Autos { autos, .. } => st.autos = autos.clone(),
-            S::AutoBewegt { auto, x, z, rot_y, tempo, lenkung } => {
+            S::AutoBewegt {
+                auto,
+                x,
+                z,
+                rot_y,
+                tempo,
+                lenkung,
+            } => {
                 if let Some(w) = st.autos.get_mut(*auto as usize) {
                     (w.x, w.z, w.rot_y, w.tempo, w.lenkung) = (*x, *z, *rot_y, *tempo, *lenkung);
                 }
@@ -201,7 +243,12 @@ impl Zustand {
             S::ArcadeBild { bild } => st.arcade.bild = Some(bild.clone()),
             S::WbLeute { leute } => st.whiteboard_leute = leute.clone(),
             S::Hupe { auto } => a.hupen.push(*auto),
-            S::Golf { id, gier, neigung, kraft } => a.golf.push((id.clone(), *gier, *neigung, *kraft)),
+            S::Golf {
+                id,
+                gier,
+                neigung,
+                kraft,
+            } => a.golf.push((id.clone(), *gier, *neigung, *kraft)),
             _ => a.spielzeug = false,
         }
     }
@@ -226,14 +273,29 @@ mod tests {
             projekt: None,
             grundriss: Grundriss::default(),
             personen,
-            ort: Ort { x: 8.5, y: 0.0, z: -11.8, rot_y: 0.0 },
+            ort: Ort {
+                x: 8.5,
+                y: 0.0,
+                z: -11.8,
+                rot_y: 0.0,
+            },
         })
     }
 
     #[test]
     fn betreten_ersetzt_personen_ohne_mich() {
-        let mut z = Zustand { ich: Some("ich".into()), ..Default::default() };
-        let a = z.anwenden(&betreten("e1", vec![person("ich", Some("e1")), person("du", Some("e1")), person("er", Some("e2"))]));
+        let mut z = Zustand {
+            ich: Some("ich".into()),
+            ..Default::default()
+        };
+        let a = z.anwenden(&betreten(
+            "e1",
+            vec![
+                person("ich", Some("e1")),
+                person("du", Some("e1")),
+                person("er", Some("e2")),
+            ],
+        ));
         assert!(a.etage);
         assert_eq!(z.personen.len(), 2);
         assert_eq!(z.personen_hier().count(), 1);
@@ -244,9 +306,19 @@ mod tests {
     fn bewegen_und_gehen() {
         let mut z = Zustand::default();
         z.anwenden(&betreten("e1", vec![person("du", Some("e1"))]));
-        z.anwenden(&ServerNachricht::Praesenz(P::PersonBewegt { id: "du".into(), x: 1.0, y: 0.0, z: 2.0, rot_y: 0.5, laeuft: true }));
+        z.anwenden(&ServerNachricht::Praesenz(P::PersonBewegt {
+            id: "du".into(),
+            x: 1.0,
+            y: 0.0,
+            z: 2.0,
+            rot_y: 0.5,
+            laeuft: true,
+        }));
         assert_eq!(z.personen["du"].z, 2.0);
-        assert!(z.anwenden(&ServerNachricht::Praesenz(P::PersonWeg { id: "du".into() })).personen);
+        assert!(
+            z.anwenden(&ServerNachricht::Praesenz(P::PersonWeg { id: "du".into() }))
+                .personen
+        );
         assert!(z.personen.is_empty());
     }
 

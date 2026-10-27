@@ -15,17 +15,30 @@ use crate::ui::{Eingabe, Knopf, KnopfArt};
 use crate::zustand::zustand;
 
 /// Die Schildfarben.
-const FARBEN: [&str; 6] = ["#ff8a5b", "#06d6a0", "#5bc0eb", "#ffd166", "#ef476f", "#9b5de5"];
+const FARBEN: [&str; 6] = [
+    "#ff8a5b", "#06d6a0", "#5bc0eb", "#ffd166", "#ef476f", "#9b5de5",
+];
 
 #[component]
 pub fn Schild(tisch: String) -> impl IntoView {
     let z = zustand();
     let t = StoredValue::new(tisch.clone());
-    let jetzt = z.grundriss.with_untracked(|g| g.schilder.get(&tisch).cloned());
+    let jetzt = z
+        .grundriss
+        .with_untracked(|g| g.schilder.get(&tisch).cloned());
     let text = RwSignal::new(jetzt.as_ref().map(|s| s.text.clone()).unwrap_or_default());
-    let farbe = RwSignal::new(jetzt.as_ref().map(|s| s.farbe.clone()).unwrap_or_else(|| FARBEN[0].into()));
+    let farbe = RwSignal::new(
+        jetzt
+            .as_ref()
+            .map(|s| s.farbe.clone())
+            .unwrap_or_else(|| FARBEN[0].into()),
+    );
     let haengen = move |text: String| {
-        senden(ClientNachricht::Etagen(etagen::Client::Schild { tisch: t.get_value(), text, farbe: Some(farbe.get_untracked()) }));
+        senden(ClientNachricht::Etagen(etagen::Client::Schild {
+            tisch: t.get_value(),
+            text,
+            farbe: Some(farbe.get_untracked()),
+        }));
         modal::schliessen(&Fenster::Schild(t.get_value()));
     };
     view! {
@@ -53,10 +66,20 @@ pub fn Heimschicken(arbeiter: String) -> impl IntoView {
     let z = zustand();
     let id = StoredValue::new(arbeiter.clone());
     let info = z.arbeiter_mit(&arbeiter);
-    senden(ClientNachricht::Arbeiter(A::WorktreeAbfragen { arbeiter: arbeiter.clone() }));
-    let stand = move || z.worktree.get().filter(|(a, _)| *a == id.get_value()).map(|(_, s)| s);
+    senden(ClientNachricht::Arbeiter(A::WorktreeAbfragen {
+        arbeiter: arbeiter.clone(),
+    }));
+    let stand = move || {
+        z.worktree
+            .get()
+            .filter(|(a, _)| *a == id.get_value())
+            .map(|(_, s)| s)
+    };
     let schicken = move |aufraeumen: Aufraeumen| {
-        senden(ClientNachricht::Arbeiter(A::Stoppen { arbeiter: id.get_value(), aufraeumen }));
+        senden(ClientNachricht::Arbeiter(A::Stoppen {
+            arbeiter: id.get_value(),
+            aufraeumen,
+        }));
         modal::schliessen(&Fenster::Heimschicken(id.get_value()));
     };
     let name = info.as_ref().map(|i| i.name.clone()).unwrap_or_default();

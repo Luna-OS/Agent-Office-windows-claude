@@ -13,7 +13,11 @@ pub struct Ansicht {
 
 impl Default for Ansicht {
     fn default() -> Self {
-        Self { vx: 0.0, vy: 0.0, zoom: 1.0 }
+        Self {
+            vx: 0.0,
+            vy: 0.0,
+            zoom: 1.0,
+        }
     }
 }
 
@@ -29,19 +33,34 @@ fn zahl(e: &Value, k: &str) -> f64 {
 }
 
 fn punkte(e: &Value) -> Vec<(f64, f64)> {
-    e["points"].as_array().map(|p| p.iter().map(|q| (q[0].as_f64().unwrap_or(0.0), q[1].as_f64().unwrap_or(0.0))).collect()).unwrap_or_default()
+    e["points"]
+        .as_array()
+        .map(|p| {
+            p.iter()
+                .map(|q| (q[0].as_f64().unwrap_or(0.0), q[1].as_f64().unwrap_or(0.0)))
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 fn pfeilspitze(c: &Ctx, (x0, y0): (f64, f64), (x1, y1): (f64, f64), groesse: f64) {
     let winkel = (y1 - y0).atan2(x1 - x0);
     for seite in [-0.45f64, 0.45] {
         c.move_to(x1, y1);
-        c.line_to(x1 - groesse * (winkel + seite).cos(), y1 - groesse * (winkel + seite).sin());
+        c.line_to(
+            x1 - groesse * (winkel + seite).cos(),
+            y1 - groesse * (winkel + seite).sin(),
+        );
     }
 }
 
 fn element(c: &Ctx, e: &Value) {
-    let (x, y, w, h) = (zahl(e, "x"), zahl(e, "y"), zahl(e, "width"), zahl(e, "height"));
+    let (x, y, w, h) = (
+        zahl(e, "x"),
+        zahl(e, "y"),
+        zahl(e, "width"),
+        zahl(e, "height"),
+    );
     let farbe = e["strokeColor"].as_str().unwrap_or("#1e1e1e");
     let hinten = e["backgroundColor"].as_str().unwrap_or("transparent");
     c.set_stroke_style_str(farbe);
@@ -67,7 +86,15 @@ fn element(c: &Ctx, e: &Value) {
             c.stroke();
         }
         "ellipse" => {
-            let _ = c.ellipse(x + w / 2.0, y + h / 2.0, (w / 2.0).abs(), (h / 2.0).abs(), 0.0, 0.0, std::f64::consts::TAU);
+            let _ = c.ellipse(
+                x + w / 2.0,
+                y + h / 2.0,
+                (w / 2.0).abs(),
+                (h / 2.0).abs(),
+                0.0,
+                0.0,
+                std::f64::consts::TAU,
+            );
             if hinten != "transparent" {
                 c.set_fill_style_str(hinten);
                 c.fill();
@@ -85,10 +112,27 @@ fn element(c: &Ctx, e: &Value) {
             }
             if e["type"] == "arrow" && p.len() >= 2 {
                 let (a, b) = (p[p.len() - 2], p[p.len() - 1]);
-                pfeilspitze(c, (x + a.0, y + a.1), (x + b.0, y + b.1), 10.0 + zahl(e, "strokeWidth") * 2.0);
+                pfeilspitze(
+                    c,
+                    (x + a.0, y + a.1),
+                    (x + b.0, y + b.1),
+                    10.0 + zahl(e, "strokeWidth") * 2.0,
+                );
             }
             c.stroke();
         }
+        "image" => match e["fileId"].as_str().and_then(super::bilder::bild) {
+            Some(img) => {
+                let _ = c.draw_image_with_html_image_element_and_dw_and_dh(&img, x, y, w, h);
+            }
+            None => {
+                c.set_stroke_style_str("#adb5bd");
+                c.stroke_rect(x, y, w, h);
+                c.set_fill_style_str("#adb5bd");
+                c.set_font("14px Nunito, system-ui, sans-serif");
+                let _ = c.fill_text("Bild lädt …", x + 8.0, y + 20.0);
+            }
+        },
         "text" => {
             let groesse = zahl(e, "fontSize").max(8.0);
             c.set_font(&format!("{groesse}px Nunito, system-ui, sans-serif"));
@@ -103,14 +147,32 @@ fn element(c: &Ctx, e: &Value) {
 }
 
 /// Alles neu zeichnen: Raster, Elemente, die Zeiger der anderen (Name, Farbe, x, y in Whiteboard-Koordinaten).
-pub fn alles(c: &Ctx, breite: f64, hoehe: f64, ansicht: Ansicht, elemente: &[Value], zeiger: &[(String, String, f64, f64)]) {
+pub fn alles(
+    c: &Ctx,
+    breite: f64,
+    hoehe: f64,
+    ansicht: Ansicht,
+    elemente: &[Value],
+    zeiger: &[(String, String, f64, f64)],
+) {
     c.set_transform(1.0, 0.0, 0.0, 1.0, 0.0, 0.0).ok();
     c.set_fill_style_str("#ffffff");
     c.fill_rect(0.0, 0.0, breite, hoehe);
-    c.set_transform(ansicht.zoom, 0.0, 0.0, ansicht.zoom, ansicht.vx * ansicht.zoom, ansicht.vy * ansicht.zoom).ok();
+    c.set_transform(
+        ansicht.zoom,
+        0.0,
+        0.0,
+        ansicht.zoom,
+        ansicht.vx * ansicht.zoom,
+        ansicht.vy * ansicht.zoom,
+    )
+    .ok();
     c.set_line_cap("round");
     c.set_line_join("round");
-    for e in elemente.iter().filter(|e| !e["isDeleted"].as_bool().unwrap_or(false)) {
+    for e in elemente
+        .iter()
+        .filter(|e| !e["isDeleted"].as_bool().unwrap_or(false))
+    {
         element(c, e);
     }
     for (name, farbe, x, y) in zeiger {

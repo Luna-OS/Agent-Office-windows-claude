@@ -41,11 +41,11 @@ Das Office lauscht in seinem Container auf `127.0.0.1:4600`, und alle erreichen 
 | `/data/home/.local`, `.claude`, `.claude.json` | Claude Code selbst, seine Anmeldung und die Sitzungen, die Arbeiter fortsetzen |
 | `/data/home/.config/gh`, `.gitconfig` | Die Anmeldung der GitHub CLI sowie Name und E-Mail für git |
 | `/data/ssh` | Der SSH-Host-Schlüssel, damit ssh dem Office nach einem neuen Ausrollen weiter vertraut |
-| `/data/team` | SSH-Schlüssel der Mitspieler, aus **👥 Mitspieler einladen** |
+| `/data/team` | SSH-Schlüssel der Mitspieler, aus **👥 Team** |
 
 `/data/home` ist das Home-Verzeichnis von `agentoffice`, also liegt alles andere, was ein Arbeiter in `~` ablegt, ebenfalls auf dem Volume. Der Rest des Containers (der Office-Code in `/opt/open-agentic-office`, alles systemweit Installierte) kommt jedes Mal frisch aus dem Image. Ein Neustart oder Deployment hält laufende Arbeiter an; sie kommen an ihren Schreibtischen zurück, wenn das Office es tut. Dokploy startet normalerweise den neuen Container, bevor es den alten stoppt; `up` stellt das Office auf „erst stoppen“, damit sich nie zwei Offices das Volume teilen.
 
-**Dein Team einladen.** Mitspieler brauchen weder ein Dokploy-Konto noch dieses Repo, nur `ssh`. Klicke im Office im **☰**-Menü auf **👥 Mitspieler einladen** und tippe ihren GitHub-Benutzernamen, oder führe `deploy/dokploy.sh invite octocat` aus. In beiden Fällen bekommen sie einen Befehl wie:
+**Dein Team einladen.** Mitspieler brauchen weder ein Dokploy-Konto noch dieses Repo, nur `ssh`. Klicke im Office im **☰**-Menü auf **👥 Team** und tippe ihren GitHub-Benutzernamen, oder führe `deploy/dokploy.sh invite octocat` aus. In beiden Fällen bekommen sie einen Befehl wie:
 
 ```
 ssh -L 4600:localhost:4600 ssh://office@203.0.113.7:2222

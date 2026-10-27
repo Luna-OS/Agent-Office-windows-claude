@@ -68,7 +68,13 @@ impl Kontext {
         let (sx, sz) = grundriss::START;
         Self {
             zustand: Zustand::default(),
-            spieler: Spieler::neu(sx, 0.0, sz, std::f32::consts::PI, grundriss::strasse_unter(0)),
+            spieler: Spieler::neu(
+                sx,
+                0.0,
+                sz,
+                std::f32::consts::PI,
+                grundriss::strasse_unter(0),
+            ),
             kamera: Kamera::neu(),
             szene,
             etage,
@@ -117,7 +123,11 @@ impl Kontext {
 
     /// Ein Text über einem Punkt der Welt (in diesem Frame).
     pub fn beschriften(&mut self, text: impl Into<String>, pos: [f32; 3], farbe: Color) {
-        self.beschriftungen.push(Beschriftung { text: text.into(), pos, farbe });
+        self.beschriftungen.push(Beschriftung {
+            text: text.into(),
+            pos,
+            farbe,
+        });
     }
 
     /// Wie tief die Straße unter dem Boden liegt, wo man gerade ist.
@@ -138,7 +148,11 @@ impl Kontext {
         let index = self.zustand.etagen_index();
         let anzahl = self.zustand.etagen.len().max(1);
         let pal = farben::etagen_palette(self.zustand.palette());
-        let fluegel = self.zustand.grundriss.fluegel.min(grundriss::FLUEGEL_REIHEN);
+        let fluegel = self
+            .zustand
+            .grundriss
+            .fluegel
+            .min(grundriss::FLUEGEL_REIHEN);
         {
             let mut b = Bau::neu(self.etage.clone(), &mut self.gebaut);
             if dach {
@@ -152,6 +166,10 @@ impl Kontext {
         }
         self.spieler.strasse = self.strasse();
         self.neu_gebaut = true;
-        log::info!("Etage gebaut: {} Kästen, {} benutzbare Dinge", self.gebaut.kaesten.len(), self.gebaut.nutzbar.len());
+        log::info!(
+            "Etage gebaut: {} Kästen, {} benutzbare Dinge",
+            self.gebaut.kaesten.len(),
+            self.gebaut.nutzbar.len()
+        );
     }
 }

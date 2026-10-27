@@ -7,8 +7,8 @@ use std::rc::Rc;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::{JsFuture, spawn_local};
 use web_sys::{
-    Blob, CanvasRenderingContext2d, DisplayMediaStreamConstraints, HtmlCanvasElement, HtmlVideoElement, MediaStream,
-    MediaStreamTrack, RequestCredentials, RequestInit,
+    Blob, CanvasRenderingContext2d, DisplayMediaStreamConstraints, HtmlCanvasElement,
+    HtmlVideoElement, MediaStream, MediaStreamTrack, RequestCredentials, RequestInit,
 };
 
 use super::{Lauscher, Takt, dokument, fehlername, fehlertext, fenster, setzen, sicher};
@@ -78,33 +78,48 @@ impl Teilen {
         if !sicher() {
             return Err("Bildschirm teilen braucht HTTPS (oder localhost).".into());
         }
-        let geraete = fenster().navigator().media_devices().map_err(|_| "Bildschirm teilen geht in diesem Browser nicht.")?;
+        let geraete = fenster()
+            .navigator()
+            .media_devices()
+            .map_err(|_| "Bildschirm teilen geht in diesem Browser nicht.")?;
         let video = js_sys::Object::new();
         setzen(&video, "frameRate", 15);
         let wunsch = DisplayMediaStreamConstraints::new();
         wunsch.set_video(&video);
         wunsch.set_audio(&JsValue::FALSE);
-        let versprechen = geraete.get_display_media_with_constraints(&wunsch).map_err(|e| fehlertext(&e))?;
+        let versprechen = geraete
+            .get_display_media_with_constraints(&wunsch)
+            .map_err(|e| fehlertext(&e))?;
         let strom: MediaStream = match JsFuture::from(versprechen).await {
             Ok(s) => s.unchecked_into(),
             Err(e) if fehlername(&e) == "NotAllowedError" => return Ok(()),
             Err(e) => return Err(format!("Teilen ging nicht: {}", fehlertext(&e))),
         };
         let spur: Option<MediaStreamTrack> = strom.get_video_tracks().get(0).dyn_into().ok();
-        let Some(spur) = spur else { return Err("Der Browser hat kein Bild geliefert.".into()) };
+        let Some(spur) = spur else {
+            return Err("Der Browser hat kein Bild geliefert.".into());
+        };
         setzen(&spur, "contentHint", "detail");
 
-        let video: HtmlVideoElement = dokument().create_element("video").map_err(|e| fehlertext(&e))?.unchecked_into();
+        let video: HtmlVideoElement = dokument()
+            .create_element("video")
+            .map_err(|e| fehlertext(&e))?
+            .unchecked_into();
         video.set_muted(true);
         video.set_attribute("playsinline", "").ok();
         video.set_src_object(Some(&strom));
         let _ = video.play();
 
-        let leinwand: HtmlCanvasElement = dokument().create_element("canvas").map_err(|e| fehlertext(&e))?.unchecked_into();
+        let leinwand: HtmlCanvasElement = dokument()
+            .create_element("canvas")
+            .map_err(|e| fehlertext(&e))?
+            .unchecked_into();
         let ich = self.clone();
         let ende = Lauscher::neu(&spur, "ended", move |_| ich.stoppen());
         let ich = self.clone();
-        let takt = Takt::neu(1000 / BILDER_PRO_SEKUNDE, move || ich.bild_senden(&leinwand));
+        let takt = Takt::neu(1000 / BILDER_PRO_SEKUNDE, move || {
+            ich.bild_senden(&leinwand)
+        });
         {
             let mut z = self.0.borrow_mut();
             z.strom = Some(strom);
@@ -162,12 +177,22 @@ impl Teilen {
             return;
         }
         let mass = (MAX_KANTE as f64 / b.max(h) as f64).min(1.0);
-        let (zb, zh) = ((b as f64 * mass).round() as u32, (h as f64 * mass).round() as u32);
+        let (zb, zh) = (
+            (b as f64 * mass).round() as u32,
+            (h as f64 * mass).round() as u32,
+        );
         leinwand.set_width(zb);
         leinwand.set_height(zh);
-        let Some(ctx) = leinwand.get_context("2d").ok().flatten() else { return };
+        let Some(ctx) = leinwand.get_context("2d").ok().flatten() else {
+            return;
+        };
         let ctx: CanvasRenderingContext2d = ctx.unchecked_into();
-        if ctx.draw_image_with_html_video_element_and_dw_and_dh(&video, 0.0, 0.0, zb as f64, zh as f64).is_err() {
+        if ctx
+            .draw_image_with_html_video_element_and_dw_and_dh(
+                &video, 0.0, 0.0, zb as f64, zh as f64,
+            )
+            .is_err()
+        {
             return;
         }
         self.0.borrow_mut().unterwegs = true;
@@ -177,13 +202,23 @@ impl Teilen {
             let blob: Option<Blob> = blob.dyn_into().ok();
             spawn_local(async move {
                 if let Some(blob) = blob
-                    && let Err(e) = senden("bild", Some(&blob), &v).await {
-                        web_sys::console::warn_1(&format!("Bildschirm-Bild nicht gesendet: {e}").into());
-                    }
+                    && let Err(e) = senden("bild", Some(&blob), &v).await
+                {
+                    web_sys::console::warn_1(
+                        &format!("Bildschirm-Bild nicht gesendet: {e}").into(),
+                    );
+                }
                 ich.0.borrow_mut().unterwegs = false;
             });
         });
-        if leinwand.to_blob_with_type_and_encoder_options(fertig.unchecked_ref(), "image/jpeg", &QUALITAET.into()).is_err() {
+        if leinwand
+            .to_blob_with_type_and_encoder_options(
+                fertig.unchecked_ref(),
+                "image/jpeg",
+                &QUALITAET.into(),
+            )
+            .is_err()
+        {
             self.0.borrow_mut().unterwegs = false;
         }
     }
@@ -200,9 +235,14 @@ async fn senden(was: &str, koerper: Option<&Blob>, verbindung: &str) -> Result<(
     if let Some(b) = koerper {
         init.set_body(b);
     }
-    let antwort = JsFuture::from(fenster().fetch_with_str_and_init(&format!("{PFAD}/{was}"), &init))
-        .await
-        .map_err(|e| fehlertext(&e))?;
+    let antwort =
+        JsFuture::from(fenster().fetch_with_str_and_init(&format!("{PFAD}/{was}"), &init))
+            .await
+            .map_err(|e| fehlertext(&e))?;
     let antwort: web_sys::Response = antwort.unchecked_into();
-    if antwort.ok() { Ok(()) } else { Err(format!("Server antwortet {}", antwort.status())) }
+    if antwort.ok() {
+        Ok(())
+    } else {
+        Err(format!("Server antwortet {}", antwort.status()))
+    }
 }

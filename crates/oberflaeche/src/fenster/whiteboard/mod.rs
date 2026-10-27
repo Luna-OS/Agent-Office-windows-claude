@@ -1,6 +1,7 @@
 //! 📝 Das Whiteboard der Etage: zusammen zeichnen, live. Die Elemente sind im Excalidraw-Format
 //! ([`elemente`]), gezeichnet auf ein Canvas ([`zeichnen`]); jede Änderung geht an alle auf der Etage.
 
+mod bilder;
 mod elemente;
 mod zeichnen;
 
@@ -33,10 +34,17 @@ thread_local! {
 }
 
 fn tafel() -> Tafel {
-    TAFEL.with(|t| *t.get_or_init(|| Tafel { stand: RwSignal::new(0), leute: RwSignal::new(Vec::new()) }))
+    TAFEL.with(|t| {
+        *t.get_or_init(|| {
+            crate::zustand::global(|| Tafel {
+                stand: RwSignal::new(0),
+                leute: RwSignal::new(Vec::new()),
+            })
+        })
+    })
 }
 
-fn neu_zeichnen() {
+pub(super) fn neu_zeichnen() {
     tafel().stand.update(|n| *n += 1);
 }
 
@@ -65,7 +73,16 @@ fn schicken(e: Vec<Value>) {
     senden(ClientNachricht::Spielzeug(S::WbAendern { elemente: e }));
 }
 
-const FARBEN: [&str; 6] = ["#1e1e1e", "#e03131", "#2f9e44", "#1971c2", "#f08c00", "#9c36b5"];
+/// Ein fertiges Element aufs Board und an alle.
+pub(super) fn hinzufuegen(el: Value) {
+    ELEMENTE.with_borrow_mut(|a| a.push(el.clone()));
+    schicken(vec![el]);
+    neu_zeichnen();
+}
+
+const FARBEN: [&str; 6] = [
+    "#1e1e1e", "#e03131", "#2f9e44", "#1971c2", "#f08c00", "#9c36b5",
+];
 const WERKZEUGE: [(Werkzeug, &str, &str); 7] = [
     (Werkzeug::Stift, "✏️", "Stift"),
     (Werkzeug::Rechteck, "▭", "Rechteck"),
@@ -73,7 +90,11 @@ const WERKZEUGE: [(Werkzeug, &str, &str); 7] = [
     (Werkzeug::Pfeil, "➜", "Pfeil"),
     (Werkzeug::Text, "T", "Text"),
     (Werkzeug::Radierer, "🧽", "Radierer"),
-    (Werkzeug::Hand, "✋", "Verschieben (oder Mausrad / Leertaste)"),
+    (
+        Werkzeug::Hand,
+        "✋",
+        "Verschieben (oder Mausrad / Leertaste)",
+    ),
 ];
 
 #[component]
@@ -94,18 +115,29 @@ pub fn Whiteboard() -> impl IntoView {
     on_cleanup(|| senden(ClientNachricht::Spielzeug(S::WbSchliessen)));
 
     let malen = move || {
-        let Some(c) = flaeche.get_untracked() else { return };
+        let Some(c) = flaeche.get_untracked() else {
+            return;
+        };
         let (b, h) = (c.client_width() as f64, c.client_height() as f64);
         if c.width() != b as u32 || c.height() != h as u32 {
             c.set_width(b as u32);
             c.set_height(h as u32);
         }
-        let Ok(Some(ctx)) = c.get_context("2d") else { return };
-        let Ok(ctx) = ctx.dyn_into::<web_sys::CanvasRenderingContext2d>() else { return };
+        let Ok(Some(ctx)) = c.get_context("2d") else {
+            return;
+        };
+        let Ok(ctx) = ctx.dyn_into::<web_sys::CanvasRenderingContext2d>() else {
+            return;
+        };
         let personen = z.personen.get_untracked();
         let zeiger: Vec<_> = ZEIGER.with_borrow(|m| {
             m.iter()
-                .filter_map(|(id, (x, y))| personen.iter().find(|p| &p.id == id).map(|p| (p.name.clone(), p.farbe.clone(), *x, *y)))
+                .filter_map(|(id, (x, y))| {
+                    personen
+                        .iter()
+                        .find(|p| &p.id == id)
+                        .map(|p| (p.name.clone(), p.farbe.clone(), *x, *y))
+                })
                 .collect()
         });
         ELEMENTE.with_borrow(|e| {
@@ -123,8 +155,32 @@ pub fn Whiteboard() -> impl IntoView {
     });
     let groesse_weg = window_event_listener(leptos::ev::resize, move |_| malen());
     on_cleanup(move || groesse_weg.remove());
+    // Strg+V mit einem Bild: in die Mitte der Ansicht.
+    let einfuegen_weg = window_event_listener(leptos::ev::paste, move |e| {
+        let Some(dateien) = e.clipboard_data().and_then(|d| d.files()) else {
+            return;
+        };
+        let Some(c) = flaeche.get_untracked() else {
+            return;
+        };
+        let (x, y) = ansicht.get_value().welt(
+            c.client_width() as f64 / 2.0,
+            c.client_height() as f64 / 2.0,
+        );
+        for i in 0..dateien.length() {
+            if let Some(d) = dateien.item(i) {
+                e.prevent_default();
+                bilder::einfuegen(d, x - 100.0 + i as f64 * 30.0, y - 80.0 + i as f64 * 30.0);
+            }
+        }
+    });
+    on_cleanup(move || einfuegen_weg.remove());
 
-    let punkt = move |e: &web_sys::PointerEvent| ansicht.get_value().welt(e.offset_x() as f64, e.offset_y() as f64);
+    let punkt = move |e: &web_sys::PointerEvent| {
+        ansicht
+            .get_value()
+            .welt(e.offset_x() as f64, e.offset_y() as f64)
+    };
 
     let runter = move |e: web_sys::PointerEvent| {
         let (x, y) = punkt(&e);
@@ -132,18 +188,19 @@ pub fn Whiteboard() -> impl IntoView {
             let _ = c.set_pointer_capture(e.pointer_id());
         }
         match werkzeug.get_untracked() {
-            _ if e.button() == 1 || werkzeug.get_untracked() == Werkzeug::Hand => schieben.set_value(Some((e.offset_x() as f64, e.offset_y() as f64))),
+            _ if e.button() == 1 || werkzeug.get_untracked() == Werkzeug::Hand => {
+                schieben.set_value(Some((e.offset_x() as f64, e.offset_y() as f64)))
+            }
             Werkzeug::Radierer => radieren(x, y),
             Werkzeug::Text => {
                 if let Ok(Some(text)) = window().prompt_with_message("Text:")
                     && !text.trim().is_empty()
                 {
-                    let mut el = elemente::neu("text", x, y, &farbe.get_untracked(), breite.get_untracked());
+                    let mut el =
+                        elemente::neu("text", x, y, &farbe.get_untracked(), breite.get_untracked());
                     el["text"] = Value::from(text.clone());
                     el["originalText"] = Value::from(text);
-                    ELEMENTE.with_borrow_mut(|a| a.push(el.clone()));
-                    schicken(vec![el]);
-                    neu_zeichnen();
+                    hinzufuegen(el);
                 }
             }
             w => {
@@ -153,7 +210,13 @@ pub fn Whiteboard() -> impl IntoView {
                     Werkzeug::Pfeil => "arrow",
                     _ => "freedraw",
                 };
-                zieht.set_value(Some(elemente::neu(typ, x, y, &farbe.get_untracked(), breite.get_untracked())));
+                zieht.set_value(Some(elemente::neu(
+                    typ,
+                    x,
+                    y,
+                    &farbe.get_untracked(),
+                    breite.get_untracked(),
+                )));
             }
         }
     };
@@ -187,7 +250,15 @@ pub fn Whiteboard() -> impl IntoView {
         if jetzt.saturating_sub(zuletzt.get_value()) > 80 {
             zuletzt.set_value(jetzt);
             let taste = if e.buttons() == 1 { "down" } else { "up" };
-            senden(ClientNachricht::Spielzeug(S::WbZeiger { zeiger: WbZeiger { x: x as f32, y: y as f32, werkzeug: "pointer".into(), taste: taste.into(), ausgewaehlt: Vec::new() } }));
+            senden(ClientNachricht::Spielzeug(S::WbZeiger {
+                zeiger: WbZeiger {
+                    x: x as f32,
+                    y: y as f32,
+                    werkzeug: "pointer".into(),
+                    taste: taste.into(),
+                    ausgewaehlt: Vec::new(),
+                },
+            }));
         }
     };
     let hoch = move |_e: web_sys::PointerEvent| {
@@ -248,6 +319,18 @@ pub fn Whiteboard() -> impl IntoView {
                 on:pointermove=bewegen
                 on:pointerup=hoch
                 on:wheel=rad
+                on:dragover=|e| e.prevent_default()
+                on:drop=move |e: web_sys::DragEvent| {
+                    e.prevent_default();
+                    let (x, y) = ansicht.get_value().welt(e.offset_x() as f64, e.offset_y() as f64);
+                    if let Some(dateien) = e.data_transfer().and_then(|d| d.files()) {
+                        for i in 0..dateien.length() {
+                            if let Some(d) = dateien.item(i) {
+                                bilder::einfuegen(d, x + i as f64 * 30.0, y + i as f64 * 30.0);
+                            }
+                        }
+                    }
+                }
             ></canvas>
         </Rahmen>
     }
@@ -268,7 +351,10 @@ fn radieren(x: f64, y: f64) {
 }
 
 fn alles_loeschen() {
-    if !window().confirm_with_message("Das ganze Whiteboard für alle wegwischen?").unwrap_or(false) {
+    if !window()
+        .confirm_with_message("Das ganze Whiteboard für alle wegwischen?")
+        .unwrap_or(false)
+    {
         return;
     }
     let weg = ELEMENTE.with_borrow_mut(|a| {

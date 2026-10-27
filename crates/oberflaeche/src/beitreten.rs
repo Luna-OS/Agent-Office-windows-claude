@@ -19,23 +19,47 @@ pub fn Beitrittsseite(token: String) -> impl IntoView {
 
     let t = token.clone();
     spawn_local(async move {
-        match http::schicken("/api/beitreten", &json!({ "token": t, "passwort": "", "nur_ansehen": true })).await {
+        match http::schicken(
+            "/api/beitreten",
+            &json!({ "token": t, "passwort": "", "nur_ansehen": true }),
+        )
+        .await
+        {
             Ok(a) if a.ok() => {
                 if let Some(n) = a.json.get("name").and_then(Value::as_str) {
                     name.set(n.to_string());
                 }
                 einladung.set(Some(a.json));
             }
-            Ok(a) if a.status == 410 => fehler.set(Some("Dieser Einladungslink ist abgelaufen oder wurde schon benutzt.".into())),
+            Ok(a) if a.status == 410 => fehler.set(Some(
+                "Dieser Einladungslink ist abgelaufen oder wurde schon benutzt.".into(),
+            )),
             Ok(a) => fehler.set(Some(a.fehler())),
             Err(f) => fehler.set(Some(f)),
         }
     });
 
-    let feld = |k: &'static str| move || einladung.with(|e| e.as_ref().and_then(|e| e.get(k)).and_then(Value::as_str).map(str::to_string)).unwrap_or_default();
+    let feld = |k: &'static str| {
+        move || {
+            einladung
+                .with(|e| {
+                    e.as_ref()
+                        .and_then(|e| e.get(k))
+                        .and_then(Value::as_str)
+                        .map(str::to_string)
+                })
+                .unwrap_or_default()
+        }
+    };
     let von = feld("von");
     let projekt = feld("projekt");
-    let fester_name = move || einladung.with(|e| e.as_ref().and_then(|e| e.get("name")).is_some_and(|n| n.is_string()));
+    let fester_name = move || {
+        einladung.with(|e| {
+            e.as_ref()
+                .and_then(|e| e.get("name"))
+                .is_some_and(|n| n.is_string())
+        })
+    };
 
     let absenden = move |e: leptos::ev::SubmitEvent| {
         e.prevent_default();
@@ -52,10 +76,14 @@ pub fn Beitrittsseite(token: String) -> impl IntoView {
         spawn_local(async move {
             match http::schicken("/api/beitreten", &koerper).await {
                 Ok(a) if a.ok() => {
-                    let _ = window().history().and_then(|h| h.replace_state_with_url(&wasm_bindgen::JsValue::NULL, "", Some("/")));
+                    let _ = window().history().and_then(|h| {
+                        h.replace_state_with_url(&wasm_bindgen::JsValue::NULL, "", Some("/"))
+                    });
                     ins_office();
                 }
-                Ok(a) if a.status == 410 => fehler.set(Some("Dieser Einladungslink ist abgelaufen.".into())),
+                Ok(a) if a.status == 410 => {
+                    fehler.set(Some("Dieser Einladungslink ist abgelaufen.".into()))
+                }
                 Ok(a) => fehler.set(Some(a.fehler())),
                 Err(f) => fehler.set(Some(f)),
             }

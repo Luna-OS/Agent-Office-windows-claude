@@ -23,7 +23,9 @@ impl Domaene for Praesenz {
     }
 
     fn begruessung(&self, o: &OfficeRef, von: &str) -> Vec<ServerNachricht> {
-        let (Some(ich_selbst), Some(s)) = (o.person(von), o.sitzung_von(von)) else { return Vec::new() };
+        let (Some(ich_selbst), Some(s)) = (o.person(von), o.sitzung_von(von)) else {
+            return Vec::new();
+        };
         vec![p(Server::Willkommen {
             du: von.into(),
             ich_selbst,
@@ -45,8 +47,13 @@ impl Domaene for Praesenz {
 /// Gibt es den Sitzplatz ("couch:1") auf dem Dach bzw. auf einer Büro-Etage?
 fn sitz_gibt_es(schluessel: &str, auf_dach: bool) -> bool {
     use welt::grundriss::sitze;
-    let Some((id, _)) = schluessel.rsplit_once(':') else { return false };
-    sitze::platz_nach_schluessel(schluessel).is_some() && sitze::sitze().iter().any(|s| s.id == id && s.dach == auf_dach)
+    let Some((id, _)) = schluessel.rsplit_once(':') else {
+        return false;
+    };
+    sitze::platz_nach_schluessel(schluessel).is_some()
+        && sitze::sitze()
+            .iter()
+            .any(|s| s.id == id && s.dach == auf_dach)
 }
 
 fn geaendert(o: &OfficeRef, von: &str, f: impl FnOnce(&mut protokoll::praesenz::Person) -> bool) {
@@ -59,14 +66,40 @@ fn geaendert(o: &OfficeRef, von: &str, f: impl FnOnce(&mut protokoll::praesenz::
 
 fn bearbeiten(o: &OfficeRef, von: &str, c: Client) {
     match c {
-        Client::Bewegen { x, y, z, rot_y, laeuft } => {
-            let (x, y, z, rot_y) = (eingabe::zahl(x, 500.0), eingabe::zahl(y, 200.0), eingabe::zahl(z, 500.0), eingabe::zahl(rot_y, 100.0));
+        Client::Bewegen {
+            x,
+            y,
+            z,
+            rot_y,
+            laeuft,
+        } => {
+            let (x, y, z, rot_y) = (
+                eingabe::zahl(x, 500.0),
+                eingabe::zahl(y, 200.0),
+                eingabe::zahl(z, 500.0),
+                eingabe::zahl(rot_y, 100.0),
+            );
             o.person_aendern(von, |p| {
                 (p.x, p.y, p.z, p.rot_y, p.laeuft) = (x, y, z, rot_y, laeuft);
             });
-            o.an_nachbarn(von, &p(Server::PersonBewegt { id: von.into(), x, y, z, rot_y, laeuft }));
+            o.an_nachbarn(
+                von,
+                &p(Server::PersonBewegt {
+                    id: von.into(),
+                    x,
+                    y,
+                    z,
+                    rot_y,
+                    laeuft,
+                }),
+            );
         }
-        Client::Handlung { rauchen, golfen, getraenk, wirft } => {
+        Client::Handlung {
+            rauchen,
+            golfen,
+            getraenk,
+            wirft,
+        } => {
             let auf_dach = o.etage_von(von).as_deref() == Some(DACH);
             geaendert(o, von, |p| {
                 let vorher = (p.raucht, p.golft, p.getraenk, p.wirft);
@@ -90,15 +123,26 @@ fn bearbeiten(o: &OfficeRef, von: &str, c: Client) {
         Client::Sitzen { sitz } => {
             let auf_dach = o.etage_von(von).as_deref() == Some(DACH);
             // Nur Plätze, die es dort gibt, wo man ist.
-            let sitz = sitz.map(|s| eingabe::text(&s, 40)).filter(|s| sitz_gibt_es(s, auf_dach));
+            let sitz = sitz
+                .map(|s| eingabe::text(&s, 40))
+                .filter(|s| sitz_gibt_es(s, auf_dach));
             if let Some(s) = &sitz {
                 let etage = o.etage_von(von);
                 let ich = o.person(von);
                 let belegt = o.personen().into_iter().find(|q| {
-                    q.id != von && q.etage == etage && q.sitz.as_ref() == Some(s) && ich.as_ref().is_none_or(|i| i.name != q.name)
+                    q.id != von
+                        && q.etage == etage
+                        && q.sitz.as_ref() == Some(s)
+                        && ich.as_ref().is_none_or(|i| i.name != q.name)
                 });
                 if let Some(q) = belegt {
-                    o.an(von, &p(Server::SitzBelegt { sitz: s.clone(), von: q.name }));
+                    o.an(
+                        von,
+                        &p(Server::SitzBelegt {
+                            sitz: s.clone(),
+                            von: q.name,
+                        }),
+                    );
                     return;
                 }
             }
@@ -120,12 +164,27 @@ fn bearbeiten(o: &OfficeRef, von: &str, c: Client) {
             });
         }
         Client::Emote { emote } => {
-            let ok = o.verbindungen.lock().unwrap().get_mut(von).is_some_and(|v| v.emotes.nehmen(jetzt_ms()));
+            let ok = o
+                .verbindungen
+                .lock()
+                .unwrap()
+                .get_mut(von)
+                .is_some_and(|v| v.emotes.nehmen(jetzt_ms()));
             if ok {
-                o.an_nachbarn(von, &p(Server::PersonEmote { id: von.into(), emote }));
+                o.an_nachbarn(
+                    von,
+                    &p(Server::PersonEmote {
+                        id: von.into(),
+                        emote,
+                    }),
+                );
             }
         }
-        Client::Profil { name, farbe, aussehen } => {
+        Client::Profil {
+            name,
+            farbe,
+            aussehen,
+        } => {
             let name = crate::anmeldung::konten::name_saeubern(&name);
             let person = o.person_aendern(von, |p| {
                 if !name.is_empty() && !p.konto {
@@ -141,7 +200,9 @@ fn bearbeiten(o: &OfficeRef, von: &str, c: Client) {
             }
         }
         Client::Tut { was, liest } => {
-            let was = was.map(|w| eingabe::text(w.trim(), 60)).filter(|w| !w.is_empty());
+            let was = was
+                .map(|w| eingabe::text(w.trim(), 60))
+                .filter(|w| !w.is_empty());
             geaendert(o, von, |p| {
                 let anders = p.tut != was || p.liest != liest;
                 (p.tut, p.liest) = (was, liest);
@@ -155,10 +216,23 @@ fn bearbeiten(o: &OfficeRef, von: &str, c: Client) {
             if text.is_empty() {
                 return;
             }
-            let zeile = ChatZeile { von: von.into(), name: ich.name, farbe: ich.farbe, text, um: jetzt_ms(), konto: ich.konto };
+            let zeile = ChatZeile {
+                von: von.into(),
+                name: ich.name,
+                farbe: ich.farbe,
+                text,
+                um: jetzt_ms(),
+                konto: ich.konto,
+            };
             o.chat_merken(zeile.clone());
             o.an_alle(&p(Server::Chat { zeile }), None);
         }
-        Client::Ping { um } => o.an(von, &p(Server::Pong { um: if um.is_finite() { um } else { 0.0 }, jetzt: jetzt_ms() })),
+        Client::Ping { um } => o.an(
+            von,
+            &p(Server::Pong {
+                um: if um.is_finite() { um } else { 0.0 },
+                jetzt: jetzt_ms(),
+            }),
+        ),
     }
 }

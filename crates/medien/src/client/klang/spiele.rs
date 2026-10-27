@@ -76,7 +76,15 @@ impl Klang {
             }
             GolfKlang::Aufprall => {
                 k.schlag(0.0, 0.08 + hart * 0.3, zufall_f(1.7, 2.0), &aus);
-                k.blip(&aus, t0, zufall_f(620.0, 700.0), 0.7, 0.05, 0.03 + hart * 0.06, SINUS);
+                k.blip(
+                    &aus,
+                    t0,
+                    zufall_f(620.0, 700.0),
+                    0.7,
+                    0.05,
+                    0.03 + hart * 0.06,
+                    SINUS,
+                );
             }
             GolfKlang::Plumps => k.schlag(0.0, 0.08 + hart * 0.2, zufall_f(1.1, 1.3), &aus),
             GolfKlang::Gelaender => {
@@ -88,7 +96,15 @@ impl Klang {
                 k.blip(&aus, t0, 520.0, 0.6, 0.12, 0.14, DREIECK);
                 for i in 1..=3 {
                     let i = i as f32;
-                    k.blip(&aus, t0 + 0.08 + i as f64 * 0.06, 900.0 - i * 90.0, 0.8, 0.04, 0.05 / i, SINUS);
+                    k.blip(
+                        &aus,
+                        t0 + 0.08 + i as f64 * 0.06,
+                        900.0 - i * 90.0,
+                        0.8,
+                        0.04,
+                        0.05 / i,
+                        SINUS,
+                    );
                 }
             }
             GolfKlang::Jubel => fanfare(&k, &aus, t0 + 0.25, 0.13, 0.9, 0.2),
@@ -103,7 +119,15 @@ impl Klang {
         let t0 = k.jetzt() + 0.005;
         match art {
             BallKlang::Aufprall => {
-                k.blip(&aus, t0, zufall_f(150.0, 175.0), 0.7, 0.16, 0.05 + 0.3 * laut, SINUS);
+                k.blip(
+                    &aus,
+                    t0,
+                    zufall_f(150.0, 175.0),
+                    0.7,
+                    0.16,
+                    0.05 + 0.3 * laut,
+                    SINUS,
+                );
                 k.schlag(0.0, 0.15 + 0.5 * laut, zufall_f(1.25, 1.4), &aus);
             }
             BallKlang::Ring => {
@@ -121,7 +145,9 @@ impl Klang {
                 let n = k.quelle(&k.puffer.weiss, false);
                 let ton = k.filter(BiquadFilterType::Bandpass, 2400.0, 1.2);
                 let _ = ton.frequency().set_value_at_time(1800.0, t0);
-                let _ = ton.frequency().linear_ramp_to_value_at_time(4200.0, t0 + 0.28);
+                let _ = ton
+                    .frequency()
+                    .linear_ramp_to_value_at_time(4200.0, t0 + 0.28);
                 let g = k.verstaerker(0.0);
                 huelle(&g.gain(), t0, &[(0.03, 0.22), (0.18, 0.14), (0.34, 0.0)]);
                 kette(&[&n, &ton, &g, &aus]);
@@ -170,8 +196,20 @@ impl Klang {
 
     pub fn arcade_reihen(&self, reihen: usize) {
         self.arcade(move |k, aus, t0| {
-            for (i, f) in [523.0, 659.0, 784.0, 1047.0, 1319.0].into_iter().take(reihen + 1).enumerate() {
-                k.blip(aus, t0 + i as f64 * 0.07, f, 1.02, 0.1, 0.09, OscillatorType::Square);
+            for (i, f) in [523.0, 659.0, 784.0, 1047.0, 1319.0]
+                .into_iter()
+                .take(reihen + 1)
+                .enumerate()
+            {
+                k.blip(
+                    aus,
+                    t0 + i as f64 * 0.07,
+                    f,
+                    1.02,
+                    0.1,
+                    0.09,
+                    OscillatorType::Square,
+                );
             }
         });
     }
@@ -215,7 +253,9 @@ fn luft(k: &Kern, aus: &AudioNode, t0: f64, von: f32, bis: f32, len: f64, pegel:
         for i in 0..pulse {
             let bei = t0 + (i as f64 + 0.5) * stueck;
             let _ = g.gain().linear_ramp_to_value_at_time(pegel, bei);
-            let _ = g.gain().linear_ramp_to_value_at_time(pegel * 0.15, bei + stueck / 2.0);
+            let _ = g
+                .gain()
+                .linear_ramp_to_value_at_time(pegel * 0.15, bei + stueck / 2.0);
         }
         let _ = g.gain().linear_ramp_to_value_at_time(0.0, t0 + len + 0.05);
     } else {

@@ -96,7 +96,9 @@ pub enum Client {
         #[serde(default)]
         branch_loeschen: bool,
     },
-    Schliessen { nummer: u64 },
+    Schliessen {
+        nummer: u64,
+    },
     /// Einen Arbeiter für dieses Issue anlegen (am nächsten freien Tisch, wenn keiner genannt ist).
     IssueVergeben {
         nummer: u64,

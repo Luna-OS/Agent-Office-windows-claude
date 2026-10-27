@@ -177,28 +177,56 @@ pub enum Client {
         name: Option<String>,
         rolle: Rolle,
     },
-    EinladungZurueckziehen { einladung: String },
-    Entziehen { konto: String },
-    RolleSetzen { konto: String, rolle: Rolle },
+    EinladungZurueckziehen {
+        einladung: String,
+    },
+    Entziehen {
+        konto: String,
+    },
+    RolleSetzen {
+        konto: String,
+        rolle: Rolle,
+    },
     /// Gemeinsames Passwort an/aus.
-    GemeinsamesPasswort { an: bool },
+    GemeinsamesPasswort {
+        an: bool,
+    },
     /// Mitglieder dürfen das Claude des Office-Rechners nutzen.
-    ClaudeTeilen { an: bool },
+    ClaudeTeilen {
+        an: bool,
+    },
     /// Eigene Anmeldungen (nur mit Konto).
     AnmeldungenHolen,
-    AnmeldungStarten { art: AnmeldeArt },
+    AnmeldungStarten {
+        art: AnmeldeArt,
+    },
     /// Der Code von Claudes Anmeldeseite.
-    AnmeldungCode { code: String },
-    AnmeldungAbbrechen { art: AnmeldeArt },
-    AnmeldungToken { art: AnmeldeArt, token: String },
-    AnmeldungOffice { art: AnmeldeArt },
-    Abmelden { art: AnmeldeArt },
+    AnmeldungCode {
+        code: String,
+    },
+    AnmeldungAbbrechen {
+        art: AnmeldeArt,
+    },
+    AnmeldungToken {
+        art: AnmeldeArt,
+        token: String,
+    },
+    AnmeldungOffice {
+        art: AnmeldeArt,
+    },
+    Abmelden {
+        art: AnmeldeArt,
+    },
     /// Einen Einmal-Link für einen anderen Browser (Connector), fünf Minuten gültig; Antwort `Link`.
     LinkErzeugen,
     /// SSH-Team (Admins): Stand holen, die SSH-Schlüssel eines GitHub-Nutzers einladen, jemanden entfernen.
     TeamHolen,
-    TeamEinladen { github: String },
-    TeamEntfernen { name: String },
+    TeamEinladen {
+        github: String,
+    },
+    TeamEntfernen {
+        name: String,
+    },
 }
 
 /// Nachrichten an den Browser.
@@ -206,7 +234,9 @@ pub enum Client {
 #[serde(tag = "typ", rename_all = "snake_case")]
 pub enum Server {
     /// An Admins, auf Nachfrage und bei jeder Änderung.
-    Konten { stand: KontenStand },
+    Konten {
+        stand: KontenStand,
+    },
     /// An den, der eingeladen hat.
     Eingeladen {
         #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -215,13 +245,24 @@ pub enum Server {
         fehler: Option<String>,
     },
     /// Die eigene Rolle hat sich geändert.
-    Ich { ich: Ich },
-    Anmeldungen { stand: Anmeldungen },
+    Ich {
+        ich: Ich,
+    },
+    Anmeldungen {
+        stand: Anmeldungen,
+    },
     /// Dafür braucht es erst eine eigene Anmeldung.
-    AnmeldungNoetig { art: AnmeldeArt, warum: String },
+    AnmeldungNoetig {
+        art: AnmeldeArt,
+        warum: String,
+    },
     /// Antwort auf `LinkErzeugen`: Pfad wie "/anmelden#schluessel=…".
-    Link { pfad: String },
-    Team { stand: TeamStand },
+    Link {
+        pfad: String,
+    },
+    Team {
+        stand: TeamStand,
+    },
     /// An den, der eingeladen hat.
     TeamEingeladen {
         github: String,

@@ -42,10 +42,26 @@ fn orte() -> Orte {
         .into_iter()
         .filter(|o| o.unten < 2.0)
         .map(|o| match o.wand {
-            Seite::Sued => Ort { x: o.u, y: 2.4, z: b.max_z + rand },
-            Seite::Nord => Ort { x: o.u, y: 2.4, z: b.min_z - rand },
-            Seite::Ost => Ort { x: b.max_x + rand, y: 2.4, z: o.u },
-            Seite::West => Ort { x: b.min_x - rand, y: 2.4, z: o.u },
+            Seite::Sued => Ort {
+                x: o.u,
+                y: 2.4,
+                z: b.max_z + rand,
+            },
+            Seite::Nord => Ort {
+                x: o.u,
+                y: 2.4,
+                z: b.min_z - rand,
+            },
+            Seite::Ost => Ort {
+                x: b.max_x + rand,
+                y: 2.4,
+                z: o.u,
+            },
+            Seite::West => Ort {
+                x: b.min_x - rand,
+                y: 2.4,
+                z: o.u,
+            },
         })
         .collect();
     Orte {
@@ -53,7 +69,14 @@ fn orte() -> Orte {
         kuehlschrank: ort(g::KUEHLSCHRANK, 1.1),
         arcade: ort(g::ARCADE, 1.2),
         fenster,
-        tische: g::alle_tische().iter().map(|t| Ort { x: t.x, y: 0.9, z: t.z }).collect(),
+        tische: g::alle_tische()
+            .iter()
+            .map(|t| Ort {
+                x: t.x,
+                y: 0.9,
+                z: t.z,
+            })
+            .collect(),
     }
 }
 
@@ -114,10 +137,18 @@ pub fn starten(senden: Rc<dyn Fn(ClientNachricht)>) {
     }
     let mut takte = Vec::new();
     let mut rueckrufe = Vec::new();
-    for (ms, f) in [(TV_TAKT_MS, tv_bild as fn()), (PING_MS, ping as fn()), (500, einstellungen as fn()), (100, motoren_takt as fn())] {
+    for (ms, f) in [
+        (TV_TAKT_MS, tv_bild as fn()),
+        (PING_MS, ping as fn()),
+        (500, einstellungen as fn()),
+        (100, motoren_takt as fn()),
+    ] {
         let c = Closure::<dyn FnMut()>::new(f);
         if let Some(w) = web_sys::window()
-            && let Ok(id) = w.set_interval_with_callback_and_timeout_and_arguments_0(c.as_ref().unchecked_ref(), ms)
+            && let Ok(id) = w.set_interval_with_callback_and_timeout_and_arguments_0(
+                c.as_ref().unchecked_ref(),
+                ms,
+            )
         {
             takte.push(id);
         }
@@ -125,7 +156,13 @@ pub fn starten(senden: Rc<dyn Fn(ClientNachricht)>) {
     }
     let medien = Medien {
         jukebox: Jukebox::neu(&klang, ort(welt::grundriss::JUKEBOX, 1.0)),
-        dj: Dj::neu(&klang, ort(welt::grundriss::dach::DJ, welt::grundriss::dach::BUEHNE_HOEHE + 1.0)),
+        dj: Dj::neu(
+            &klang,
+            ort(
+                welt::grundriss::dach::DJ,
+                welt::grundriss::dach::BUEHNE_HOEHE + 1.0,
+            ),
+        ),
         senden,
         teilen,
         sprache,
@@ -168,7 +205,8 @@ fn welt_haken() {
         };
         let [x, y, z] = h.kopf;
         mit(|m| {
-            m.klang.hoerer_setzen(Ort { x, y, z }, h.blick[0], h.blick[2], wo);
+            m.klang
+                .hoerer_setzen(Ort { x, y, z }, h.blick[0], h.blick[2], wo);
             // Die Jukebox in der Lounge: für einen Stream die Lautstärke von Hand.
             let (jx, jz) = welt::grundriss::JUKEBOX;
             m.jukebox.abstand_setzen((jx - x).hypot(jz - z));
@@ -197,7 +235,12 @@ fn klang_aus_der_welt(k: welt::Klang) {
             K::Hupe { pos } => kl.hupen(o(pos), false),
             // Meldet die Welt einen Motor nicht mehr, verklingt er (siehe motoren_takt).
             K::Motor { auto, pos, tempo } => {
-                let motor = Motor { auto, ort: o(pos), tempo, gas: (tempo.abs() / 10.0).min(1.0) };
+                let motor = Motor {
+                    auto,
+                    ort: o(pos),
+                    tempo,
+                    gas: (tempo.abs() / 10.0).min(1.0),
+                };
                 m.motoren.insert(auto, (motor, js_sys::Date::now()));
             }
             K::Gong { pos } => kl.gong(Gong::Schlag, o(pos)),
@@ -226,7 +269,9 @@ fn motoren_takt() {
 pub fn nachricht(n: &ServerNachricht) {
     match n {
         ServerNachricht::Praesenz(p) => praesenz(p),
-        ServerNachricht::Etagen(etagen::Server::Betreten { etage, personen, .. }) => betreten(etage.clone(), personen),
+        ServerNachricht::Etagen(etagen::Server::Betreten {
+            etage, personen, ..
+        }) => betreten(etage.clone(), personen),
         ServerNachricht::Medien(s) => medien(s),
         ServerNachricht::Dach(dach::Server::Leinwand { zustand }) => {
             mit(|m| {
@@ -258,7 +303,8 @@ fn praesenz(p: &praesenz::Server) {
         }
         P::PersonDa { person } | P::PersonGeaendert { person } => {
             mit(|m| {
-                m.personen.insert(person.id.clone(), (person.etage.clone(), person.lite));
+                m.personen
+                    .insert(person.id.clone(), (person.etage.clone(), person.lite));
                 voice_abgleichen(m);
             });
         }
@@ -287,7 +333,10 @@ fn praesenz(p: &praesenz::Server) {
 fn betreten(etage: Option<String>, personen: &[Person]) {
     mit(|m| {
         m.etage = etage;
-        m.personen = personen.iter().map(|p| (p.id.clone(), (p.etage.clone(), p.lite))).collect();
+        m.personen = personen
+            .iter()
+            .map(|p| (p.id.clone(), (p.etage.clone(), p.lite)))
+            .collect();
         let dach = m.etage.as_deref() == Some(DACH);
         m.klang.draussen_setzen(dach);
         m.dj.setzen(dach, m.versatz_ms);
@@ -320,12 +369,18 @@ fn medien(s: &m::Server) {
             mit(|m| m.sprache.signal(von.clone(), daten.clone()));
         }
         m::Server::Jukebox { zustand } => {
-            mit(|m| m.jukebox.zustand_setzen(Some(zustand.clone()), m.versatz_ms));
+            mit(|m| {
+                m.jukebox
+                    .zustand_setzen(Some(zustand.clone()), m.versatz_ms)
+            });
         }
         m::Server::Bildschirme { liste } => {
             mit(|m| {
                 // Der Fernseher zeigt einen fremden Bildschirm vor dem eigenen.
-                let wahl = liste.iter().find(|b| b.spieler != m.du).or_else(|| liste.first());
+                let wahl = liste
+                    .iter()
+                    .find(|b| b.spieler != m.du)
+                    .or_else(|| liste.first());
                 let neu = wahl.map(|b| (b.spieler.clone(), b.stream_url.clone()));
                 if m.tv.as_ref().map(|(s, _)| s) == neu.as_ref().map(|(s, _)| s) {
                     return;
@@ -344,7 +399,9 @@ fn medien(s: &m::Server) {
 pub fn befehl(b: &Befehl) {
     match b {
         Befehl::TeilenStarten => {
-            let Some(t) = mit(|m| m.teilen.clone()) else { return };
+            let Some(t) = mit(|m| m.teilen.clone()) else {
+                return;
+            };
             spawn_local(async move {
                 if let Err(e) = t.starten().await {
                     warnen(e);
@@ -355,14 +412,17 @@ pub fn befehl(b: &Befehl) {
             mit(|m| m.teilen.stoppen());
         }
         Befehl::VoiceBeitreten => {
-            let Some(s) = mit(|m| m.sprache.clone()) else { return };
+            let Some(s) = mit(|m| m.sprache.clone()) else {
+                return;
+            };
             let stumm = audio().2;
             spawn_local(async move {
                 match s.beitreten(stumm).await {
                     Err(e) => warnen(e),
-                    Ok(()) if stumm && s.aktiv() => {
-                        oberflaeche::zustand::melden("🎙️ Im Voice, stumm: V gedrückt halten zum Sprechen", Stufe::Info)
-                    }
+                    Ok(()) if stumm && s.aktiv() => oberflaeche::zustand::melden(
+                        "🎙️ Im Voice, stumm: V gedrückt halten zum Sprechen",
+                        Stufe::Info,
+                    ),
                     Ok(()) => {}
                 }
             });
@@ -401,22 +461,32 @@ fn tv_leeren() {
 }
 
 fn ping() {
-    let Some(senden) = mit(|m| m.senden.clone()) else { return };
-    senden(ClientNachricht::Praesenz(praesenz::Client::Ping { um: js_sys::Date::now() }));
+    let Some(senden) = mit(|m| m.senden.clone()) else {
+        return;
+    };
+    senden(ClientNachricht::Praesenz(praesenz::Client::Ping {
+        um: js_sys::Date::now(),
+    }));
 }
 
 fn einstellungen() {
     let (lautstaerke, stumm, _) = audio();
     mit(|m| {
-        // Der Voice-Stand für Tests und Entwicklerwerkzeuge: <html data-voice="…">.
+        // Der Medien-Stand für Tests und Entwicklerwerkzeuge: <html data-voice="…" data-jukebox="…">.
         let stand = serde_json::json!({
             "aktiv": m.sprache.aktiv(),
             "stumm": m.sprache.stumm(),
             "eigen": m.sprache.pegel(&m.du),
             "verbindungen": m.sprache.diagnose(),
         });
-        if let Some(html) = web_sys::window().and_then(|w| w.document()).and_then(|d| d.document_element()) {
+        let jukebox =
+            serde_json::json!({ "spielt": m.jukebox.spielt(), "pegel": m.jukebox.pegel() });
+        if let Some(html) = web_sys::window()
+            .and_then(|w| w.document())
+            .and_then(|d| d.document_element())
+        {
             let _ = html.set_attribute("data-voice", &stand.to_string());
+            let _ = html.set_attribute("data-jukebox", &jukebox.to_string());
         }
         m.klang.lautstaerke_setzen(lautstaerke, stumm);
         m.jukebox.lautstaerke_setzen(lautstaerke, stumm);

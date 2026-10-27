@@ -21,7 +21,13 @@ pub async fn senden(o: &OfficeRef, text: &str) -> Result<(), String> {
         WebhookArt::Andere => serde_json::json!({ "text": text, "quelle": "OpenAgenticOffice" }),
     };
     let ergebnis = tokio::task::spawn_blocking(move || {
-        ureq::post(&url).config().timeout_global(Some(std::time::Duration::from_secs(10))).build().send_json(&koerper).map(|_| ()).map_err(|e| format!("Der Webhook antwortete nicht wie erwartet: {e}"))
+        ureq::post(&url)
+            .config()
+            .timeout_global(Some(std::time::Duration::from_secs(10)))
+            .build()
+            .send_json(&koerper)
+            .map(|_| ())
+            .map_err(|e| format!("Der Webhook antwortete nicht wie erwartet: {e}"))
     })
     .await
     .unwrap_or_else(|e| Err(e.to_string()));
@@ -32,6 +38,11 @@ pub async fn senden(o: &OfficeRef, text: &str) -> Result<(), String> {
         }
         Err(f) => d.benachrichtigung.fehler = Some(f.clone()),
     });
-    o.an_alle(&ServerNachricht::Einstellungen(Server::Benachrichtigung { stand: o.einstellungen.benachrichtigung() }), None);
+    o.an_alle(
+        &ServerNachricht::Einstellungen(Server::Benachrichtigung {
+            stand: o.einstellungen.benachrichtigung(),
+        }),
+        None,
+    );
     ergebnis
 }

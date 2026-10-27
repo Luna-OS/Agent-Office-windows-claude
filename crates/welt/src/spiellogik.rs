@@ -37,12 +37,22 @@ pub fn hund_bei(weg: &[[f32; 2]], tempo: f32, blick_am_ziel: Option<f32>, t: f32
         blick = dx.atan2(dz);
         if rest < laenge {
             let k = rest / laenge;
-            return HundLage { x: w[0][0] + dx * k, z: w[0][1] + dz * k, blick, unterwegs: true };
+            return HundLage {
+                x: w[0][0] + dx * k,
+                z: w[0][1] + dz * k,
+                blick,
+                unterwegs: true,
+            };
         }
         rest -= laenge;
     }
     let [x, z] = weg.last().copied().unwrap_or([0.0, 0.0]);
-    HundLage { x, z, blick: blick_am_ziel.unwrap_or(blick), unterwegs: false }
+    HundLage {
+        x,
+        z,
+        blick: blick_am_ziel.unwrap_or(blick),
+        unterwegs: false,
+    }
 }
 
 /// Ein fliegender oder rollender Basketball.
@@ -68,7 +78,11 @@ const REIBUNG: f32 = 0.985;
 
 impl Ball {
     pub fn neu(p: [f32; 3], v: [f32; 3]) -> Self {
-        Self { p, v, treffer: false }
+        Self {
+            p,
+            v,
+            treffer: false,
+        }
     }
 
     /// Ob er liegt (kaum noch Bewegung am Boden).
@@ -117,7 +131,11 @@ impl Ball {
         }
         // Das Brett (eine Platte vor der Westwand).
         let brett_x = crate::grundriss::draussen::KORB_BRETT_X;
-        if self.p[0] < brett_x + 0.05 + r && vorher[0] >= brett_x + 0.05 + r && (2.88..3.93).contains(&self.p[1]) && (self.p[2] - RING.2).abs() < 0.7 {
+        if self.p[0] < brett_x + 0.05 + r
+            && vorher[0] >= brett_x + 0.05 + r
+            && (2.88..3.93).contains(&self.p[1])
+            && (self.p[2] - RING.2).abs() < 0.7
+        {
             self.p[0] = brett_x + 0.05 + r;
             self.v[0] = self.v[0].abs() * SPRUNG;
             e.aufprall = true;
@@ -157,20 +175,45 @@ impl Ball {
 
 /// Wo ein Golfball `t` Sekunden nach dem Abschlag ist: Abschlag vom Balkon (Höhe 0) hinunter zur
 /// Straße (`boden`, negativ). Gier um y (0 = +z), Neigung nach oben, Kraft 0..1. `None`, wenn er liegt.
-pub fn golfflug(start: [f32; 3], gier: f32, neigung: f32, kraft: f32, boden: f32, t: f32) -> ([f32; 3], bool) {
+pub fn golfflug(
+    start: [f32; 3],
+    gier: f32,
+    neigung: f32,
+    kraft: f32,
+    boden: f32,
+    t: f32,
+) -> ([f32; 3], bool) {
     let tempo = 12.0 + kraft.clamp(0.0, 1.0) * 30.0;
-    let (vx, vy, vz) = (gier.sin() * neigung.cos() * tempo, neigung.sin() * tempo, gier.cos() * neigung.cos() * tempo);
+    let (vx, vy, vz) = (
+        gier.sin() * neigung.cos() * tempo,
+        neigung.sin() * tempo,
+        gier.cos() * neigung.cos() * tempo,
+    );
     // Wann er unten aufkommt (y = boden).
     let a = -0.5 * SCHWERKRAFT;
     let (b, c) = (vy, start[1] - boden);
     let landung = (-b - (b * b - 4.0 * a * c).sqrt()) / (2.0 * a);
     if t < landung {
-        return ([start[0] + vx * t, start[1] + vy * t + a * t * t, start[2] + vz * t], true);
+        return (
+            [
+                start[0] + vx * t,
+                start[1] + vy * t + a * t * t,
+                start[2] + vz * t,
+            ],
+            true,
+        );
     }
     // Danach rollt er aus.
     let roll = ((t - landung) * 1.5).min(1.0);
     let weit = 0.25 * roll;
-    ([start[0] + vx * (landung + weit), boden + 0.03, start[2] + vz * (landung + weit)], false)
+    (
+        [
+            start[0] + vx * (landung + weit),
+            boden + 0.03,
+            start[2] + vz * (landung + weit),
+        ],
+        false,
+    )
 }
 
 #[cfg(test)]

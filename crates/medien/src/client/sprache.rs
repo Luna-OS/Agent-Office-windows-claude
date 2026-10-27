@@ -13,9 +13,10 @@ use protokoll::medien::{Client, IceKandidat, IceServer, RtcSignal, SdpBeschreibu
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::{JsFuture, spawn_local};
 use web_sys::{
-    AnalyserNode, AudioContext, HtmlAudioElement, MediaStream, MediaStreamConstraints, MediaStreamTrack, RtcConfiguration,
-    RtcIceCandidateInit, RtcIceConnectionState, RtcIceServer, RtcPeerConnection, RtcPeerConnectionIceEvent, RtcRtpSender,
-    RtcSdpType, RtcSessionDescriptionInit, RtcSignalingState, RtcTrackEvent,
+    AnalyserNode, AudioContext, HtmlAudioElement, MediaStream, MediaStreamConstraints,
+    MediaStreamTrack, RtcConfiguration, RtcIceCandidateInit, RtcIceConnectionState, RtcIceServer,
+    RtcPeerConnection, RtcPeerConnectionIceEvent, RtcRtpSender, RtcSdpType,
+    RtcSessionDescriptionInit, RtcSignalingState, RtcTrackEvent,
 };
 
 use super::{Lauscher, Senden, fehlertext, fenster, setzen, sicher};
@@ -60,8 +61,14 @@ pub struct Sprache {
 impl Sprache {
     /// `ich` ist die eigene Personen-ID (aus der Begrüßung des Servers).
     pub fn neu(senden: Senden, ich: &str) -> Self {
-        let innen = Innen { ich: ich.into(), ..Default::default() };
-        Self { innen: Rc::new(RefCell::new(innen)), senden }
+        let innen = Innen {
+            ich: ich.into(),
+            ..Default::default()
+        };
+        Self {
+            innen: Rc::new(RefCell::new(innen)),
+            senden,
+        }
     }
 
     pub fn ich_setzen(&self, ich: &str) {
@@ -108,8 +115,14 @@ impl Sprache {
                 self.verbinden(id);
             }
         }
-        let weg: Vec<String> =
-            self.innen.borrow().verbindungen.keys().filter(|k| !personen.contains(k)).cloned().collect();
+        let weg: Vec<String> = self
+            .innen
+            .borrow()
+            .verbindungen
+            .keys()
+            .filter(|k| !personen.contains(k))
+            .cloned()
+            .collect();
         for id in weg {
             self.trennen(&id);
         }
@@ -131,18 +144,25 @@ impl Sprache {
         if !sicher() {
             return Err("Voice braucht HTTPS (oder localhost). Bitte den Betreiber des Office, TLS einzuschalten.".into());
         }
-        let geraete = fenster().navigator().media_devices().map_err(|_| "Kein Mikrofon verfügbar")?;
+        let geraete = fenster()
+            .navigator()
+            .media_devices()
+            .map_err(|_| "Kein Mikrofon verfügbar")?;
         let audio = js_sys::Object::new();
         setzen(&audio, "echoCancellation", true);
         setzen(&audio, "noiseSuppression", true);
         setzen(&audio, "autoGainControl", true);
         let wunsch = MediaStreamConstraints::new();
         wunsch.set_audio(&audio);
-        let versprechen = geraete.get_user_media_with_constraints(&wunsch).map_err(|e| fehlertext(&e))?;
+        let versprechen = geraete
+            .get_user_media_with_constraints(&wunsch)
+            .map_err(|e| fehlertext(&e))?;
         self.innen.borrow_mut().tritt_bei = true;
         let ergebnis = JsFuture::from(versprechen).await;
         self.innen.borrow_mut().tritt_bei = false;
-        let mic: MediaStream = ergebnis.map_err(|e| format!("Mikrofon nicht verfügbar: {}", fehlertext(&e)))?.unchecked_into();
+        let mic: MediaStream = ergebnis
+            .map_err(|e| format!("Mikrofon nicht verfügbar: {}", fehlertext(&e)))?
+            .unchecked_into();
         let spur = erste_spur(&mic, true);
         if let Some(s) = &spur {
             s.set_enabled(!stumm);
@@ -158,7 +178,11 @@ impl Sprache {
         };
         if let Some(s) = spur {
             for v in verbindungen {
-                *v.mic_sender.borrow_mut() = Some(v.pc.add_track_0(&s, &mic));
+                let sender = v.pc.add_track_0(&s, &mic);
+                if stumm {
+                    let _ = sender.replace_track(None);
+                }
+                *v.mic_sender.borrow_mut() = Some(sender);
             }
         }
         self.geaendert(true);
@@ -170,7 +194,10 @@ impl Sprache {
             let mut i = self.innen.borrow_mut();
             i.lokal = None;
             i.spricht = false;
-            (i.mic.take(), i.verbindungen.values().cloned().collect::<Vec<_>>())
+            (
+                i.mic.take(),
+                i.verbindungen.values().cloned().collect::<Vec<_>>(),
+            )
         };
         let Some(mic) = mic else { return };
         for v in verbindungen {
@@ -198,8 +225,21 @@ impl Sprache {
         };
         if let Some(s) = mic.as_ref().and_then(|m| erste_spur(m, true)) {
             s.set_enabled(!stumm);
+            self.senden_lassen(if stumm { None } else { Some(&s) });
         }
         self.geaendert(true);
+    }
+
+    /// Stumm heißt: gar nichts senden. Ein abgeschalteter Track allein lässt den Codec noch
+    /// Komfortrauschen schicken, das bei gleichmäßigen Tönen hörbar ist; darum Track ab vom Sender.
+    fn senden_lassen(&self, spur: Option<&MediaStreamTrack>) {
+        let verbindungen: Vec<Rc<Verbindung>> =
+            self.innen.borrow().verbindungen.values().cloned().collect();
+        for v in verbindungen {
+            if let Some(sender) = v.mic_sender.borrow().as_ref() {
+                let _ = sender.replace_track(spur);
+            }
+        }
     }
 
     pub fn stumm_umschalten(&self) {
@@ -236,9 +276,16 @@ impl Sprache {
     pub fn pegel(&self, id: &str) -> f32 {
         let i = self.innen.borrow();
         if id == i.ich {
-            return if i.stumm { 0.0 } else { i.lokal.as_ref().map_or(0.0, rms) };
+            return if i.stumm {
+                0.0
+            } else {
+                i.lokal.as_ref().map_or(0.0, rms)
+            };
         }
-        i.verbindungen.get(id).and_then(|v| v.analyser.borrow().as_ref().map(rms)).unwrap_or(0.0)
+        i.verbindungen
+            .get(id)
+            .and_then(|v| v.analyser.borrow().as_ref().map(rms))
+            .unwrap_or(0.0)
     }
 
     /// Für Tests und Entwicklerwerkzeuge: je Verbindung (ID, ICE-Zustand, kommt Ton an, Pegel).
@@ -275,15 +322,17 @@ impl Sprache {
         };
         if let Some(b) = daten.beschreibung {
             let angebot = b.typ == "offer";
-            let kollision =
-                angebot && (v.mache_angebot.get() || v.pc.signaling_state() != RtcSignalingState::Stable);
+            let kollision = angebot
+                && (v.mache_angebot.get() || v.pc.signaling_state() != RtcSignalingState::Stable);
             v.ignoriere_angebot.set(!v.hoeflich && kollision);
             if v.ignoriere_angebot.get() {
                 return Ok(());
             }
             let init = RtcSessionDescriptionInit::new(sdp_typ(&b.typ));
             init.set_sdp(&b.sdp);
-            JsFuture::from(v.pc.set_remote_description(&init)).await.map_err(|e| fehlertext(&e))?;
+            JsFuture::from(v.pc.set_remote_description(&init))
+                .await
+                .map_err(|e| fehlertext(&e))?;
             if angebot {
                 lokale_beschreibung_setzen(&v.pc).await?;
                 self.beschreibung_senden(von, &v.pc);
@@ -292,19 +341,26 @@ impl Sprache {
             let init = RtcIceCandidateInit::new(&k.candidate);
             init.set_sdp_mid(k.sdp_mid.as_deref());
             init.set_sdp_m_line_index(k.sdp_m_line_index);
-            let r = JsFuture::from(v.pc.add_ice_candidate_with_opt_rtc_ice_candidate_init(Some(&init))).await;
+            let r =
+                JsFuture::from(v.pc.add_ice_candidate_with_opt_rtc_ice_candidate_init(Some(&init)))
+                    .await;
             if let Err(e) = r
-                && !v.ignoriere_angebot.get() {
-                    return Err(fehlertext(&e));
-                }
+                && !v.ignoriere_angebot.get()
+            {
+                return Err(fehlertext(&e));
+            }
         } else if daten.ende {
-            let _ = JsFuture::from(v.pc.add_ice_candidate_with_opt_rtc_ice_candidate_init(None)).await;
+            let _ =
+                JsFuture::from(v.pc.add_ice_candidate_with_opt_rtc_ice_candidate_init(None)).await;
         }
         Ok(())
     }
 
     fn rtc_senden(&self, an: &str, daten: RtcSignal) {
-        (self.senden)(ClientNachricht::Medien(Client::Rtc { an: an.into(), daten }));
+        (self.senden)(ClientNachricht::Medien(Client::Rtc {
+            an: an.into(),
+            daten,
+        }));
     }
 
     fn beschreibung_senden(&self, an: &str, pc: &RtcPeerConnection) {
@@ -315,8 +371,17 @@ impl Sprache {
                 RtcSdpType::Pranswer => "pranswer",
                 _ => "rollback",
             };
-            let beschreibung = Some(SdpBeschreibung { typ: typ.into(), sdp: d.sdp() });
-            self.rtc_senden(an, RtcSignal { beschreibung, ..Default::default() });
+            let beschreibung = Some(SdpBeschreibung {
+                typ: typ.into(),
+                sdp: d.sdp(),
+            });
+            self.rtc_senden(
+                an,
+                RtcSignal {
+                    beschreibung,
+                    ..Default::default()
+                },
+            );
         }
     }
 
@@ -368,7 +433,10 @@ impl Sprache {
             rueckrufe: RefCell::new(Vec::new()),
             _klick: RefCell::new(None),
         });
-        self.innen.borrow_mut().verbindungen.insert(id.into(), v.clone());
+        self.innen
+            .borrow_mut()
+            .verbindungen
+            .insert(id.into(), v.clone());
 
         let (ich2, id2, v2) = (self.clone(), id.to_string(), Rc::downgrade(&v));
         self.rueckruf(&v, "onnegotiationneeded", move |_| {
@@ -378,7 +446,9 @@ impl Sprache {
                 v.mache_angebot.set(true);
                 match lokale_beschreibung_setzen(&v.pc).await {
                     Ok(()) => ich.beschreibung_senden(&id, &v.pc),
-                    Err(e) => web_sys::console::warn_1(&format!("Voice-Verhandlung fehlgeschlagen: {e}").into()),
+                    Err(e) => web_sys::console::warn_1(
+                        &format!("Voice-Verhandlung fehlgeschlagen: {e}").into(),
+                    ),
                 }
                 v.mache_angebot.set(false);
             });
@@ -388,10 +458,17 @@ impl Sprache {
             let e: RtcPeerConnectionIceEvent = e.unchecked_into();
             let daten = match e.candidate() {
                 Some(k) => RtcSignal {
-                    kandidat: Some(IceKandidat { candidate: k.candidate(), sdp_mid: k.sdp_mid(), sdp_m_line_index: k.sdp_m_line_index() }),
+                    kandidat: Some(IceKandidat {
+                        candidate: k.candidate(),
+                        sdp_mid: k.sdp_mid(),
+                        sdp_m_line_index: k.sdp_m_line_index(),
+                    }),
                     ..Default::default()
                 },
-                None => RtcSignal { ende: true, ..Default::default() },
+                None => RtcSignal {
+                    ende: true,
+                    ..Default::default()
+                },
             };
             ich2.rtc_senden(&id2, daten);
         });
@@ -423,9 +500,10 @@ impl Sprache {
             if v.audio.play().is_err() {
                 // Autoplay gesperrt, bis der Mensch klickt.
                 let a = v.audio.clone();
-                *v._klick.borrow_mut() = Some(Lauscher::neu(&fenster(), "pointerdown", move |_| {
-                    let _ = a.play();
-                }));
+                *v._klick.borrow_mut() =
+                    Some(Lauscher::neu(&fenster(), "pointerdown", move |_| {
+                        let _ = a.play();
+                    }));
             }
             if let Some(c) = ich2.ctx() {
                 *v.analyser.borrow_mut() = analyser_fuer(&c, &strom);
@@ -433,9 +511,14 @@ impl Sprache {
             ich2.geaendert(false);
         });
         if let Some(mic) = mic
-            && let Some(s) = erste_spur(&mic, true) {
-                *v.mic_sender.borrow_mut() = Some(pc.add_track_0(&s, &mic));
+            && let Some(s) = erste_spur(&mic, true)
+        {
+            let sender = pc.add_track_0(&s, &mic);
+            if self.stumm() {
+                let _ = sender.replace_track(None);
             }
+            *v.mic_sender.borrow_mut() = Some(sender);
+        }
         v
     }
 
@@ -446,8 +529,15 @@ impl Sprache {
     }
 
     fn trennen(&self, id: &str) {
-        let Some(v) = self.innen.borrow_mut().verbindungen.remove(id) else { return };
-        for e in ["onnegotiationneeded", "onicecandidate", "oniceconnectionstatechange", "ontrack"] {
+        let Some(v) = self.innen.borrow_mut().verbindungen.remove(id) else {
+            return;
+        };
+        for e in [
+            "onnegotiationneeded",
+            "onicecandidate",
+            "oniceconnectionstatechange",
+            "ontrack",
+        ] {
             setzen(&v.pc, e, JsValue::NULL);
         }
         v.pc.close();
@@ -462,7 +552,10 @@ async fn lokale_beschreibung_setzen(pc: &RtcPeerConnection) -> Result<(), String
         .map_err(|e| fehlertext(&e))?
         .unchecked_into();
     let p: js_sys::Promise = f.call0(pc).map_err(|e| fehlertext(&e))?.unchecked_into();
-    JsFuture::from(p).await.map(|_| ()).map_err(|e| fehlertext(&e))
+    JsFuture::from(p)
+        .await
+        .map(|_| ())
+        .map_err(|e| fehlertext(&e))
 }
 
 fn sdp_typ(t: &str) -> RtcSdpType {
@@ -475,7 +568,11 @@ fn sdp_typ(t: &str) -> RtcSdpType {
 }
 
 fn erste_spur(s: &MediaStream, audio: bool) -> Option<MediaStreamTrack> {
-    let spuren = if audio { s.get_audio_tracks() } else { s.get_video_tracks() };
+    let spuren = if audio {
+        s.get_audio_tracks()
+    } else {
+        s.get_video_tracks()
+    };
     spuren.get(0).dyn_into().ok()
 }
 
@@ -490,6 +587,9 @@ fn analyser_fuer(ctx: &AudioContext, s: &MediaStream) -> Option<AnalyserNode> {
 fn rms(a: &AnalyserNode) -> f32 {
     let mut puffer = vec![0u8; a.fft_size() as usize];
     a.get_byte_time_domain_data(&mut puffer);
-    let summe: f32 = puffer.iter().map(|&v| ((v as f32 - 128.0) / 128.0).powi(2)).sum();
+    let summe: f32 = puffer
+        .iter()
+        .map(|&v| ((v as f32 - 128.0) / 128.0).powi(2))
+        .sum();
     (summe / puffer.len().max(1) as f32).sqrt()
 }

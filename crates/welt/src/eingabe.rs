@@ -105,20 +105,34 @@ mod web {
 
     /// Ob die Taste in einem Eingabefeld getippt wurde (Chat, Terminal, Dialoge).
     fn in_eingabefeld(ev: &KeyboardEvent) -> bool {
-        let Some(ziel) = ev.target().and_then(|t| t.dyn_into::<HtmlElement>().ok()) else { return false };
+        let Some(ziel) = ev.target().and_then(|t| t.dyn_into::<HtmlElement>().ok()) else {
+            return false;
+        };
         let tag = ziel.tag_name().to_ascii_uppercase();
-        tag == "INPUT" || tag == "TEXTAREA" || tag == "SELECT" || ziel.is_content_editable() || ziel.closest(".xterm").ok().flatten().is_some()
+        tag == "INPUT"
+            || tag == "TEXTAREA"
+            || tag == "SELECT"
+            || ziel.is_content_editable()
+            || ziel.closest(".xterm").ok().flatten().is_some()
     }
 
-    fn haengen<E: wasm_bindgen::convert::FromWasmAbi + 'static>(ziel: &web_sys::EventTarget, art: &str, f: impl FnMut(E) + 'static) {
+    fn haengen<E: wasm_bindgen::convert::FromWasmAbi + 'static>(
+        ziel: &web_sys::EventTarget,
+        art: &str,
+        f: impl FnMut(E) + 'static,
+    ) {
         let c = Closure::<dyn FnMut(E)>::new(f);
         let _ = ziel.add_event_listener_with_callback(art, c.as_ref().unchecked_ref());
         c.forget();
     }
 
     pub fn installieren(canvas_id: &str) {
-        let Some(fenster) = web_sys::window() else { return };
-        let Some(dokument) = fenster.document() else { return };
+        let Some(fenster) = web_sys::window() else {
+            return;
+        };
+        let Some(dokument) = fenster.document() else {
+            return;
+        };
 
         haengen(&fenster, "keydown", |ev: KeyboardEvent| {
             if in_eingabefeld(&ev) || ev.ctrl_key() || ev.meta_key() || ev.alt_key() {
@@ -156,7 +170,9 @@ mod web {
             }
         });
         // Fenster verliert den Fokus: nichts bleibt gedrückt.
-        haengen(&fenster, "blur", |_: web_sys::Event| EINGABE.with_borrow_mut(|e| e.gehalten.clear()));
+        haengen(&fenster, "blur", |_: web_sys::Event| {
+            EINGABE.with_borrow_mut(|e| e.gehalten.clear())
+        });
 
         haengen(&dokument, "mousemove", |ev: MouseEvent| {
             EINGABE.with_borrow_mut(|e| {
@@ -175,7 +191,9 @@ mod web {
             EINGABE.with_borrow_mut(|e| e.gefangen = gefangen);
         });
         haengen(&dokument, "pointerlockerror", |_: web_sys::Event| {
-            log::info!("Mauszeiger konnte nicht gefangen werden; Klick ins Bild versucht es erneut.");
+            log::info!(
+                "Mauszeiger konnte nicht gefangen werden; Klick ins Bild versucht es erneut."
+            );
         });
 
         if let Some(c) = canvas() {

@@ -30,7 +30,12 @@ struct Stand {
 }
 
 fn look(p: &Person) -> Look {
-    Look { hemd: p.farbe.clone(), haut: p.aussehen.haut, haare: p.aussehen.haare, frisur: p.aussehen.frisur }
+    Look {
+        hemd: p.farbe.clone(),
+        haut: p.aussehen.haut,
+        haare: p.aussehen.haare,
+        frisur: p.aussehen.frisur,
+    }
 }
 
 fn emote_text(e: Emote) -> &'static str {
@@ -56,7 +61,11 @@ pub fn installieren(reg: &mut Register<Kontext>) {
             }
         }
         // Wer nicht mehr hier ist, geht; wer neu ist, kommt; geändertes Aussehen: neu bauen.
-        let hier: BTreeMap<String, Person> = kx.zustand.personen_hier().map(|p| (p.id.clone(), p.clone())).collect();
+        let hier: BTreeMap<String, Person> = kx
+            .zustand
+            .personen_hier()
+            .map(|p| (p.id.clone(), p.clone()))
+            .collect();
         st.andere.retain(|id, a| {
             let bleibt = hier.get(id).is_some_and(|p| look(p) == a.look);
             if !bleibt {
@@ -68,7 +77,16 @@ pub fn installieren(reg: &mut Register<Kontext>) {
             if !st.andere.contains_key(id) {
                 let l = look(p);
                 let figur = Figur::neu(&mut kx.etage, &l);
-                st.andere.insert(id.clone(), Andere { figur, pos: Vec3::new(p.x, p.y, p.z), blick: p.rot_y, emote: None, look: l });
+                st.andere.insert(
+                    id.clone(),
+                    Andere {
+                        figur,
+                        pos: Vec3::new(p.x, p.y, p.z),
+                        blick: p.rot_y,
+                        emote: None,
+                        look: l,
+                    },
+                );
             }
         }
         for (id, e) in &kx.aenderungen.emotes {
@@ -87,14 +105,22 @@ pub fn installieren(reg: &mut Register<Kontext>) {
             };
             // Weich hinterher, große Sprünge (Etagenwechsel, Hinsetzen) sofort.
             let k = (dt * 12.0).min(1.0);
-            a.pos = if (ziel - a.pos).length() > 4.0 { ziel } else { a.pos + (ziel - a.pos) * k };
+            a.pos = if (ziel - a.pos).length() > 4.0 {
+                ziel
+            } else {
+                a.pos + (ziel - a.pos) * k
+            };
             a.blick = winkel_hin(a.blick, blick, k);
             a.figur.haltung = match &sitz {
                 Some(pl) => Haltung::Sitzen(pl.huefte),
                 None if p.laeuft => Haltung::Laufen,
                 None => Haltung::Stehen,
             };
-            let y = a.pos.y + sitz.as_ref().map(|pl| Figur::sitz_versatz(pl.huefte)).unwrap_or(0.0);
+            let y = a.pos.y
+                + sitz
+                    .as_ref()
+                    .map(|pl| Figur::sitz_versatz(pl.huefte))
+                    .unwrap_or(0.0);
             a.figur.setzen(a.pos.x, y, a.pos.z, a.blick);
             a.figur.animieren(dt);
             let mut text = p.name.clone();
@@ -116,7 +142,12 @@ pub fn installieren(reg: &mut Register<Kontext>) {
     let s = stand;
     reg.tick(Phase::Ich, move |kx: &mut Kontext, dt| {
         let mut st = s.borrow_mut();
-        let gewuenscht = kx.zustand.ich_selbst.as_ref().map(look).unwrap_or(Look { hemd: "#4f7fe0".into(), haut: 0, haare: 0, frisur: 0 });
+        let gewuenscht = kx.zustand.ich_selbst.as_ref().map(look).unwrap_or(Look {
+            hemd: "#4f7fe0".into(),
+            haut: 0,
+            haare: 0,
+            frisur: 0,
+        });
         let neu = kx.neu_gebaut || st.ich.as_ref().is_none_or(|(_, l)| *l != gewuenscht);
         if neu {
             if let Some((mut f, _)) = st.ich.take() {
@@ -124,7 +155,9 @@ pub fn installieren(reg: &mut Register<Kontext>) {
             }
             st.ich = Some((Figur::neu(&mut kx.etage, &gewuenscht), gewuenscht));
         }
-        let Some((f, _)) = st.ich.as_mut() else { return };
+        let Some((f, _)) = st.ich.as_mut() else {
+            return;
+        };
         f.sichtbar(kx.kamera.abstand > 0.0);
         let p = kx.spieler.pos();
         let sitzt = kx.ich_sitze;

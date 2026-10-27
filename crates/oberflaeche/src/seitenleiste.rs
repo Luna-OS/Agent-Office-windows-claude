@@ -10,9 +10,17 @@ use crate::zustand::zustand;
 #[component]
 fn Arbeiterliste() -> impl IntoView {
     let z = zustand();
-    let wartend = move || z.arbeiter.with(|l| l.iter().filter(|a| a.status == ArbeiterStatus::Wartet).count());
+    let wartend = move || {
+        z.arbeiter.with(|l| {
+            l.iter()
+                .filter(|a| a.status == ArbeiterStatus::Wartet)
+                .count()
+        })
+    };
     let kosten = move || {
-        let k: f64 = z.arbeiter.with(|l| l.iter().filter_map(|a| a.verbrauch.as_ref()?.kosten).sum());
+        let k: f64 = z
+            .arbeiter
+            .with(|l| l.iter().filter_map(|a| a.verbrauch.as_ref()?.kosten).sum());
         (k > 0.0).then(|| texte::dollar(k))
     };
     view! {

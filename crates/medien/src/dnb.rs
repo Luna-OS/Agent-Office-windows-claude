@@ -40,21 +40,37 @@ pub struct Abschnitt {
     pub zweiter: bool,
 }
 
-const ABSCHNITTE: [(Teil, i64); 6] =
-    [(Teil::Intro, 16), (Teil::Aufbau, 8), (Teil::Drop, 32), (Teil::Breakdown, 16), (Teil::Aufbau, 8), (Teil::Drop, 16)];
+const ABSCHNITTE: [(Teil, i64); 6] = [
+    (Teil::Intro, 16),
+    (Teil::Aufbau, 8),
+    (Teil::Drop, 32),
+    (Teil::Breakdown, 16),
+    (Teil::Aufbau, 8),
+    (Teil::Drop, 16),
+];
 
 fn abschnitt(takt_im_stueck: i64) -> Abschnitt {
     let (mut start, mut zweiter) = (0, false);
     for (teil, takte) in ABSCHNITTE {
         if takt_im_stueck < start + takte {
-            return Abschnitt { teil, takt: takt_im_stueck - start, takte, zweiter };
+            return Abschnitt {
+                teil,
+                takt: takt_im_stueck - start,
+                takte,
+                zweiter,
+            };
         }
         if teil == Teil::Drop {
             zweiter = true;
         }
         start += takte;
     }
-    Abschnitt { teil: Teil::Drop, takt: 0, takte: 16, zweiter: true }
+    Abschnitt {
+        teil: Teil::Drop,
+        takt: 0,
+        takte: 16,
+        zweiter: true,
+    }
 }
 
 /// Ein Takt aus Sechzehnteln: `x` voll, `o` leise (Ghost Note).
@@ -65,15 +81,36 @@ pub struct Groove {
 }
 
 const GROOVES: [Groove; 5] = [
-    Groove { kick: "x.........x.....", snare: "....x..o....x..o" },
-    Groove { kick: "x.........x..x..", snare: "....x.......x.o." },
-    Groove { kick: "x......x..x.....", snare: ".o..x..o....x..." },
-    Groove { kick: "x.x.......x.....", snare: "....x....o..x..o" },
-    Groove { kick: "x.........xx....", snare: "....x..o....x..." },
+    Groove {
+        kick: "x.........x.....",
+        snare: "....x..o....x..o",
+    },
+    Groove {
+        kick: "x.........x..x..",
+        snare: "....x.......x.o.",
+    },
+    Groove {
+        kick: "x......x..x.....",
+        snare: ".o..x..o....x...",
+    },
+    Groove {
+        kick: "x.x.......x.....",
+        snare: "....x....o..x..o",
+    },
+    Groove {
+        kick: "x.........xx....",
+        snare: "....x..o....x...",
+    },
 ];
 
 /// Akkorde als Stufen der Moll-Tonleiter, einer alle zwei Takte.
-const FOLGEN: [[i32; 4]; 5] = [[0, 5, 2, 6], [0, 6, 5, 6], [0, 3, 5, 4], [5, 3, 0, 6], [0, 5, 3, 4]];
+const FOLGEN: [[i32; 4]; 5] = [
+    [0, 5, 2, 6],
+    [0, 6, 5, 6],
+    [0, 3, 5, 4],
+    [5, 3, 0, 6],
+    [0, 5, 3, 4],
+];
 const MOLL: [i32; 7] = [0, 2, 3, 5, 7, 8, 10];
 const ARPEGGIEN: [[i32; 16]; 3] = [
     [0, 1, 2, 3, 2, 1, 0, 1, 2, 3, 4, 3, 2, 1, 2, 3],
@@ -106,11 +143,22 @@ pub fn stueck(n: i64) -> DjStueck {
     let folge = FOLGEN[waehle(5)];
     let groove = GROOVES[waehle(5)];
     let reese = r() < 0.6;
-    let wah = (0..8).map(|i| if i == 0 || r() < 0.45 { 'h' } else { 'l' }).collect();
+    let wah = (0..8)
+        .map(|i| if i == 0 || r() < 0.45 { 'h' } else { 'l' })
+        .collect();
     let arpeggio = ARPEGGIEN[(r() * 3.0) as usize];
     let horn = r() < 0.65;
     let farbton = r();
-    DjStueck { grundton, folge, groove, reese, wah, arpeggio, horn, farbton }
+    DjStueck {
+        grundton,
+        folge,
+        groove,
+        reese,
+        wah,
+        arpeggio,
+        horn,
+        farbton,
+    }
 }
 
 /// Ein Ton der Moll-Tonleiter des Stücks: `stufe` Schritte über `grundton` (MIDI).
@@ -149,12 +197,26 @@ pub fn plan(k: i64) -> Plan {
         _ => 0.0,
     };
     let g = stueck.groove;
-    let mut p = Plan { stueck: stueck.clone(), abschnitt: ab, s, akkord, kick: 0.0, snare: 0.0, hat: 0.0, offene_hat: false, shaker: 0.0 };
+    let mut p = Plan {
+        stueck: stueck.clone(),
+        abschnitt: ab,
+        s,
+        akkord,
+        kick: 0.0,
+        snare: 0.0,
+        hat: 0.0,
+        offene_hat: false,
+        shaker: 0.0,
+    };
     let sb = ab.takt;
     match ab.teil {
         Teil::Intro => {
             // Erst nur Hats, dann der ganze Break, gedämpft (der Filter geht mit der Zeit auf).
-            p.hat = if s % 2 == 0 { if s % 4 == 2 { 0.8 } else { 0.5 } } else { 0.0 };
+            p.hat = if s % 2 == 0 {
+                if s % 4 == 2 { 0.8 } else { 0.5 }
+            } else {
+                0.0
+            };
             if sb >= 4 {
                 p.kick = schlag(g.kick);
                 p.snare = schlag(g.snare);
@@ -167,7 +229,13 @@ pub fn plan(k: i64) -> Plan {
                 if sb < 6 && s % 4 == 0 {
                     p.kick = 0.8;
                 }
-                let alle = if sb < 3 { 4 } else if sb < 5 { 2 } else { 1 };
+                let alle = if sb < 3 {
+                    4
+                } else if sb < 5 {
+                    2
+                } else {
+                    1
+                };
                 if s % alle == 0 {
                     p.snare = 0.35 + 0.65 * ((sb * 16 + s) as f64 / (ab.takte * 16) as f64);
                 }
@@ -177,8 +245,16 @@ pub fn plan(k: i64) -> Plan {
         Teil::Drop => {
             let fill = sb % 8 == 7;
             p.kick = if fill && s >= 10 { 0.0 } else { schlag(g.kick) };
-            p.snare = if fill && s >= 12 { 0.55 + (s - 12) as f64 * 0.15 } else { schlag(g.snare) };
-            p.hat = if s % 2 == 0 { if s % 4 == 2 { 1.0 } else { 0.6 } } else { 0.0 };
+            p.snare = if fill && s >= 12 {
+                0.55 + (s - 12) as f64 * 0.15
+            } else {
+                schlag(g.snare)
+            };
+            p.hat = if s % 2 == 0 {
+                if s % 4 == 2 { 1.0 } else { 0.6 }
+            } else {
+                0.0
+            };
             p.offene_hat = s == 14 && sb % 2 == 1;
             p.shaker = if s % 2 == 1 { 0.7 } else { 0.4 };
         }
@@ -219,7 +295,12 @@ pub struct DjBild {
 pub fn dj_bild(at: f64) -> DjBild {
     let k = (at / SECHZEHNTEL).floor() as i64;
     let p = plan(k);
-    let Abschnitt { teil, takt, takte, zweiter } = p.abschnitt;
+    let Abschnitt {
+        teil,
+        takt,
+        takte,
+        zweiter,
+    } = p.abschnitt;
     let schlaege = at / SCHLAG;
     let schlag = (1.0 - schlaege.fract().rem_euclid(1.0)).powi(3);
     let (mut kick, mut snare) = (0.0, 0.0);
@@ -250,7 +331,11 @@ pub fn dj_bild(at: f64) -> DjBild {
         schlag,
         kick,
         snare,
-        energie: if zweiter && teil == Teil::Drop { 1.0 } else { energie },
+        energie: if zweiter && teil == Teil::Drop {
+            1.0
+        } else {
+            energie
+        },
         teil,
         anstieg: if teil == Teil::Aufbau { durch } else { 0.0 },
         seit_drop: if teil == Teil::Drop {
@@ -299,18 +384,84 @@ mod tests {
     #[test]
     fn wie_im_original() {
         let erwartet = [
-            (0.0, 1.0, 0.0, 0.3831601137548761, 0.3, Teil::Intro, 0.0, 0, 0.16639575641602278),
-            (33.5, 0.9032962962963016, 0.9006386440656572, 0.0, 1.0, Teil::Drop, 0.0, 0, 0.16639575641602278),
-            (200.1, 0.05487199999999803, 0.0, 0.09263671112675777, 1.0, Teil::Drop, 0.0, 1, 0.052869664039462805),
-            (1234.56, 0.7991787520008741, 0.797680999362157, 0.7586011985598623, 0.746875, Teil::Aufbau, 0.59375, 9, 0.5090907937847078),
-            (5000.0, 0.29629629629791315, 0.0, 0.27829606013791186, 1.0, Teil::Drop, 0.0, 37, 0.5976990393828601),
-            (98765.4, 0.14060800001510979, 0.04610913529734715, 0.1585222265371637, 1.0, Teil::Drop, 0.0, 737, 0.784559135325253),
+            (
+                0.0,
+                1.0,
+                0.0,
+                0.3831601137548761,
+                0.3,
+                Teil::Intro,
+                0.0,
+                0,
+                0.16639575641602278,
+            ),
+            (
+                33.5,
+                0.9032962962963016,
+                0.9006386440656572,
+                0.0,
+                1.0,
+                Teil::Drop,
+                0.0,
+                0,
+                0.16639575641602278,
+            ),
+            (
+                200.1,
+                0.05487199999999803,
+                0.0,
+                0.09263671112675777,
+                1.0,
+                Teil::Drop,
+                0.0,
+                1,
+                0.052869664039462805,
+            ),
+            (
+                1234.56,
+                0.7991787520008741,
+                0.797680999362157,
+                0.7586011985598623,
+                0.746875,
+                Teil::Aufbau,
+                0.59375,
+                9,
+                0.5090907937847078,
+            ),
+            (
+                5000.0,
+                0.29629629629791315,
+                0.0,
+                0.27829606013791186,
+                1.0,
+                Teil::Drop,
+                0.0,
+                37,
+                0.5976990393828601,
+            ),
+            (
+                98765.4,
+                0.14060800001510979,
+                0.04610913529734715,
+                0.1585222265371637,
+                1.0,
+                Teil::Drop,
+                0.0,
+                737,
+                0.784559135325253,
+            ),
         ];
         let nah = |a: f64, b: f64| (a - b).abs() < 1e-9;
         for (at, schlag, kick, snare, energie, teil, anstieg, stueck, farbton) in erwartet {
             let b = dj_bild(at);
-            assert!(nah(b.schlag, schlag) && nah(b.kick, kick) && nah(b.snare, snare), "{at}: {b:?}");
-            assert!(nah(b.energie, energie) && nah(b.anstieg, anstieg) && nah(b.farbton, farbton), "{at}: {b:?}");
+            assert!(
+                nah(b.schlag, schlag) && nah(b.kick, kick) && nah(b.snare, snare),
+                "{at}: {b:?}"
+            );
+            assert!(
+                nah(b.energie, energie) && nah(b.anstieg, anstieg) && nah(b.farbton, farbton),
+                "{at}: {b:?}"
+            );
             assert_eq!((b.teil, b.stueck), (teil, stueck), "{at}");
         }
         for (n, grundton, folge, reese, wah, horn) in [
@@ -320,7 +471,11 @@ mod tests {
             (42, 30, [5, 3, 0, 6], false, "hhlhlhhl", true),
         ] {
             let s = stueck(n);
-            assert_eq!((s.grundton, s.folge, s.reese, s.wah.as_str(), s.horn), (grundton, folge, reese, wah, horn), "Stück {n}");
+            assert_eq!(
+                (s.grundton, s.folge, s.reese, s.wah.as_str(), s.horn),
+                (grundton, folge, reese, wah, horn),
+                "Stück {n}"
+            );
         }
         assert_eq!(EPOCHE_MS, 1_767_225_600_000.0);
     }

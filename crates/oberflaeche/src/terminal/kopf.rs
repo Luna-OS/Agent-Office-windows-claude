@@ -1,8 +1,8 @@
 //! Der Kopf des Terminal-Fensters: Status, Kosten, wer zuschaut, ⎋ Esc, Änderungen, Pull Request.
 
 use leptos::prelude::*;
-use protokoll::arbeiter::{ArbeiterArt, ArbeiterInfo, ArbeiterStatus, Client as A};
 use protokoll::ClientNachricht;
+use protokoll::arbeiter::{ArbeiterArt, ArbeiterInfo, ArbeiterStatus, Client as A};
 
 use crate::bruecke::senden;
 use crate::modal::{self, Fenster};
@@ -13,10 +13,19 @@ use crate::ui::{Knopf, KnopfArt, KnopfGroesse};
 pub fn Kopf(arbeiter: String, info: Memo<Option<ArbeiterInfo>>) -> impl IntoView {
     let id = StoredValue::new(arbeiter);
     let status = move || info.with(|i| i.as_ref().map(|i| i.status));
-    let kosten = move || info.with(|i| i.as_ref().and_then(|i| i.verbrauch.as_ref()?.kosten)).map(texte::dollar);
-    let zuschauer = move || info.with(|i| i.as_ref().map(|i| i.zuschauer.clone()).unwrap_or_default());
+    let kosten = move || {
+        info.with(|i| i.as_ref().and_then(|i| i.verbrauch.as_ref()?.kosten))
+            .map(texte::dollar)
+    };
+    let zuschauer =
+        move || info.with(|i| i.as_ref().map(|i| i.zuschauer.clone()).unwrap_or_default());
     let ist_agent = move || info.with(|i| i.as_ref().is_some_and(|i| i.art == ArbeiterArt::Agent));
-    let schlaeft = move || matches!(status(), Some(ArbeiterStatus::Beendet | ArbeiterStatus::Offline));
+    let schlaeft = move || {
+        matches!(
+            status(),
+            Some(ArbeiterStatus::Beendet | ArbeiterStatus::Offline)
+        )
+    };
     let pr = move || info.with(|i| i.as_ref().and_then(|i| i.pr.clone()));
     let mit_worktree = move || info.with(|i| i.as_ref().is_some_and(|i| i.worktree.is_some()));
 
@@ -54,6 +63,17 @@ pub fn Kopf(arbeiter: String, info: Memo<Option<ArbeiterInfo>>) -> impl IntoView
                 "📝 Änderungen"
             </Knopf>
         </Show>
+        {move || info.with(|i| i.as_ref().map(|i| i.repos.clone()).unwrap_or_default()).into_iter().map(|r| {
+            let titel = format!("Auch in {} (⎇ {})", r.repo.clone().unwrap_or_else(|| r.name.clone()), r.branch);
+            match r.pr {
+                Some(p) => view! {
+                    <a class="text-primary text-xs font-bold hover:underline" href=p.url target="_blank" rel="noopener noreferrer" title=titel>
+                        {format!("{} #{}", r.name, p.nummer)}
+                    </a>
+                }.into_any(),
+                None => view! { <span class="text-muted-foreground text-xs" title=titel>{format!("+ {}", r.name)}</span> }.into_any(),
+            }
+        }).collect_view()}
         <Show when=ist_agent>
             {move || match pr() {
                 Some(p) => view! {

@@ -388,13 +388,13 @@ else
   echo "   Stand: $(git -C "$tmp/quelle" log -1 --format='%h %s')"
   (cd "$tmp/quelle" && cargo build --release --workspace --exclude client --bins)
   (cd "$tmp/quelle/crates/client" && trunk build --release)
-  for b in open-agentic-office office-agenten; do
+  for b in open-agentic-office office-agenten office-pty-wirt; do
     [[ -x "$tmp/quelle/target/release/$b" ]] && cp "$tmp/quelle/target/release/$b" "$tmp/neu/$b"
   done
   cp -r "$tmp/quelle/dist" "$tmp/neu/dist"
 fi
 [[ -x "$tmp/neu/open-agentic-office" && -d "$tmp/neu/dist" ]] || { echo "open-agentic-office-update: Binärdatei oder Client fehlt" >&2; exit 1; }
-rm -f "$DIR/open-agentic-office" "$DIR/office-agenten"
+rm -f "$DIR/open-agentic-office" "$DIR/office-agenten" "$DIR/office-pty-wirt"
 rm -rf "$DIR/dist"
 cp -r "$tmp/neu"/. "$DIR"/
 curl -fsSL "https://api.github.com/repos/$slug/commits/$REF" 2>/dev/null | python3 -c 'import json,sys; print(json.load(sys.stdin)["sha"])' >"$DIR/STAND" 2>/dev/null || true

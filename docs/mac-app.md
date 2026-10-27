@@ -49,7 +49,7 @@ deine Abo-Anmeldung (abschaltbar mit `"nur_abo": false` in
 `claude/claude-code.command` öffnet in einem Terminal-Fenster Claude Code ohne die API-Variablen (nur für
 dieses Fenster), installiert es bei Bedarf und startet es; `claude-code.command auth login --claudeai`
 meldet dich mit deinem Abo an. In einer Online-Lobby meldest du dich stattdessen im Office unter
-**☰ → 🔐 Deine Anmeldungen** mit deinem eigenen Claude an.
+**☰ → 🔑 Anmeldungen** mit deinem eigenen Claude an.
 
 ## Mitspieler auf deinen Mac einladen
 

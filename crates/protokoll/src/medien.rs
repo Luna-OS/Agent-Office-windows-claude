@@ -35,7 +35,11 @@ pub enum Server {
     /// ICE-Server (STUN/TURN) für WebRTC, kommt einmal nach der Anmeldung.
     IceServer { server: Vec<IceServer> },
     /// Voice-Zustand eines anderen Spielers.
-    Sprache { spieler: String, aktiv: bool, stumm: bool },
+    Sprache {
+        spieler: String,
+        aktiv: bool,
+        stumm: bool,
+    },
     /// Ein WebRTC-Signal von einem anderen Spieler.
     Rtc { von: String, daten: RtcSignal },
     /// Was die Jukebox der Etage spielt.

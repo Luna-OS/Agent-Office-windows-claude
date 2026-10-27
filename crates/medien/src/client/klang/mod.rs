@@ -66,9 +66,21 @@ pub struct Orte {
 impl Default for Orte {
     fn default() -> Self {
         Self {
-            kaffeemaschine: Ort { x: -15.7, y: 1.4, z: 12.2 },
-            kuehlschrank: Ort { x: -11.3, y: 1.1, z: 12.2 },
-            arcade: Ort { x: -0.2, y: 1.2, z: 0.0 },
+            kaffeemaschine: Ort {
+                x: -15.7,
+                y: 1.4,
+                z: 12.2,
+            },
+            kuehlschrank: Ort {
+                x: -11.3,
+                y: 1.1,
+                z: 12.2,
+            },
+            arcade: Ort {
+                x: -0.2,
+                y: 1.2,
+                z: 0.0,
+            },
             fenster: Vec::new(),
             tische: Vec::new(),
         }
@@ -116,14 +128,19 @@ impl Default for Klang {
 impl Klang {
     /// Meldet sich für den ersten Klick/Tastendruck an (erst dann darf Audio starten).
     pub fn neu() -> Self {
-        let k = Self(Rc::new(RefCell::new(Innen { lautstaerke: 0.7, ..Default::default() })));
+        let k = Self(Rc::new(RefCell::new(Innen {
+            lautstaerke: 0.7,
+            ..Default::default()
+        })));
         let mut l = Vec::new();
         for art in ["pointerdown", "keydown"] {
             let k2 = k.clone();
             l.push(Lauscher::neu(&fenster(), art, move |_| k2.entsperren()));
         }
         let k2 = k.clone();
-        l.push(Lauscher::neu(&dokument(), "visibilitychange", move |_| k2.sichtbarkeit()));
+        l.push(Lauscher::neu(&dokument(), "visibilitychange", move |_| {
+            k2.sichtbarkeit()
+        }));
         k.0.borrow_mut()._lauscher = l;
         k
     }
@@ -177,7 +194,11 @@ impl Klang {
     fn lautstaerke_anwenden(&self) {
         let i = self.0.borrow();
         let Some(k) = &i.kern else { return };
-        let g = if i.stumm { 0.0 } else { i.lautstaerke * i.lautstaerke };
+        let g = if i.stumm {
+            0.0
+        } else {
+            i.lautstaerke * i.lautstaerke
+        };
         let _ = k.master.gain().set_target_at_time(g, k.jetzt(), 0.04);
     }
 
@@ -187,7 +208,11 @@ impl Klang {
         if !verborgen && k.ctx.state() == AudioContextState::Suspended {
             let _ = k.ctx.resume();
         }
-        let _ = k.umgebung.gain().set_target_at_time(if verborgen { 0.0 } else { 1.0 }, k.jetzt(), 0.15);
+        let _ = k.umgebung.gain().set_target_at_time(
+            if verborgen { 0.0 } else { 1.0 },
+            k.jetzt(),
+            0.15,
+        );
     }
 
     /// Wo die Ohren sind (Kopf, Blickrichtung) und ob drinnen/Garage/draußen, einmal pro Frame.
@@ -200,7 +225,14 @@ impl Klang {
         let l = k.ctx.listener();
         let len = blick_x.hypot(blick_z).max(1e-6);
         l.set_position(kopf.x as f64, kopf.y as f64, kopf.z as f64);
-        l.set_orientation((blick_x / len) as f64, 0.0, (blick_z / len) as f64, 0.0, 1.0, 0.0);
+        l.set_orientation(
+            (blick_x / len) as f64,
+            0.0,
+            (blick_z / len) as f64,
+            0.0,
+            1.0,
+            0.0,
+        );
         let mut i = self.0.borrow_mut();
         i.lage.kopf = kopf;
         i.lage.wo = wo;
@@ -231,8 +263,14 @@ impl Klang {
         let i = self.0.borrow();
         let Some(k) = &i.kern else { return };
         let d = i.lage.draussen;
-        let _ = k.drinnen.gain().set_target_at_time(if d { 0.0 } else { 1.0 }, k.jetzt(), 0.3);
-        let _ = k.draussen.gain().set_target_at_time(if d { 1.0 } else { 0.0 }, k.jetzt(), 0.3);
+        let _ = k
+            .drinnen
+            .gain()
+            .set_target_at_time(if d { 0.0 } else { 1.0 }, k.jetzt(), 0.3);
+        let _ = k
+            .draussen
+            .gain()
+            .set_target_at_time(if d { 1.0 } else { 0.0 }, k.jetzt(), 0.3);
     }
 
     pub(crate) fn lage(&self) -> Lage {

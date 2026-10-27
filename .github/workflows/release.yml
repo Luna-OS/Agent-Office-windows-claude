@@ -5,7 +5,7 @@ name: Release
 # der Commits auf main (v0.1.68, v0.1.69, …). Für ein neues Minor die Version in Cargo.toml erhöhen.
 #
 # Pull Requests bauen dasselbe und starten den fertigen Server als Probe, veröffentlichen aber nichts.
-# Jedes Archiv enthält: open-agentic-office (Server), office-agenten (CLI) und dist/ (Browser-Client).
+# Jedes Archiv enthält: open-agentic-office (Server), office-agenten (CLI), office-pty-wirt (Terminal-Wirt) und dist/ (Browser-Client).
 
 on:
   push:
@@ -84,7 +84,7 @@ jobs:
           ordner="paket/open-agentic-office"
           mkdir -p "$ordner"
           cp "target/${{ matrix.ziel }}/release/open-agentic-office$exe" "$ordner/"
-          cp "target/${{ matrix.ziel }}/release/office-agenten$exe" "$ordner/" 2>/dev/null || echo "Hinweis: keine office-agenten-CLI gebaut"
+          for b in office-agenten office-pty-wirt; do cp "target/${{ matrix.ziel }}/release/$b$exe" "$ordner/" 2>/dev/null || echo "Hinweis: $b nicht gebaut"; done
           cp -R dist "$ordner/dist"
           archiv="open-agentic-office-${{ matrix.name }}.${{ matrix.endung }}"
           if [ "${{ matrix.endung }}" = zip ]; then

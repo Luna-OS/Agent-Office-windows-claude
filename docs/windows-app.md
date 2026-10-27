@@ -64,7 +64,7 @@ Die App sorgt deshalb dafür, dass nur das Abo benutzt wird:
   Variablen (Einstellung `nur_abo`, Standard an, in `%APPDATA%\open-agentic-office-desktop\einstellungen.json`).
   Setz sie auf `false`, wenn du doch einen API-Key nutzen willst.
 
-In einer Online-Lobby gilt das nicht: Dort meldest du dich im Office unter **☰ → 🔐 Deine Anmeldungen**
+In einer Online-Lobby gilt das nicht: Dort meldest du dich im Office unter **☰ → 🔑 Anmeldungen**
 mit deinem eigenen Claude an, und deine Arbeiter laufen damit auf dem Server.
 
 ## Wie die App funktioniert

@@ -18,10 +18,26 @@ pub struct Stueck {
 }
 
 pub const STUECKE: [Stueck; 4] = [
-    Stueck { id: "rainy-window", titel: "Regen am Fenster", stimmung: "langsam und verträumt" },
-    Stueck { id: "coffee-break", titel: "Kaffeepause", stimmung: "jazzig, lockerer Swing" },
-    Stueck { id: "late-commit", titel: "Später Commit", stimmung: "Moll, zwei Uhr nachts" },
-    Stueck { id: "green-build", titel: "Grüner Build", stimmung: "hell und hüpfend" },
+    Stueck {
+        id: "rainy-window",
+        titel: "Regen am Fenster",
+        stimmung: "langsam und verträumt",
+    },
+    Stueck {
+        id: "coffee-break",
+        titel: "Kaffeepause",
+        stimmung: "jazzig, lockerer Swing",
+    },
+    Stueck {
+        id: "late-commit",
+        titel: "Später Commit",
+        stimmung: "Moll, zwei Uhr nachts",
+    },
+    Stueck {
+        id: "green-build",
+        titel: "Grüner Build",
+        stimmung: "hell und hüpfend",
+    },
 ];
 
 /// Das `stueck` eines eingefügten Streams.
@@ -36,7 +52,9 @@ pub fn titel(stueck_id: &str, url: Option<&str>) -> String {
     if stueck_id != STREAM {
         return stueck(stueck_id).map_or("Ein Stück".into(), |s| s.titel.into());
     }
-    let Some(url) = url else { return "Ein Stream".into() };
+    let Some(url) = url else {
+        return "Ein Stream".into();
+    };
     let ohne = url.split_once("://").map_or(url, |(_, r)| r);
     let ohne = ohne.split(['?', '#']).next().unwrap_or("");
     let mut teile = ohne.split('/');
@@ -89,12 +107,22 @@ pub struct Jukebox {
 
 impl Jukebox {
     pub fn neu(jetzt_ms: u64) -> Self {
-        Self { s: Gespeichert { an: false, stueck: STUECKE[0].id.into(), url: None, von: None, start_ms: jetzt_ms } }
+        Self {
+            s: Gespeichert {
+                an: false,
+                stueck: STUECKE[0].id.into(),
+                url: None,
+                von: None,
+                start_ms: jetzt_ms,
+            },
+        }
     }
 
     /// Aus dem gespeicherten JSON; Kaputtes heißt einfach: eine stille Lounge.
     pub fn laden(json: &str, jetzt_ms: u64) -> Self {
-        let Ok(mut s) = serde_json::from_str::<Gespeichert>(json) else { return Self::neu(jetzt_ms) };
+        let Ok(mut s) = serde_json::from_str::<Gespeichert>(json) else {
+            return Self::neu(jetzt_ms);
+        };
         if s.stueck == STREAM {
             match s.url.as_deref().map(stream_url_pruefen) {
                 Some(Ok(u)) => s.url = Some(u),
@@ -119,7 +147,11 @@ impl Jukebox {
         JukeboxZustand {
             an: s.an,
             stueck: s.stueck.clone(),
-            url: if s.stueck == STREAM { s.url.clone() } else { None },
+            url: if s.stueck == STREAM {
+                s.url.clone()
+            } else {
+                None
+            },
             von: s.von.clone(),
             start_ms: s.start_ms,
             vergangen_ms: jetzt_ms.saturating_sub(s.start_ms),
@@ -132,7 +164,13 @@ impl Jukebox {
 
     /// Legt ein Stück oder einen Stream auf, oder schaltet (mit keinem von beiden) wieder an.
     /// `Ok(true)`, wenn sich etwas geändert hat.
-    pub fn spielen(&mut self, stueck_id: Option<&str>, url: Option<&str>, wer: &str, jetzt_ms: u64) -> Result<bool, String> {
+    pub fn spielen(
+        &mut self,
+        stueck_id: Option<&str>,
+        url: Option<&str>,
+        wer: &str,
+        jetzt_ms: u64,
+    ) -> Result<bool, String> {
         if let Some(u) = url.filter(|u| !u.is_empty()) {
             let u = stream_url_pruefen(u)?;
             self.setzen(STREAM.into(), Some(u), wer, jetzt_ms);
@@ -153,7 +191,10 @@ impl Jukebox {
 
     /// Weiter zum nächsten Stück; von einem Stream zurück zum ersten.
     pub fn weiter(&mut self, wer: &str, jetzt_ms: u64) {
-        let i = STUECKE.iter().position(|s| s.id == self.s.stueck).map_or(0, |i| i + 1);
+        let i = STUECKE
+            .iter()
+            .position(|s| s.id == self.s.stueck)
+            .map_or(0, |i| i + 1);
         self.setzen(STUECKE[i % STUECKE.len()].id.into(), None, wer, jetzt_ms);
     }
 
@@ -168,7 +209,13 @@ impl Jukebox {
     }
 
     fn setzen(&mut self, stueck: String, url: Option<String>, wer: &str, jetzt_ms: u64) {
-        self.s = Gespeichert { an: true, stueck, url, von: Some(kuerzen(wer, 24)), start_ms: jetzt_ms };
+        self.s = Gespeichert {
+            an: true,
+            stueck,
+            url,
+            von: Some(kuerzen(wer, 24)),
+            start_ms: jetzt_ms,
+        };
     }
 }
 
@@ -196,9 +243,18 @@ mod tests {
     #[test]
     fn streams() {
         let mut j = Jukebox::neu(0);
-        assert!(j.spielen(None, Some("ftp://radio.example/x"), "a", 0).is_err());
+        assert!(
+            j.spielen(None, Some("ftp://radio.example/x"), "a", 0)
+                .is_err()
+        );
         assert!(j.spielen(None, Some("radio.example"), "a", 0).is_err());
-        j.spielen(None, Some("https://radio.example.com/live/stream.mp3?x=1"), "a", 0).unwrap();
+        j.spielen(
+            None,
+            Some("https://radio.example.com/live/stream.mp3?x=1"),
+            "a",
+            0,
+        )
+        .unwrap();
         let z = j.zustand(0);
         assert_eq!(z.stueck, STREAM);
         assert_eq!(j.titel(), "radio.example.com · stream.mp3");
@@ -210,11 +266,21 @@ mod tests {
     #[test]
     fn speichern_und_laden() {
         let mut j = Jukebox::neu(0);
-        j.spielen(None, Some("https://radio.example.com/"), "Ein sehr sehr sehr langer Name hier", 500).unwrap();
+        j.spielen(
+            None,
+            Some("https://radio.example.com/"),
+            "Ein sehr sehr sehr langer Name hier",
+            500,
+        )
+        .unwrap();
         let k = Jukebox::laden(&j.als_json(), 9_000);
         assert_eq!(k.zustand(1500), j.zustand(1500));
         assert_eq!(k.zustand(0).von.unwrap().chars().count(), 24);
         assert!(!Jukebox::laden("kaputt", 1).zustand(1).an);
-        assert!(!Jukebox::laden(r#"{"an":true,"stueck":"weg","start_ms":0}"#, 1).zustand(1).an);
+        assert!(
+            !Jukebox::laden(r#"{"an":true,"stueck":"weg","start_ms":0}"#, 1)
+                .zustand(1)
+                .an
+        );
     }
 }

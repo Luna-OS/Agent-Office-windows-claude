@@ -35,6 +35,8 @@ pub enum Befehl {
     SprechenStopp,
     /// Mit dem Aufzug zu einer Etage fahren (die Welt spielt die Fahrt und schickt `Gehen`).
     ZurEtage(String),
+    /// Mit dem Aufzug in die Garage (unter der untersten Etage).
+    ZurGarage,
     /// Ich-Perspektive (`true`) oder Schulterblick.
     Perspektive(bool),
 }

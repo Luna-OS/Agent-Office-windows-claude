@@ -15,12 +15,16 @@ pub struct TestOffice {
 
 /// Der Wurzelordner des Workspace.
 pub fn wurzel() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..").join("..")
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("..")
+        .join("..")
 }
 
 /// Der gebaute Client, wenn es ihn gibt (`OFFICE_CLIENT` oder `<workspace>/dist`).
 pub fn client() -> Option<PathBuf> {
-    let p = std::env::var_os("OFFICE_CLIENT").map(PathBuf::from).unwrap_or_else(|| wurzel().join("dist"));
+    let p = std::env::var_os("OFFICE_CLIENT")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| wurzel().join("dist"));
     p.join("index.html").is_file().then_some(p)
 }
 
@@ -32,6 +36,9 @@ pub fn fotos() -> PathBuf {
 impl TestOffice {
     /// Startet ein Office; `passwort` = gemeinsames Passwort (ohne: offen).
     pub async fn starten(passwort: Option<&str>) -> Result<Self> {
+        // Kein PTY-Wirt in Tests: er würde abgekoppelt weiterlaufen und die Pipes des Testlaufs erben.
+        // SAFETY: wird vor dem Start des Office gesetzt, alle Tests setzen denselben Wert.
+        unsafe { std::env::set_var("OFFICE_PTY_WIRT", "aus") };
         let ordner = tempfile::Builder::new().prefix("atlas-e2e-").tempdir()?;
         let projekt = ordner.path().join("mein-projekt");
         std::fs::create_dir_all(&projekt)?;
@@ -47,9 +54,17 @@ impl TestOffice {
         let office = g.office.clone();
         server::hintergrund(&office);
         tokio::spawn(async move {
-            let _ = axum::serve(l, g.router.into_make_service_with_connect_info::<SocketAddr>()).await;
+            let _ = axum::serve(
+                l,
+                g.router.into_make_service_with_connect_info::<SocketAddr>(),
+            )
+            .await;
         });
-        Ok(Self { adresse, office, ordner })
+        Ok(Self {
+            adresse,
+            office,
+            ordner,
+        })
     }
 
     pub fn url(&self, pfad: &str) -> String {

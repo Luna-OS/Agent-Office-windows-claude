@@ -23,7 +23,11 @@ pub struct Bus {
 /// `alle`, `*` oder nichts heißt: an alle.
 pub fn empfaenger(an: Option<&str>) -> Option<String> {
     let an = an?.trim().trim_start_matches('@');
-    if an.is_empty() || an == "*" || an.eq_ignore_ascii_case("alle") || an.eq_ignore_ascii_case("all") {
+    if an.is_empty()
+        || an == "*"
+        || an.eq_ignore_ascii_case("alle")
+        || an.eq_ignore_ascii_case("all")
+    {
         None
     } else {
         Some(an.to_string())
@@ -32,7 +36,14 @@ pub fn empfaenger(an: Option<&str>) -> Option<String> {
 
 impl Bus {
     /// Legt eine Nachricht auf den Bus und gibt sie zurück.
-    pub fn senden(&mut self, von: &str, von_arbeiter: Option<&str>, an: Option<&str>, text: &str, um: u64) -> BusNachricht {
+    pub fn senden(
+        &mut self,
+        von: &str,
+        von_arbeiter: Option<&str>,
+        an: Option<&str>,
+        text: &str,
+        um: u64,
+    ) -> BusNachricht {
         self.naechste += 1;
         let text: String = text.trim().chars().take(MAX_TEXT).collect();
         let n = BusNachricht {
@@ -68,7 +79,12 @@ impl Bus {
     /// Die ungelesenen Nachrichten für einen Arbeiter; danach gelten sie als gelesen.
     pub fn posteingang(&mut self, id: &str, name: &str) -> Vec<BusNachricht> {
         let ab = self.gelesen.get(id).copied().unwrap_or(0);
-        let neu: Vec<_> = self.nachrichten.iter().filter(|n| n.id > ab && Self::ist_fuer(n, id, name)).cloned().collect();
+        let neu: Vec<_> = self
+            .nachrichten
+            .iter()
+            .filter(|n| n.id > ab && Self::ist_fuer(n, id, name))
+            .cloned()
+            .collect();
         self.gelesen.insert(id.to_string(), self.naechste);
         neu
     }
@@ -121,12 +137,24 @@ mod tests {
         bus.senden("Ada", Some("a"), Some("alle"), "Hallo zusammen", 2);
         bus.senden("Luna", None, None, "Vom Menschen", 3);
 
-        let b: Vec<_> = bus.posteingang("b", "Bob").into_iter().map(|n| n.text).collect();
+        let b: Vec<_> = bus
+            .posteingang("b", "Bob")
+            .into_iter()
+            .map(|n| n.text)
+            .collect();
         assert_eq!(b, ["Hallo Bob", "Hallo zusammen", "Vom Menschen"]);
-        let c: Vec<_> = bus.posteingang("c", "Cleo").into_iter().map(|n| n.text).collect();
+        let c: Vec<_> = bus
+            .posteingang("c", "Cleo")
+            .into_iter()
+            .map(|n| n.text)
+            .collect();
         assert_eq!(c, ["Hallo zusammen", "Vom Menschen"]);
         // Ada sieht ihre eigenen Nachrichten nicht im Posteingang.
-        let a: Vec<_> = bus.posteingang("a", "Ada").into_iter().map(|n| n.text).collect();
+        let a: Vec<_> = bus
+            .posteingang("a", "Ada")
+            .into_iter()
+            .map(|n| n.text)
+            .collect();
         assert_eq!(a, ["Vom Menschen"]);
         // Zweimal lesen liefert nichts Neues.
         assert!(bus.posteingang("b", "Bob").is_empty());

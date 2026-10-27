@@ -11,7 +11,10 @@ use crate::zustand::zustand;
 
 /// Läuft diese Seite als 2D-Ansicht?
 pub fn ist_lite() -> bool {
-    window().location().pathname().is_ok_and(|p| p.starts_with("/lite"))
+    window()
+        .location()
+        .pathname()
+        .is_ok_and(|p| p.starts_with("/lite"))
 }
 
 /// Wie dringend: wartende zuerst (am längsten zuerst), dann fertige, arbeitende, der Rest.
@@ -31,7 +34,15 @@ fn Karte(a: ArbeiterInfo) -> impl IntoView {
     let id = a.id.clone();
     let tisch = a.tisch.clone();
     let schlaeft = matches!(a.status, ArbeiterStatus::Beendet | ArbeiterStatus::Offline);
-    let unter = [a.provider.clone(), a.modell.clone(), a.worktree.as_ref().map(|w| format!("⎇ {}", w.branch))].into_iter().flatten().collect::<Vec<_>>().join(" · ");
+    let unter = [
+        a.provider.clone(),
+        a.modell.clone(),
+        a.worktree.as_ref().map(|w| format!("⎇ {}", w.branch)),
+    ]
+    .into_iter()
+    .flatten()
+    .collect::<Vec<_>>()
+    .join(" · ");
     view! {
         <li class="flex items-center gap-2 rounded-xl border-2 border-foreground/20 bg-card p-2">
             <button type="button" class="flex min-w-0 flex-1 items-center gap-2 text-left hover:cursor-pointer" on:click=move |_| modal::oeffnen(Fenster::Terminal(id.clone()))>
@@ -65,7 +76,11 @@ pub fn Lite() -> impl IntoView {
     };
     let andere_warten = move || {
         let hier = z.etage.get();
-        z.etagen.get().into_iter().filter(|e| Some(&e.id) != hier.as_ref() && e.wartend > 0).collect::<Vec<_>>()
+        z.etagen
+            .get()
+            .into_iter()
+            .filter(|e| Some(&e.id) != hier.as_ref() && e.wartend > 0)
+            .collect::<Vec<_>>()
     };
     view! {
         <div class="anmeldung fixed inset-0 z-10 flex flex-col overflow-hidden">

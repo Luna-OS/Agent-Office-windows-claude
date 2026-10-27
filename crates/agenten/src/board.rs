@@ -46,18 +46,26 @@ fn leer_zu_none(text: Option<String>, max: usize) -> Option<String> {
 
 /// Liest einen Status wie ihn Menschen und Agenten tippen.
 pub fn status_lesen(text: &str) -> Option<AufgabenStatus> {
-    Some(match text.trim().to_lowercase().replace(['-', ' '], "_").as_str() {
-        "offen" | "todo" | "neu" => AufgabenStatus::Offen,
-        "in_arbeit" | "doing" | "dran" | "arbeite" => AufgabenStatus::InArbeit,
-        "erledigt" | "done" | "fertig" => AufgabenStatus::Erledigt,
-        "blockiert" | "blocked" => AufgabenStatus::Blockiert,
-        _ => return None,
-    })
+    Some(
+        match text.trim().to_lowercase().replace(['-', ' '], "_").as_str() {
+            "offen" | "todo" | "neu" => AufgabenStatus::Offen,
+            "in_arbeit" | "doing" | "dran" | "arbeite" => AufgabenStatus::InArbeit,
+            "erledigt" | "done" | "fertig" => AufgabenStatus::Erledigt,
+            "blockiert" | "blocked" => AufgabenStatus::Blockiert,
+            _ => return None,
+        },
+    )
 }
 
 impl Aufgabenboard {
     pub fn neu(max_arbeiter: u32) -> Self {
-        Self { board: Board { aufgaben: Vec::new(), max_arbeiter }, naechste: 0 }
+        Self {
+            board: Board {
+                aufgaben: Vec::new(),
+                max_arbeiter,
+            },
+            naechste: 0,
+        }
     }
 
     pub fn hinzufuegen(&mut self, neu: Neu, von: &str, um: u64) -> Result<&Aufgabe, String> {
@@ -74,7 +82,11 @@ impl Aufgabenboard {
             id: self.naechste,
             titel,
             notiz: leer_zu_none(neu.notiz, MAX_NOTIZ),
-            status: if besitzer.is_some() && !neu.automatisch { AufgabenStatus::InArbeit } else { AufgabenStatus::Offen },
+            status: if besitzer.is_some() && !neu.automatisch {
+                AufgabenStatus::InArbeit
+            } else {
+                AufgabenStatus::Offen
+            },
             besitzer,
             angelegt_von: von.to_string(),
             angelegt_um: um,
@@ -97,8 +109,14 @@ impl Aufgabenboard {
     }
 
     pub fn aendern(&mut self, id: u64, a: Aenderung, um: u64) -> Result<&Aufgabe, String> {
-        let aufgabe = self.holen_mut(id).ok_or_else(|| format!("Keine Aufgabe #{id}"))?;
-        if let Some(t) = a.titel.map(|t| kappen(&t, MAX_TITEL)).filter(|t| !t.is_empty()) {
+        let aufgabe = self
+            .holen_mut(id)
+            .ok_or_else(|| format!("Keine Aufgabe #{id}"))?;
+        if let Some(t) = a
+            .titel
+            .map(|t| kappen(&t, MAX_TITEL))
+            .filter(|t| !t.is_empty())
+        {
             aufgabe.titel = t;
         }
         if let Some(b) = a.besitzer {
@@ -121,15 +139,20 @@ impl Aufgabenboard {
     }
 
     pub fn verschieben(&mut self, id: u64, delta: i32) -> bool {
-        let Some(pos) = self.board.aufgaben.iter().position(|a| a.id == id) else { return false };
-        let ziel = (pos as i64 + delta as i64).clamp(0, self.board.aufgaben.len() as i64 - 1) as usize;
+        let Some(pos) = self.board.aufgaben.iter().position(|a| a.id == id) else {
+            return false;
+        };
+        let ziel =
+            (pos as i64 + delta as i64).clamp(0, self.board.aufgaben.len() as i64 - 1) as usize;
         let a = self.board.aufgaben.remove(pos);
         self.board.aufgaben.insert(ziel, a);
         ziel != pos
     }
 
     pub fn erledigte_leeren(&mut self) {
-        self.board.aufgaben.retain(|a| a.status != AufgabenStatus::Erledigt);
+        self.board
+            .aufgaben
+            .retain(|a| a.status != AufgabenStatus::Erledigt);
     }
 
     /// Die nächste Aufgabe, die das Office selbst vergeben soll, wenn noch Platz ist.
@@ -138,12 +161,21 @@ impl Aufgabenboard {
         if laufend >= self.board.max_arbeiter {
             return None;
         }
-        self.board.aufgaben.iter().find(|a| a.automatisch && a.status == AufgabenStatus::Offen && a.arbeiter.is_none())
+        self.board
+            .aufgaben
+            .iter()
+            .find(|a| a.automatisch && a.status == AufgabenStatus::Offen && a.arbeiter.is_none())
     }
 
     /// Wie viele automatische Aufgaben gerade einen Arbeiter beschäftigen.
     pub fn automatisch_laufend(&self) -> u32 {
-        self.board.aufgaben.iter().filter(|a| a.automatisch && a.status == AufgabenStatus::InArbeit && a.arbeiter.is_some()).count() as u32
+        self.board
+            .aufgaben
+            .iter()
+            .filter(|a| {
+                a.automatisch && a.status == AufgabenStatus::InArbeit && a.arbeiter.is_some()
+            })
+            .count() as u32
     }
 }
 
@@ -152,18 +184,43 @@ mod tests {
     use super::*;
 
     fn neu(titel: &str) -> Neu {
-        Neu { titel: titel.into(), ..Default::default() }
+        Neu {
+            titel: titel.into(),
+            ..Default::default()
+        }
     }
 
     #[test]
     fn anlegen_aendern_entfernen() {
         let mut b = Aufgabenboard::neu(2);
         assert!(b.hinzufuegen(neu("  "), "x", 0).is_err());
-        let id = b.hinzufuegen(neu("Login reparieren"), "Luna", 1).unwrap().id;
-        let a = b.aendern(id, Aenderung { status: Some(AufgabenStatus::InArbeit), besitzer: Some("Ada".into()), ..Default::default() }, 2).unwrap();
+        let id = b
+            .hinzufuegen(neu("Login reparieren"), "Luna", 1)
+            .unwrap()
+            .id;
+        let a = b
+            .aendern(
+                id,
+                Aenderung {
+                    status: Some(AufgabenStatus::InArbeit),
+                    besitzer: Some("Ada".into()),
+                    ..Default::default()
+                },
+                2,
+            )
+            .unwrap();
         assert_eq!(a.besitzer.as_deref(), Some("Ada"));
         assert_eq!(a.status, AufgabenStatus::InArbeit);
-        let a = b.aendern(id, Aenderung { besitzer: Some(String::new()), ..Default::default() }, 3).unwrap();
+        let a = b
+            .aendern(
+                id,
+                Aenderung {
+                    besitzer: Some(String::new()),
+                    ..Default::default()
+                },
+                3,
+            )
+            .unwrap();
         assert_eq!(a.besitzer, None);
         assert!(b.aendern(99, Aenderung::default(), 0).is_err());
         assert!(b.entfernen(id));
@@ -178,7 +235,15 @@ mod tests {
         assert!(b.verschieben(c, -1));
         assert_eq!(b.board.aufgaben[0].id, c);
         assert!(!b.verschieben(c, -5));
-        b.aendern(a, Aenderung { status: Some(AufgabenStatus::Erledigt), ..Default::default() }, 1).unwrap();
+        b.aendern(
+            a,
+            Aenderung {
+                status: Some(AufgabenStatus::Erledigt),
+                ..Default::default()
+            },
+            1,
+        )
+        .unwrap();
         b.erledigte_leeren();
         assert_eq!(b.board.aufgaben.len(), 1);
     }
@@ -187,7 +252,17 @@ mod tests {
     fn warteschlange() {
         let mut b = Aufgabenboard::neu(1);
         b.hinzufuegen(neu("manuell"), "x", 0).unwrap();
-        let id = b.hinzufuegen(Neu { automatisch: true, ..neu("auto") }, "x", 0).unwrap().id;
+        let id = b
+            .hinzufuegen(
+                Neu {
+                    automatisch: true,
+                    ..neu("auto")
+                },
+                "x",
+                0,
+            )
+            .unwrap()
+            .id;
         assert_eq!(b.naechste_automatische(0).unwrap().id, id);
         assert!(b.naechste_automatische(1).is_none());
         b.board.max_arbeiter = 0;

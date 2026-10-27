@@ -17,8 +17,12 @@ pub fn lesen(pfad: &Path) -> Option<Verbrauch> {
         if !zeile.contains("\"usage\"") {
             continue;
         }
-        let Ok(wert) = serde_json::from_str::<Value>(&zeile) else { continue };
-        let Some(nutzung) = wert.pointer("/message/usage").or_else(|| wert.get("usage")) else { continue };
+        let Ok(wert) = serde_json::from_str::<Value>(&zeile) else {
+            continue;
+        };
+        let Some(nutzung) = wert.pointer("/message/usage").or_else(|| wert.get("usage")) else {
+            continue;
+        };
         // Eine Antwort steht oft mehrmals im Transkript (je Inhaltsblock): einmal zählen.
         if let Some(id) = wert.pointer("/message/id").and_then(Value::as_str)
             && !gesehen.insert(id.to_string())
@@ -26,7 +30,9 @@ pub fn lesen(pfad: &Path) -> Option<Verbrauch> {
             continue;
         }
         let zahl = |k: &str| nutzung.get(k).and_then(Value::as_u64).unwrap_or(0);
-        v.tokens_ein += zahl("input_tokens") + zahl("cache_creation_input_tokens") + zahl("cache_read_input_tokens");
+        v.tokens_ein += zahl("input_tokens")
+            + zahl("cache_creation_input_tokens")
+            + zahl("cache_read_input_tokens");
         v.tokens_aus += zahl("output_tokens");
     }
     (v.tokens_ein > 0 || v.tokens_aus > 0).then_some(v)

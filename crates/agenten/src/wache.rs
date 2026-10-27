@@ -16,7 +16,9 @@ pub fn starten(ag: &Agenten) {
     ag.innen.laufzeit.spawn(async move {
         loop {
             tokio::time::sleep(TAKT).await;
-            let Some(innen) = schwach.upgrade() else { return };
+            let Some(innen) = schwach.upgrade() else {
+                return;
+            };
             runde(&Agenten { innen });
         }
     });
@@ -28,7 +30,12 @@ fn runde(ag: &Agenten) {
     for e in z.etagen.values_mut() {
         for a in e.arbeiter.values_mut() {
             let still = a.letzte_ausgabe.is_none_or(|t| t.elapsed() >= RUHE);
-            if !a.hat_hooks && a.laeuft() && a.info.art == ArbeiterArt::Agent && a.info.status == ArbeiterStatus::Arbeitet && still {
+            if !a.hat_hooks
+                && a.laeuft()
+                && a.info.art == ArbeiterArt::Agent
+                && a.info.status == ArbeiterStatus::Arbeitet
+                && still
+            {
                 a.status_setzen(ArbeiterStatus::Fertig);
                 ruhig.push((e.id.clone(), a.info.id.clone()));
             }

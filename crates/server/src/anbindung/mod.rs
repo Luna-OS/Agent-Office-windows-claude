@@ -43,7 +43,12 @@ pub async fn starten(k: &Konfig) -> anyhow::Result<Gestartet> {
     routen.push(agenten::router(&agenten));
     domaenen.push(Box::new(medien::Domaene(medien.clone())));
     routen.push(medien::router(&medien));
-    Ok(Gestartet { domaenen, routen, agenten: Some(agenten), medien: Some(medien) })
+    Ok(Gestartet {
+        domaenen,
+        routen,
+        agenten: Some(agenten),
+        medien: Some(medien),
+    })
 }
 
 /// Nach dem Bau des Office: Ereignisse weiterleiten und als [`crate::office::Anbindung`] eintragen.
@@ -63,15 +68,32 @@ pub async fn beenden(o: &OfficeRef) {
 }
 
 /// Middleware für angebundene Router: legt den [`Anfrager`] in die Extensions (Sitzung ist schon geprüft).
-pub async fn anfrager(axum::extract::State(o): axum::extract::State<OfficeRef>, mut req: Request, next: Next) -> Response {
+pub async fn anfrager(
+    axum::extract::State(o): axum::extract::State<OfficeRef>,
+    mut req: Request,
+    next: Next,
+) -> Response {
     let Some(sitzung) = req.extensions().get::<Sitzung>().cloned() else {
         return next.run(req).await;
     };
-    let aus_query = req.uri().query().and_then(|q| q.split('&').find_map(|t| t.strip_prefix("verbindung=")).map(String::from));
-    let verbindung = req.headers().get("x-office-verbindung").and_then(|v| v.to_str().ok()).map(String::from).or(aus_query);
+    let aus_query = req.uri().query().and_then(|q| {
+        q.split('&')
+            .find_map(|t| t.strip_prefix("verbindung="))
+            .map(String::from)
+    });
+    let verbindung = req
+        .headers()
+        .get("x-office-verbindung")
+        .and_then(|v| v.to_str().ok())
+        .map(String::from)
+        .or(aus_query);
     // Nur eine Verbindung derselben Sitzung (gleiches Konto) zählt, sonst könnte man sich als andere ausgeben.
     let passend = verbindung.filter(|v| o.sitzung_von(v).is_some_and(|s| s.konto == sitzung.konto));
     let person = passend.as_deref().and_then(|v| o.person(v));
-    req.extensions_mut().insert(Anfrager { sitzung, verbindung: passend, person });
+    req.extensions_mut().insert(Anfrager {
+        sitzung,
+        verbindung: passend,
+        person,
+    });
     next.run(req).await
 }

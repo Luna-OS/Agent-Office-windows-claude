@@ -31,12 +31,22 @@ fn kodieren(s: &str) -> String {
 /// Den Text eines Buchs holen (Markdown, kein JSON).
 async fn text_holen(url: &str) -> Result<String, String> {
     let fenster = web_sys::window().ok_or("Kein Browserfenster.")?;
-    let antwort: web_sys::Response = JsFuture::from(fenster.fetch_with_str(url)).await.map_err(|_| "Der Server ist nicht erreichbar.")?.unchecked_into();
+    let antwort: web_sys::Response = JsFuture::from(fenster.fetch_with_str(url))
+        .await
+        .map_err(|_| "Der Server ist nicht erreichbar.")?
+        .unchecked_into();
     if !antwort.ok() {
-        return Err(format!("Das Buch ließ sich nicht laden (Status {}).", antwort.status()));
+        return Err(format!(
+            "Das Buch ließ sich nicht laden (Status {}).",
+            antwort.status()
+        ));
     }
     let p = antwort.text().map_err(|_| "Kein Text.")?;
-    Ok(JsFuture::from(p).await.ok().and_then(|t| t.as_string()).unwrap_or_default())
+    Ok(JsFuture::from(p)
+        .await
+        .ok()
+        .and_then(|t| t.as_string())
+        .unwrap_or_default())
 }
 
 #[component]
@@ -48,7 +58,8 @@ pub fn Buecher() -> impl IntoView {
     let e = etage.clone();
     spawn_local(async move {
         let r = match crate::http::holen(&format!("/api/buecher?etage={}", kodieren(&e))).await {
-            Ok(a) if a.ok() => serde_json::from_value::<Liste>(a.json).map_err(|_| "Unerwartete Antwort.".to_string()),
+            Ok(a) if a.ok() => serde_json::from_value::<Liste>(a.json)
+                .map_err(|_| "Unerwartete Antwort.".to_string()),
             Ok(a) => Err(a.fehler()),
             Err(f) => Err(f),
         };
@@ -58,7 +69,11 @@ pub fn Buecher() -> impl IntoView {
     let lesen = move |b: Buch| {
         offen.set(Some((b.titel.clone(), b.pfad.clone(), Ok("Lädt …".into()))));
         spawn_local(async move {
-            let url = format!("/api/buch?etage={}&pfad={}", kodieren(&etage.get_value()), kodieren(&b.pfad));
+            let url = format!(
+                "/api/buch?etage={}&pfad={}",
+                kodieren(&etage.get_value()),
+                kodieren(&b.pfad)
+            );
             let t = text_holen(&url).await;
             offen.set(Some((b.titel, b.pfad, t)));
         });

@@ -25,9 +25,41 @@ pub fn fahren(kx: &mut Kontext, etage: &str) {
         return;
     }
     FAEHRT.set(true);
-    crate::api::klang(crate::api::Klang::Aufzug { pos: [AUFZUG_X, 1.2, crate::grundriss::AUFZUG_ANKUNFT.1] });
+    crate::api::klang(crate::api::Klang::Aufzug {
+        pos: [AUFZUG_X, 1.2, crate::grundriss::AUFZUG_ANKUNFT.1],
+    });
     // Wer außerhalb der Kabine wählt, kommt trotzdem drin an: der Server setzt den Ort.
-    kx.senden(ClientNachricht::Etagen(E::Gehen { etage: etage.to_string(), an: None }));
+    kx.senden(ClientNachricht::Etagen(E::Gehen {
+        etage: etage.to_string(),
+        an: None,
+    }));
+}
+
+/// Wo man in der Garage ankommt (relativ zur untersten Etage): zwischen den Autos, Blick zur Straße.
+pub const GARAGE: (f32, f32) = (-3.2, 2.0);
+
+/// In die Garage: von der untersten Etage direkt hinunter, sonst per Aufzug dorthin.
+pub fn zur_garage(kx: &mut Kontext) {
+    let unterste = kx.zustand.etagen.first().map(|e| e.id.clone());
+    let hier_unten = !kx.zustand.auf_dem_dach() && kx.zustand.etagen_index() == 0;
+    let y = crate::grundriss::STRASSE_Y;
+    if hier_unten || unterste.is_none() {
+        kx.spieler.versetzen(GARAGE.0, y, GARAGE.1, 0.0);
+        return;
+    }
+    if let Some(id) = unterste {
+        FAEHRT.set(true);
+        let an = protokoll::praesenz::Ort {
+            x: GARAGE.0,
+            y,
+            z: GARAGE.1,
+            rot_y: 0.0,
+        };
+        kx.senden(ClientNachricht::Etagen(E::Gehen {
+            etage: id,
+            an: Some(an),
+        }));
+    }
 }
 
 /// Auf dem Dach angekommen: ein paar Schritte aus dem Aufzug, Blick zur Leinwand über der Bühne.
@@ -54,19 +86,36 @@ pub fn installieren(reg: &mut Register<Kontext>) {
             offen.set(1.0);
         }
         let p = kx.spieler.pos();
-        let nah = (p[0] - AUFZUG_X).abs() < 1.6 && p[2] > AUFZUG_KABINE.min_z && p[2] < AUFZUG_VORNE + 2.2 && p[1].abs() < 1.0;
-        let andere = kx.zustand.personen_hier().any(|q| (q.x - AUFZUG_X).abs() < 1.6 && q.z < AUFZUG_VORNE + 2.2 && q.z > AUFZUG_KABINE.min_z);
-        let soll = if (nah || andere) && !FAEHRT.get() { 1.0 } else { 0.0 };
+        let nah = (p[0] - AUFZUG_X).abs() < 1.6
+            && p[2] > AUFZUG_KABINE.min_z
+            && p[2] < AUFZUG_VORNE + 2.2
+            && p[1].abs() < 1.0;
+        let andere = kx.zustand.personen_hier().any(|q| {
+            (q.x - AUFZUG_X).abs() < 1.6 && q.z < AUFZUG_VORNE + 2.2 && q.z > AUFZUG_KABINE.min_z
+        });
+        let soll = if (nah || andere) && !FAEHRT.get() {
+            1.0
+        } else {
+            0.0
+        };
         let o = offen.get() + (soll - offen.get()).clamp(-dt * 2.5, dt * 2.5);
         offen.set(o);
         let halb = AUFZUG_TUER / 2.0;
         let z = AUFZUG_VORNE - AUFZUG_WAND / 2.0 + 0.03;
         let schub = o * (halb - 0.05);
         if let Some(l) = kx.teil("aufzug-tuer-l") {
-            l.set_position(Vec3::new(AUFZUG_X - halb / 2.0 - schub, crate::grundriss::AUFZUG_TUER_HOEHE / 2.0, z));
+            l.set_position(Vec3::new(
+                AUFZUG_X - halb / 2.0 - schub,
+                crate::grundriss::AUFZUG_TUER_HOEHE / 2.0,
+                z,
+            ));
         }
         if let Some(r) = kx.teil("aufzug-tuer-r") {
-            r.set_position(Vec3::new(AUFZUG_X + halb / 2.0 + schub, crate::grundriss::AUFZUG_TUER_HOEHE / 2.0, z));
+            r.set_position(Vec3::new(
+                AUFZUG_X + halb / 2.0 + schub,
+                crate::grundriss::AUFZUG_TUER_HOEHE / 2.0,
+                z,
+            ));
         }
     });
 }

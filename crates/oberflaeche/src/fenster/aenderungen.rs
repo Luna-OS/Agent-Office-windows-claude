@@ -33,7 +33,14 @@ thread_local! {
 }
 
 fn daten() -> Daten {
-    DATEN.with(|d| *d.get_or_init(|| Daten { stand: RwSignal::new(None), diff: RwSignal::new(None) }))
+    DATEN.with(|d| {
+        *d.get_or_init(|| {
+            crate::zustand::global(|| Daten {
+                stand: RwSignal::new(None),
+                diff: RwSignal::new(None),
+            })
+        })
+    })
 }
 
 pub fn stand_erhalten(s: &Stand) {
@@ -71,7 +78,11 @@ fn zeile(z: &str) -> impl IntoView + use<> {
 }
 
 #[component]
-fn Datei(d: GeaenderteDatei, arbeiter: StoredValue<String>, gewaehlt: RwSignal<Option<String>>) -> impl IntoView {
+fn Datei(
+    d: GeaenderteDatei,
+    arbeiter: StoredValue<String>,
+    gewaehlt: RwSignal<Option<String>>,
+) -> impl IntoView {
     let pfad = d.pfad.clone();
     let p2 = d.pfad.clone();
     let p3 = d.pfad.clone();
@@ -113,12 +124,24 @@ pub fn Aenderungen(arbeiter: String) -> impl IntoView {
     let nachricht = RwSignal::new(String::new());
     d.stand.set(None);
     d.diff.set(None);
-    schicken(A::AenderungenAbfragen { arbeiter: arbeiter.clone() });
+    schicken(A::AenderungenAbfragen {
+        arbeiter: arbeiter.clone(),
+    });
 
     let info = Memo::new(move |_| z.arbeiter_mit(&id.get_value()));
-    let titel = Signal::derive(move || format!("📝 Änderungen von {}", info.with(|i| i.as_ref().map(|i| i.name.clone())).unwrap_or_default()));
+    let titel = Signal::derive(move || {
+        format!(
+            "📝 Änderungen von {}",
+            info.with(|i| i.as_ref().map(|i| i.name.clone()))
+                .unwrap_or_default()
+        )
+    });
     let stand = move || d.stand.get().filter(|s| s.arbeiter == id.get_value());
-    let offene = move || stand().map(|s| s.dateien.iter().filter(|f| f.offen).count()).unwrap_or(0);
+    let offene = move || {
+        stand()
+            .map(|s| s.dateien.iter().filter(|f| f.offen).count())
+            .unwrap_or(0)
+    };
 
     let committen = move |e: leptos::ev::SubmitEvent| {
         e.prevent_default();
@@ -127,7 +150,10 @@ pub fn Aenderungen(arbeiter: String) -> impl IntoView {
             crate::zustand::fehler("Bitte eine Commit-Nachricht schreiben.");
             return;
         }
-        schicken(A::Committen { arbeiter: id.get_value(), nachricht: n });
+        schicken(A::Committen {
+            arbeiter: id.get_value(),
+            nachricht: n,
+        });
         nachricht.set(String::new());
     };
 

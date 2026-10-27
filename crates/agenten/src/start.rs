@@ -4,8 +4,8 @@
 use std::sync::{Arc, Weak};
 use std::time::{Duration, Instant};
 
-use protokoll::arbeiter::{ArbeiterArt, ArbeiterInfo, ArbeiterStatus, Server as ArbSrv};
 use protokoll::ServerNachricht;
+use protokoll::arbeiter::{ArbeiterArt, ArbeiterInfo, ArbeiterStatus, Server as ArbSrv};
 
 use crate::arbeiter::{Arbeiter, FARBEN, NAMEN};
 use crate::provider::{self, StartEingabe};
@@ -35,18 +35,29 @@ pub struct Wunsch {
     pub besprechung: Option<String>,
     /// Ein Board-Agent an diesem Board.
     pub station: Option<String>,
+    /// Weitere Etagen, in deren Repositories er auch arbeitet.
+    pub repos: Vec<String>,
 }
 
 /// Legt einen Arbeiter an und startet ihn. Gibt seine ID zurück oder sagt auf Deutsch, was fehlt.
 pub async fn anlegen(ag: &Agenten, etage: &str, von: &str, w: Wunsch) -> Result<String, String> {
     let provider_id = match w.art {
-        ArbeiterArt::Agent => Some(w.provider.clone().filter(|p| !p.is_empty()).unwrap_or_else(|| provider::STANDARD.into())),
+        ArbeiterArt::Agent => Some(
+            w.provider
+                .clone()
+                .filter(|p| !p.is_empty())
+                .unwrap_or_else(|| provider::STANDARD.into()),
+        ),
         ArbeiterArt::Shell => None,
     };
     if let Some(pid) = &provider_id {
         let p = provider::finden(pid).ok_or_else(|| format!("Unbekannter Provider „{pid}“"))?;
         if provider::programm_von(p.as_ref()).is_none() {
-            return Err(format!("{} ist auf diesem Rechner nicht installiert (Programm „{}“ nicht im PATH)", p.name(), p.programm()));
+            return Err(format!(
+                "{} ist auf diesem Rechner nicht installiert (Programm „{}“ nicht im PATH)",
+                p.name(),
+                p.programm()
+            ));
         }
         for wert in [&w.modell, &w.aufwand].into_iter().flatten() {
             if !provider::wert_gueltig(wert) {
@@ -56,15 +67,26 @@ pub async fn anlegen(ag: &Agenten, etage: &str, von: &str, w: Wunsch) -> Result<
     }
     let (id, verzeichnis, name) = {
         let mut z = ag.innen.zustand();
-        let e = z.etagen.get_mut(etage).ok_or("Diese Etage gibt es nicht (mehr)")?;
+        let e = z
+            .etagen
+            .get_mut(etage)
+            .ok_or("Diese Etage gibt es nicht (mehr)")?;
         let tisch = match w.tisch.clone().filter(|t| !t.is_empty()) {
-            Some(t) if e.tisch_belegt(&t) => return Err("An diesem Tisch sitzt schon jemand".into()),
+            Some(t) if e.tisch_belegt(&t) => {
+                return Err("An diesem Tisch sitzt schon jemand".into());
+            }
             Some(t) => t,
-            None => e.freier_tisch().ok_or("Alle Tische sind besetzt: schick erst jemanden heim")?,
+            None => e
+                .freier_tisch()
+                .ok_or("Alle Tische sind besetzt: schick erst jemanden heim")?,
         };
         let name = NAMEN
             .iter()
-            .find(|n| !e.arbeiter.values().any(|a| a.info.name.eq_ignore_ascii_case(n)))
+            .find(|n| {
+                !e.arbeiter
+                    .values()
+                    .any(|a| a.info.name.eq_ignore_ascii_case(n))
+            })
             .map(|n| n.to_string())
             .unwrap_or_else(|| format!("Arbeiter {}", e.arbeiter.len() + 1));
         let mut id = zufall_hex(6);
@@ -98,9 +120,13 @@ pub async fn anlegen(ag: &Agenten, etage: &str, von: &str, w: Wunsch) -> Result<
             zuschauer: Vec::new(),
             aktivitaet: w.prompt.as_deref().map(|p| crate::arbeiter::kuerzen(p, 80)),
             aktion: None,
-            aufgabe: w.prompt.as_deref().and_then(crate::arbeiter::aufgabe_aus_prompt),
+            aufgabe: w
+                .prompt
+                .as_deref()
+                .and_then(crate::arbeiter::aufgabe_aus_prompt),
             verbrauch: None,
             letzte_eingabe: None,
+            repos: Vec::new(),
             station: w.station.clone(),
             besprechung: w.besprechung.clone(),
             gearbeitet_ms: 0,
@@ -115,8 +141,41 @@ pub async fn anlegen(ag: &Agenten, etage: &str, von: &str, w: Wunsch) -> Result<
     };
     let will_worktree = w.worktree_vorgegeben.is_none()
         && w.art == ArbeiterArt::Agent
-        && w.worktree.unwrap_or(true) && worktree::ist_repo(&verzeichnis).await;
-    if will_worktree {
+        && w.worktree.unwrap_or(true)
+        && worktree::ist_repo(&verzeichnis).await;
+    if !w.repos.is_empty() {
+        let andere = {
+            let z = ag.innen.zustand();
+            let mut andere = Vec::new();
+            for r in &w.repos {
+                match z.etagen.get(r) {
+                    Some(e) if r != etage => andere.push((r.clone(), e.verzeichnis.clone())),
+                    Some(_) => {}
+                    None => {
+                        drop(z);
+                        entfernen_nach_fehler(ag, etage, &id);
+                        return Err(format!("Die Etage „{r}“ gibt es nicht"));
+                    }
+                }
+            }
+            andere
+        };
+        match crate::mehrrepo::anlegen(&verzeichnis, &worktree::slug(&name, &id), &andere).await {
+            Ok((eigen, weitere)) => {
+                let mut z = ag.innen.zustand();
+                if let Some(a) = z.arbeiter_mut(etage, &id) {
+                    a.info.worktree = Some(eigen);
+                    a.info.repos = weitere;
+                }
+            }
+            Err(fehler) => {
+                entfernen_nach_fehler(ag, etage, &id);
+                return Err(format!(
+                    "Arbeitsbereich konnte nicht angelegt werden: {fehler}"
+                ));
+            }
+        }
+    } else if will_worktree {
         match worktree::erstellen(&verzeichnis, &worktree::slug(&name, &id)).await {
             Ok(wt) => {
                 let mut z = ag.innen.zustand();
@@ -143,23 +202,45 @@ fn entfernen_nach_fehler(ag: &Agenten, etage: &str, id: &str) {
         e.arbeiter.remove(id);
         e.bus.vergessen(id);
         let ziel = Ziel::Etage(etage.to_string());
-        ag.innen.senden(ziel.clone(), ServerNachricht::Arbeiter(ArbSrv::Entfernt { arbeiter: id.to_string() }));
-        ag.innen.senden(ziel, ServerNachricht::Agenten(protokoll::agenten::Server::FeedEntfernt { arbeiter: id.to_string() }));
+        ag.innen.senden(
+            ziel.clone(),
+            ServerNachricht::Arbeiter(ArbSrv::Entfernt {
+                arbeiter: id.to_string(),
+            }),
+        );
+        ag.innen.senden(
+            ziel,
+            ServerNachricht::Agenten(protokoll::agenten::Server::FeedEntfernt {
+                arbeiter: id.to_string(),
+            }),
+        );
     }
 }
 
 /// Startet einen Arbeiter, der gerade nicht läuft, wieder; mit seiner Sitzung, wenn er eine hatte.
-pub fn fortsetzen(ag: &Agenten, etage: &str, id: &str, prompt: Option<String>) -> Result<(), String> {
+pub fn fortsetzen(
+    ag: &Agenten,
+    etage: &str,
+    id: &str,
+    prompt: Option<String>,
+) -> Result<(), String> {
     let sitzung = {
         let z = ag.innen.zustand();
-        let a = z.etagen.get(etage).and_then(|e| e.arbeiter.get(id)).ok_or("Diesen Arbeiter gibt es nicht")?;
+        let a = z
+            .etagen
+            .get(etage)
+            .and_then(|e| e.arbeiter.get(id))
+            .ok_or("Diesen Arbeiter gibt es nicht")?;
         if a.laeuft() {
             return Err(format!("{} läuft schon", a.info.name));
         }
         if let Some(wt) = &a.info.worktree
             && !worktree::absolut(&z.etagen[etage].verzeichnis, &wt.pfad).is_dir()
         {
-            return Err(format!("Der Worktree von {} fehlt – heimschicken und neu anlegen", a.info.name));
+            return Err(format!(
+                "Der Worktree von {} fehlt – heimschicken und neu anlegen",
+                a.info.name
+            ));
         }
         a.info.sitzung.clone()
     };
@@ -167,18 +248,41 @@ pub fn fortsetzen(ag: &Agenten, etage: &str, id: &str, prompt: Option<String>) -
 }
 
 /// Startet das Terminal eines Arbeiters mit seinem Provider (oder einer Shell).
-pub fn pty_starten(ag: &Agenten, etage: &str, id: &str, prompt: Option<String>, fortsetzen: Option<String>) -> Result<(), String> {
+pub fn pty_starten(
+    ag: &Agenten,
+    etage: &str,
+    id: &str,
+    prompt: Option<String>,
+    fortsetzen: Option<String>,
+) -> Result<(), String> {
     let mut z = ag.innen.zustand();
     let eigene = z.prompts.clone();
-    let e = z.etagen.get_mut(etage).ok_or("Diese Etage gibt es nicht (mehr)")?;
+    let e = z
+        .etagen
+        .get_mut(etage)
+        .ok_or("Diese Etage gibt es nicht (mehr)")?;
     let anleitung = anleitung::fuer(e, id, &eigene);
     let projekt = e.verzeichnis.clone();
-    let a = e.arbeiter.get_mut(id).ok_or("Diesen Arbeiter gibt es nicht")?;
-    let verzeichnis = a.info.worktree.as_ref().map(|wt| worktree::absolut(&projekt, &wt.pfad)).unwrap_or(projekt);
+    let a = e
+        .arbeiter
+        .get_mut(id)
+        .ok_or("Diesen Arbeiter gibt es nicht")?;
+    let verzeichnis = crate::mehrrepo::arbeitsbereich(&projekt, &a.info)
+        .or_else(|| {
+            a.info
+                .worktree
+                .as_ref()
+                .map(|wt| worktree::absolut(&projekt, &wt.pfad))
+        })
+        .unwrap_or(projekt);
     let cli = ag.innen.cli.to_string_lossy().replace('\\', "/");
     let token = zufall_hex(32);
-    let mut befehl = Befehl { verzeichnis, ..Default::default() };
+    let mut befehl = Befehl {
+        verzeichnis,
+        ..Default::default()
+    };
     let (mut prompt_tippen, mut meldet_start, mut hat_hooks) = (None, false, false);
+    let mut acp = false;
     match a.info.provider.as_deref().and_then(provider::finden) {
         Some(p) if a.info.art == ArbeiterArt::Agent => {
             let programm = provider::programm_von(p.as_ref())
@@ -200,6 +304,7 @@ pub fn pty_starten(ag: &Agenten, etage: &str, id: &str, prompt: Option<String>, 
             prompt_tippen = plan.prompt_tippen;
             meldet_start = p.meldet_start();
             hat_hooks = p.hat_hooks();
+            acp = p.acp();
         }
         _ => befehl.programm = pty::standard_shell(),
     }
@@ -207,16 +312,37 @@ pub fn pty_starten(ag: &Agenten, etage: &str, id: &str, prompt: Option<String>, 
     a.lauf += 1;
     let lauf = a.lauf;
     let schwach = Arc::downgrade(&ag.innen);
-    let (e1, i1, e2, i2) = (etage.to_string(), id.to_string(), etage.to_string(), id.to_string());
+    let (e1, i1, e2, i2) = (
+        etage.to_string(),
+        id.to_string(),
+        etage.to_string(),
+        id.to_string(),
+    );
     let schwach2 = schwach.clone();
-    let neu = Pty::starten(
-        &befehl,
-        a.info.spalten,
-        a.info.zeilen,
-        move |daten, antwort| bei_daten(&schwach, &e1, &i1, lauf, daten, antwort),
-        move |code| bei_ende(&schwach2, &e2, &i2, lauf, code),
-    )
-    .map_err(|f| format!("{f:#}"))?;
+    let lesen = move |daten: &[u8], antwort: &pty::Antworter| {
+        bei_daten(&schwach, &e1, &i1, lauf, daten, antwort)
+    };
+    let ende = move |code| bei_ende(&schwach2, &e2, &i2, lauf, code);
+    let neu = match &ag.innen.wirt {
+        // ACP-Agenten haben kein Terminal: das Office spricht mit ihnen und zeichnet selbst.
+        _ if acp => Pty::acp(
+            crate::acp::starten(
+                &befehl,
+                crate::acp::Wahl {
+                    modell: a.info.modell.clone(),
+                    aufwand: a.info.aufwand.clone(),
+                },
+                prompt_tippen.take(),
+                fortsetzen.clone(),
+                lesen,
+                ende,
+            )
+            .map_err(|f| format!("{f:#}"))?,
+        ),
+        Some(w) => w.starten(&befehl, a.info.spalten, a.info.zeilen, lesen, ende),
+        None => Pty::starten(&befehl, a.info.spalten, a.info.zeilen, lesen, ende)
+            .map_err(|f| format!("{f:#}"))?,
+    };
     a.pty = Some(neu);
     a.token = token;
     a.hat_hooks = hat_hooks;
@@ -228,12 +354,21 @@ pub fn pty_starten(ag: &Agenten, etage: &str, id: &str, prompt: Option<String>, 
     if prompt.is_some() {
         a.info.prompt = prompt;
     }
-    a.status_setzen(if meldet_start { ArbeiterStatus::Startet } else { ArbeiterStatus::Bereit });
+    a.status_setzen(if meldet_start {
+        ArbeiterStatus::Startet
+    } else {
+        ArbeiterStatus::Bereit
+    });
     // Ohne Hooks gibt es kein Signal „bereit“: der Auftrag kommt nach einer kurzen Weile.
     let ag2 = ag.clone();
     let (etage2, id2) = (etage.to_string(), id.to_string());
     ag.innen.laufzeit.spawn(async move {
-        tokio::time::sleep(if meldet_start { START_GEDULD } else { TIPP_VERZOEGERUNG }).await;
+        tokio::time::sleep(if meldet_start {
+            START_GEDULD
+        } else {
+            TIPP_VERZOEGERUNG
+        })
+        .await;
         nach_dem_start(&ag2, &etage2, &id2, lauf, meldet_start);
     });
     let e = &z.etagen[etage];
@@ -275,14 +410,18 @@ fn umgebung_setzen(befehl: &mut Befehl, innen: &Innen, etage: &str, a: &Arbeiter
 /// nicht gemeldet hat, hängt an einer Einrichtungsfrage.
 fn nach_dem_start(ag: &Agenten, etage: &str, id: &str, lauf: u64, meldet_start: bool) {
     let mut z = ag.innen.zustand();
-    let Some(a) = z.arbeiter_mut(etage, id) else { return };
+    let Some(a) = z.arbeiter_mut(etage, id) else {
+        return;
+    };
     if a.lauf != lauf || !a.laeuft() {
         return;
     }
     if meldet_start {
         if a.info.status == ArbeiterStatus::Startet {
             a.status_setzen(ArbeiterStatus::Wartet);
-            a.info.hinweis = Some("Wartet auf eine Einrichtungsfrage (Vertrauen/Login) – Terminal öffnen".into());
+            a.info.hinweis = Some(
+                "Wartet auf eine Einrichtungsfrage (Vertrauen/Login) – Terminal öffnen".into(),
+            );
         }
     } else if let Some(text) = a.prompt_tippen.take() {
         steuerung::tippen(&ag.innen, a, &text);
@@ -292,11 +431,22 @@ fn nach_dem_start(ag: &Agenten, etage: &str, id: &str, lauf: u64, meldet_start: 
     ag.innen.arbeiter_melden(e, id);
 }
 
-fn bei_daten(schwach: &Weak<Innen>, etage: &str, id: &str, lauf: u64, daten: &[u8], antwort: &pty::Antworter) {
-    let Some(innen) = schwach.upgrade() else { return };
+pub(crate) fn bei_daten(
+    schwach: &Weak<Innen>,
+    etage: &str,
+    id: &str,
+    lauf: u64,
+    daten: &[u8],
+    antwort: &pty::Antworter,
+) {
+    let Some(innen) = schwach.upgrade() else {
+        return;
+    };
     let ag = Agenten { innen };
     let mut z = ag.innen.zustand();
-    let Some(a) = z.arbeiter_mut(etage, id) else { return };
+    let Some(a) = z.arbeiter_mut(etage, id) else {
+        return;
+    };
     if a.lauf != lauf {
         return;
     }
@@ -308,11 +458,25 @@ fn bei_daten(schwach: &Weak<Innen>, etage: &str, id: &str, lauf: u64, daten: &[u
     }
     if !a.zuschauer.is_empty() && !ae.text.is_empty() {
         let ziel = Ziel::Verbindungen(a.zuschauer.keys().cloned().collect());
-        ag.innen.senden(ziel, ServerNachricht::Arbeiter(ArbSrv::TerminalDaten { arbeiter: id.to_string(), daten: ae.text }));
+        ag.innen.senden(
+            ziel,
+            ServerNachricht::Arbeiter(ArbSrv::TerminalDaten {
+                arbeiter: id.to_string(),
+                daten: ae.text,
+            }),
+        );
     }
     let mut melden = false;
+    if let Some(s) = ae.sitzung {
+        a.info.sitzung = Some(s);
+        melden = true;
+    }
     if let Some(t) = ae.neuer_titel {
-        a.info.titel = Some(t).filter(|t| !t.is_empty() && !t.eq_ignore_ascii_case("claude") && !t.eq_ignore_ascii_case("claude code"));
+        a.info.titel = Some(t).filter(|t| {
+            !t.is_empty()
+                && !t.eq_ignore_ascii_case("claude")
+                && !t.eq_ignore_ascii_case("claude code")
+        });
         melden = true;
     }
     if !a.hat_hooks && a.info.art == ArbeiterArt::Agent {
@@ -327,11 +491,20 @@ fn bei_daten(schwach: &Weak<Innen>, etage: &str, id: &str, lauf: u64, daten: &[u
             }
             _ => {}
         }
+        if ae.wartet {
+            a.status_setzen(ArbeiterStatus::Wartet);
+            melden = true;
+        }
     }
     // Die ersten Sekunden: hängt er an einem Login- oder Vertrauensbildschirm?
-    let frisch = a.gestartet.is_some_and(|g| g.elapsed() < Duration::from_secs(90));
+    let frisch = a
+        .gestartet
+        .is_some_and(|g| g.elapsed() < Duration::from_secs(90));
     if frisch
-        && matches!(a.info.status, ArbeiterStatus::Startet | ArbeiterStatus::Wartet | ArbeiterStatus::Bereit)
+        && matches!(
+            a.info.status,
+            ArbeiterStatus::Startet | ArbeiterStatus::Wartet | ArbeiterStatus::Bereit
+        )
         && let Some(p) = a.info.provider.as_deref().and_then(provider::finden)
     {
         let frueh = a.info.status == ArbeiterStatus::Startet || a.info.hinweis.is_some();
@@ -348,17 +521,25 @@ fn bei_daten(schwach: &Weak<Innen>, etage: &str, id: &str, lauf: u64, daten: &[u
     }
 }
 
-fn bei_ende(schwach: &Weak<Innen>, etage: &str, id: &str, lauf: u64, code: Option<i32>) {
-    let Some(innen) = schwach.upgrade() else { return };
+pub(crate) fn bei_ende(schwach: &Weak<Innen>, etage: &str, id: &str, lauf: u64, code: Option<i32>) {
+    let Some(innen) = schwach.upgrade() else {
+        return;
+    };
     let mut z = innen.zustand();
     let schliesst = z.schliesst;
-    let Some(a) = z.arbeiter_mut(etage, id) else { return };
+    let Some(a) = z.arbeiter_mut(etage, id) else {
+        return;
+    };
     if a.lauf != lauf {
         return;
     }
     a.pty = None;
     a.info.exit_code = code;
-    a.status_setzen(if schliesst { ArbeiterStatus::Offline } else { ArbeiterStatus::Beendet });
+    a.status_setzen(if schliesst {
+        ArbeiterStatus::Offline
+    } else {
+        ArbeiterStatus::Beendet
+    });
     let e = &z.etagen[etage];
     innen.arbeiter_melden(e, id);
     speicher::arbeiter_speichern(&innen.daten, e);

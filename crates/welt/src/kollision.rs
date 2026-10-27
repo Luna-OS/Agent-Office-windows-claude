@@ -26,7 +26,15 @@ pub struct Kasten {
 
 impl Kasten {
     pub const fn neu(min_x: f32, max_x: f32, min_z: f32, max_z: f32, oben: f32) -> Self {
-        Self { min_x, max_x, min_z, max_z, oben, unten: f32::NEG_INFINITY, zaun: false }
+        Self {
+            min_x,
+            max_x,
+            min_z,
+            max_z,
+            oben,
+            unten: f32::NEG_INFINITY,
+            zaun: false,
+        }
     }
     /// Ein Quader um die Mitte (x, z) mit Breite b (x) und Tiefe t (z).
     pub fn um(x: f32, z: f32, b: f32, t: f32, oben: f32) -> Self {
@@ -53,7 +61,11 @@ impl Kasten {
         if dx > 0.0 || dz > 0.0 {
             return RADIUS - dx.hypot(dz);
         }
-        RADIUS + (x - self.min_x).min(self.max_x - x).min(z - self.min_z).min(self.max_z - z)
+        RADIUS
+            + (x - self.min_x)
+                .min(self.max_x - x)
+                .min(z - self.min_z)
+                .min(self.max_z - z)
     }
     /// Ob ein Schritt von (vx, vz) nach (x, z) aus einer Überlappung herausführt.
     fn entkommt(&self, vx: f32, vz: f32, x: f32, z: f32) -> bool {
@@ -65,7 +77,10 @@ impl Kasten {
         if nx != 0.0 || nz != 0.0 {
             return nx * (x - vx) + nz * (z - vz) >= 0.0;
         }
-        let naechste = (vx - self.min_x).min(self.max_x - vx).min(vz - self.min_z).min(self.max_z - vz);
+        let naechste = (vx - self.min_x)
+            .min(self.max_x - vx)
+            .min(vz - self.min_z)
+            .min(self.max_z - vz);
         (naechste == vx - self.min_x && x < vx)
             || (naechste == self.max_x - vx && x > vx)
             || (naechste == vz - self.min_z && z < vz)
@@ -83,7 +98,14 @@ pub struct Koerper {
 }
 
 /// Was bei (x, z) mit Füßen auf Höhe `y` im Weg steht.
-pub fn blockiert(kaesten: &[Kasten], von: [f32; 3], x: f32, z: f32, y: f32, entkommen: bool) -> Option<&Kasten> {
+pub fn blockiert(
+    kaesten: &[Kasten],
+    von: [f32; 3],
+    x: f32,
+    z: f32,
+    y: f32,
+    entkommen: bool,
+) -> Option<&Kasten> {
     let mut treffer: Option<&Kasten> = None;
     for k in kaesten {
         let unten = if k.unten.is_finite() { k.unten } else { 0.0 };
@@ -154,7 +176,16 @@ pub fn schritt(k: &mut Koerper, kaesten: &[Kasten], x: f32, z: f32) {
     let (mut frei, mut zu) = (0.0f32, 1.0f32);
     for _ in 0..12 {
         let f = (frei + zu) / 2.0;
-        if blockiert(kaesten, k.pos, k.pos[0] + dx * f, k.pos[2] + dz * f, k.pos[1], true).is_some() {
+        if blockiert(
+            kaesten,
+            k.pos,
+            k.pos[0] + dx * f,
+            k.pos[2] + dz * f,
+            k.pos[1],
+            true,
+        )
+        .is_some()
+        {
             zu = f;
         } else {
             frei = f;
@@ -174,16 +205,28 @@ mod tests {
 
     #[test]
     fn wand_haelt_auf() {
-        let mut k = Koerper { pos: [0.0, 0.0, 0.0], am_boden: true, ..Default::default() };
+        let mut k = Koerper {
+            pos: [0.0, 0.0, 0.0],
+            am_boden: true,
+            ..Default::default()
+        };
         schritt(&mut k, &wand(), 1.5, 0.0);
-        assert!(k.pos[0] <= 1.0 - RADIUS + 0.01, "steckt in der Wand: {:?}", k.pos);
+        assert!(
+            k.pos[0] <= 1.0 - RADIUS + 0.01,
+            "steckt in der Wand: {:?}",
+            k.pos
+        );
         assert!(k.pos[0] > 0.5, "sollte bis an die Wand gehen");
     }
 
     #[test]
     fn stufe_wird_erklommen() {
         let stufe = vec![Kasten::neu(1.0, 3.0, -1.0, 1.0, 0.25)];
-        let mut k = Koerper { pos: [0.5, 0.0, 0.0], am_boden: true, ..Default::default() };
+        let mut k = Koerper {
+            pos: [0.5, 0.0, 0.0],
+            am_boden: true,
+            ..Default::default()
+        };
         schritt(&mut k, &stufe, 0.8, 0.0);
         assert_eq!(k.pos[1], 0.25);
         assert!(k.stufen_versatz < 0.0);
@@ -192,12 +235,20 @@ mod tests {
     #[test]
     fn tisch_ist_zu_hoch_ohne_sprung() {
         let tisch = vec![Kasten::neu(1.0, 3.0, -1.0, 1.0, 0.78)];
-        let mut k = Koerper { pos: [0.5, 0.0, 0.0], am_boden: true, ..Default::default() };
+        let mut k = Koerper {
+            pos: [0.5, 0.0, 0.0],
+            am_boden: true,
+            ..Default::default()
+        };
         schritt(&mut k, &tisch, 0.8, 0.0);
         assert_eq!(k.pos[1], 0.0);
         assert!(k.pos[0] < 0.7);
         // Im Sprung über der Kante geht es.
-        let mut k = Koerper { pos: [0.5, 0.9, 0.0], am_boden: false, ..Default::default() };
+        let mut k = Koerper {
+            pos: [0.5, 0.9, 0.0],
+            am_boden: false,
+            ..Default::default()
+        };
         schritt(&mut k, &tisch, 0.8, 0.0);
         assert_eq!(k.pos[0], 0.8);
         assert_eq!(boden(&tisch, 0.8, 0.0, 0.9), 0.78);
@@ -206,7 +257,11 @@ mod tests {
     #[test]
     fn unter_der_empore_durch() {
         let empore = vec![Kasten::neu(0.0, 10.0, 0.0, 10.0, 3.2).mit_unten(3.0)];
-        let mut k = Koerper { pos: [-1.0, 0.0, 5.0], am_boden: true, ..Default::default() };
+        let mut k = Koerper {
+            pos: [-1.0, 0.0, 5.0],
+            am_boden: true,
+            ..Default::default()
+        };
         schritt(&mut k, &empore, 1.0, 5.0);
         assert_eq!(k.pos[0], 1.0);
         assert_eq!(decke(&empore, 1.0, 5.0, 0.0), 3.0);
@@ -216,10 +271,18 @@ mod tests {
     #[test]
     fn aus_ueberlappung_heraus_aber_nicht_hindurch() {
         let w = wand();
-        let mut k = Koerper { pos: [0.9, 0.0, 0.0], am_boden: true, ..Default::default() };
+        let mut k = Koerper {
+            pos: [0.9, 0.0, 0.0],
+            am_boden: true,
+            ..Default::default()
+        };
         schritt(&mut k, &w, 0.7, 0.0);
         assert_eq!(k.pos[0], 0.7, "heraus geht");
-        let mut k = Koerper { pos: [0.9, 0.0, 0.0], am_boden: true, ..Default::default() };
+        let mut k = Koerper {
+            pos: [0.9, 0.0, 0.0],
+            am_boden: true,
+            ..Default::default()
+        };
         schritt(&mut k, &w, 1.1, 0.0);
         assert!(k.pos[0] <= 0.9 + 1e-4, "tiefer hinein nicht");
     }

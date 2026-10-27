@@ -16,15 +16,24 @@ pub struct NachMerge {
 }
 
 pub fn laden(daten: &std::path::Path) -> NachMerge {
-    std::fs::read_to_string(daten.join("nach-merge.json")).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default()
+    std::fs::read_to_string(daten.join("nach-merge.json"))
+        .ok()
+        .and_then(|t| serde_json::from_str(&t).ok())
+        .unwrap_or_default()
 }
 
 pub fn nachricht(n: &NachMerge) -> ServerNachricht {
-    ServerNachricht::Arbeiter(ArbSrv::Einstellungen { nach_merge_gehen: n.an, von: n.von.clone() })
+    ServerNachricht::Arbeiter(ArbSrv::Einstellungen {
+        nach_merge_gehen: n.an,
+        von: n.von.clone(),
+    })
 }
 
 pub fn setzen(ag: &Agenten, von: &Absender, an: bool) {
-    let n = NachMerge { an, von: Some(von.name.clone()) };
+    let n = NachMerge {
+        an,
+        von: Some(von.name.clone()),
+    };
     if let Ok(text) = serde_json::to_string_pretty(&n) {
         let _ = std::fs::write(ag.innen.daten.join("nach-merge.json"), text);
     }
@@ -47,21 +56,33 @@ pub fn pruefen(ag: &Agenten, etage: &str) {
     {
         let mut z = ag.innen.zustand();
         let an = z.nach_merge.an;
-        let Some(e) = z.etagen.get_mut(etage) else { return };
+        let Some(e) = z.etagen.get_mut(etage) else {
+            return;
+        };
         let prs = e.github.prs.clone();
         let mut geaendert = Vec::new();
         for a in e.arbeiter.values_mut() {
-            let Some(branch) = a.info.worktree.as_ref().map(|w| w.branch.clone()) else { continue };
+            let Some(branch) = a.info.worktree.as_ref().map(|w| w.branch.clone()) else {
+                continue;
+            };
             let pr = match &a.info.pr {
                 Some(p) => prs.iter().find(|x| x.nummer == p.nummer),
-                None => prs.iter().find(|x| x.branch == branch && x.zustand == "OPEN"),
+                None => prs
+                    .iter()
+                    .find(|x| x.branch == branch && x.zustand == "OPEN"),
             };
             let Some(pr) = pr else { continue };
             if a.info.pr.is_none() {
-                a.info.pr = Some(PrVerweis { nummer: pr.nummer, url: pr.url.clone() });
+                a.info.pr = Some(PrVerweis {
+                    nummer: pr.nummer,
+                    url: pr.url.clone(),
+                });
                 geaendert.push(a.info.id.clone());
             }
-            let beschaeftigt = matches!(a.info.status, ArbeiterStatus::Arbeitet | ArbeiterStatus::Wartet | ArbeiterStatus::Startet);
+            let beschaeftigt = matches!(
+                a.info.status,
+                ArbeiterStatus::Arbeitet | ArbeiterStatus::Wartet | ArbeiterStatus::Startet
+            );
             if an && pr.zustand == "MERGED" && !beschaeftigt {
                 heim.push((a.info.id.clone(), a.info.name.clone(), pr.nummer));
             }
@@ -79,9 +100,13 @@ pub fn pruefen(ag: &Agenten, etage: &str) {
     let (ag, etage) = (ag.clone(), etage.to_string());
     ag.innen.laufzeit.clone().spawn(async move {
         for (id, name, nummer) in heim {
-            if steuerung::stoppen(&ag, &etage, &id, Aufraeumen::Alles).await.is_ok() {
+            if steuerung::stoppen(&ag, &etage, &id, Aufraeumen::Alles)
+                .await
+                .is_ok()
+            {
                 let text = format!("{name} ist heimgegangen: PR #{nummer} ist gemergt.");
-                ag.innen.melden(&etage, &name, crate::MeldungArt::PrGemergt, text.clone());
+                ag.innen
+                    .melden(&etage, &name, crate::MeldungArt::PrGemergt, text.clone());
                 let _ = kommunikation::senden(&ag, &etage, "Office", None, None, &text);
             }
         }

@@ -54,7 +54,7 @@ Wähle eine mit `up --size <größe>` oder ändere sie später mit `deploy/azure
 
 ## Dein Team
 
-Alles in der [AWS-Referenz](aws.md) über Mitspieler gilt genauso, mit `deploy/azure.sh` statt `deploy/aws.sh`. **👥 Mitspieler einladen** im **☰**-Menü installiert ihre SSH-Schlüssel von GitHub, und ihre Schlüssel melden sich als eingeschränkter Benutzer `office` an, der nur zum Office-Port weiterleiten darf. In deinem Terminal:
+Alles in der [AWS-Referenz](aws.md) über Mitspieler gilt genauso, mit `deploy/azure.sh` statt `deploy/aws.sh`. **👥 Team** im **☰**-Menü installiert ihre SSH-Schlüssel von GitHub, und ihre Schlüssel melden sich als eingeschränkter Benutzer `office` an, der nur zum Office-Port weiterleiten darf. In deinem Terminal:
 
 ```bash
 deploy/azure.sh invite octocat        # nimmt die SSH-Schlüssel von github.com/octocat
@@ -65,7 +65,7 @@ deploy/azure.sh team                  # wer eingeladen ist
 deploy/azure.sh revoke 203.0.113.7    # eine IP wieder von der Liste nehmen
 ```
 
-Das Office weiß, dass es mit `deploy/azure.sh` bereitgestellt wurde, darum sind die Befehle, die es unter **👥 Mitspieler einladen** und auf der **🌐 Dienste**-Tafel vorschlägt, die für Azure.
+Das Office weiß, dass es mit `deploy/azure.sh` bereitgestellt wurde, darum sind die Befehle, die es unter **👥 Team** und auf der **🌐 Dienste**-Tafel vorschlägt, die für Azure.
 
 Konten funktionieren wie in der [README](../README.md#nutzer-hinzufügen). Einen Einladungslink erzeugst du in deinem Terminal so:
 

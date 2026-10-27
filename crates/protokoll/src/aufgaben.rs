@@ -84,12 +84,19 @@ pub enum Client {
         #[serde(default)]
         notiz: Option<String>,
     },
-    Entfernen { id: u64 },
+    Entfernen {
+        id: u64,
+    },
     /// Nach oben (-1) oder unten (+1) schieben.
-    Verschieben { id: u64, delta: i32 },
+    Verschieben {
+        id: u64,
+        delta: i32,
+    },
     /// Erledigte Aufgaben vergessen.
     ErledigteLeeren,
-    Limit { max_arbeiter: u32 },
+    Limit {
+        max_arbeiter: u32,
+    },
 }
 
 /// Nachrichten an den Browser.

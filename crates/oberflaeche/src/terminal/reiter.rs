@@ -11,7 +11,8 @@ use crate::ui::{Eingabe, Knopf, KnopfArt, KnopfGroesse};
 
 /// Was eine angeheftete Seite in ihrem Rahmen darf: laufen, anmelden, Formulare, Links in neuem Tab;
 /// nie das Office selbst wegnavigieren, nie Kamera, Mikro oder Zwischenablage.
-const SANDBOX: &str = "allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox";
+const SANDBOX: &str =
+    "allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox";
 
 #[derive(Clone, PartialEq)]
 struct Webseite {
@@ -31,7 +32,14 @@ thread_local! {
 }
 
 fn reiter() -> Reiter {
-    REITER.with(|r| *r.get_or_init(|| Reiter { seiten: RwSignal::new(HashMap::new()), gewaehlt: RwSignal::new(HashMap::new()) }))
+    REITER.with(|r| {
+        *r.get_or_init(|| {
+            crate::zustand::global(|| Reiter {
+                seiten: RwSignal::new(HashMap::new()),
+                gewaehlt: RwSignal::new(HashMap::new()),
+            })
+        })
+    })
 }
 
 /// Welche Seite bei diesem Arbeiter gezeigt wird (`None` = das Terminal).
@@ -53,7 +61,11 @@ fn waehlen(arbeiter: &str, n: Option<usize>) {
 /// Eine Adresse, die man in einen Rahmen laden darf (nur http und https).
 fn adresse(url: &str) -> Option<String> {
     let url = url.trim();
-    let mit = if url.contains("://") { url.to_string() } else { format!("https://{url}") };
+    let mit = if url.contains("://") {
+        url.to_string()
+    } else {
+        format!("https://{url}")
+    };
     (mit.starts_with("https://") || mit.starts_with("http://")).then_some(mit)
 }
 
@@ -65,7 +77,10 @@ pub fn Leiste(arbeiter: String) -> impl IntoView {
     let formular = RwSignal::new(false);
     let name = RwSignal::new(String::new());
     let url = RwSignal::new(String::new());
-    let seiten = move || r.seiten.with(|s| s.get(&a.get_value()).cloned().unwrap_or_default());
+    let seiten = move || {
+        r.seiten
+            .with(|s| s.get(&a.get_value()).cloned().unwrap_or_default())
+    };
 
     let hinzufuegen = move |e: leptos::ev::SubmitEvent| {
         e.prevent_default();
@@ -74,7 +89,11 @@ pub fn Leiste(arbeiter: String) -> impl IntoView {
             return;
         };
         let n = name.get_untracked().trim().to_string();
-        let n = if n.is_empty() { crate::texte::kuerzen(u.trim_start_matches("https://"), 24) } else { n };
+        let n = if n.is_empty() {
+            crate::texte::kuerzen(u.trim_start_matches("https://"), 24)
+        } else {
+            n
+        };
         let mut neu = 0;
         r.seiten.update(|s| {
             let l = s.entry(a.get_value()).or_default();

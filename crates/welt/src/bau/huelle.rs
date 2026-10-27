@@ -26,8 +26,25 @@ fn boden_und_decke(b: &mut Bau, pal: &EtagenPalette, fluegel: u32) {
     let boden = farbe(pal.boden);
     let (cx, cz) = BODEN.mitte();
     // Die Bodenplatte (unten sieht man sie als Garagendecke).
-    b.block(cx, -PLATTE, cz, BODEN.breite() + 2.0 * WANDSTAERKE, PLATTE, BODEN.tiefe() + 2.0 * WANDSTAERKE, boden);
-    b.kasten(Kasten::neu(BODEN.min_x - WANDSTAERKE, BODEN.max_x + WANDSTAERKE, BODEN.min_z - WANDSTAERKE, BODEN.max_z + WANDSTAERKE, 0.0).mit_unten(-PLATTE));
+    b.block(
+        cx,
+        -PLATTE,
+        cz,
+        BODEN.breite() + 2.0 * WANDSTAERKE,
+        PLATTE,
+        BODEN.tiefe() + 2.0 * WANDSTAERKE,
+        boden,
+    );
+    b.kasten(
+        Kasten::neu(
+            BODEN.min_x - WANDSTAERKE,
+            BODEN.max_x + WANDSTAERKE,
+            BODEN.min_z - WANDSTAERKE,
+            BODEN.max_z + WANDSTAERKE,
+            0.0,
+        )
+        .mit_unten(-PLATTE),
+    );
     // Dielen-Streifen in der zweiten Bodenfarbe.
     let alt = farbe(pal.boden2);
     let mut x = BODEN.min_x + 1.2;
@@ -36,12 +53,29 @@ fn boden_und_decke(b: &mut Bau, pal: &EtagenPalette, fluegel: u32) {
         x += 2.4;
     }
     // Teppiche unter den Tischinseln und in der Lounge.
-    for (i, (tx, tz, tb, tt)) in [(-10.5, -4.0, 6.0, 4.2), (-1.5, -4.0, 6.0, 4.2), (-10.5, 4.0, 6.0, 4.2), (-1.5, 4.0, 6.0, 4.2), (13.5, 0.0, 6.5, 7.0)].into_iter().enumerate() {
+    for (i, (tx, tz, tb, tt)) in [
+        (-10.5, -4.0, 6.0, 4.2),
+        (-1.5, -4.0, 6.0, 4.2),
+        (-10.5, 4.0, 6.0, 4.2),
+        (-1.5, 4.0, 6.0, 4.2),
+        (13.5, 0.0, 6.5, 7.0),
+    ]
+    .into_iter()
+    .enumerate()
+    {
         b.block(tx, 0.0, tz, tb, 0.012, tt, farbe(farben::TEPPICHE[i % 4]));
     }
     // Decke, mit Loch für die Leiter.
     let decke = toenen(farbe(pal.wand), 0.3);
-    let mut d = b.block(cx, WANDHOEHE, cz, BODEN.breite(), PLATTE, BODEN.tiefe(), decke);
+    let mut d = b.block(
+        cx,
+        WANDHOEHE,
+        cz,
+        BODEN.breite(),
+        PLATTE,
+        BODEN.tiefe(),
+        decke,
+    );
     // Von unten bekommt die Decke kein Sonnenlicht: etwas Eigenleuchten, sonst wirkt sie grau.
     d.set_emissive(toenen(decke, -0.55));
     // Lampen unter der Decke.
@@ -55,9 +89,34 @@ fn boden_und_decke(b: &mut Bau, pal: &EtagenPalette, fluegel: u32) {
         let tiefe = BODEN.min_z - fluegel_min_z(fluegel);
         let fx = (FLUEGEL_MIN_X + BODEN.max_x) / 2.0;
         let fz = BODEN.min_z - tiefe / 2.0;
-        b.block(fx, -PLATTE, fz, BODEN.max_x - FLUEGEL_MIN_X, PLATTE, tiefe, boden);
-        b.kasten(Kasten::neu(FLUEGEL_MIN_X, BODEN.max_x, fluegel_min_z(fluegel), BODEN.min_z, 0.0).mit_unten(-PLATTE));
-        b.block(fx, WANDHOEHE, fz, BODEN.max_x - FLUEGEL_MIN_X, PLATTE, tiefe, decke);
+        b.block(
+            fx,
+            -PLATTE,
+            fz,
+            BODEN.max_x - FLUEGEL_MIN_X,
+            PLATTE,
+            tiefe,
+            boden,
+        );
+        b.kasten(
+            Kasten::neu(
+                FLUEGEL_MIN_X,
+                BODEN.max_x,
+                fluegel_min_z(fluegel),
+                BODEN.min_z,
+                0.0,
+            )
+            .mit_unten(-PLATTE),
+        );
+        b.block(
+            fx,
+            WANDHOEHE,
+            fz,
+            BODEN.max_x - FLUEGEL_MIN_X,
+            PLATTE,
+            tiefe,
+            decke,
+        );
     }
 }
 
@@ -75,7 +134,13 @@ fn wand(b: &mut Bau, pal: &EtagenPalette, seite: Seite, alle: &[Oeffnung], flueg
     };
     let mut loecher: Vec<Oeffnung> = alle.iter().copied().filter(|o| o.wand == seite).collect();
     if seite == Seite::Nord && fluegel > 0 {
-        loecher.push(Oeffnung { wand: seite, u: (FLUEGEL_MIN_X + BODEN.max_x + t) / 2.0, breite: BODEN.max_x + t - FLUEGEL_MIN_X, unten: 0.0, oben: h });
+        loecher.push(Oeffnung {
+            wand: seite,
+            u: (FLUEGEL_MIN_X + BODEN.max_x + t) / 2.0,
+            breite: BODEN.max_x + t - FLUEGEL_MIN_X,
+            unten: 0.0,
+            oben: h,
+        });
     }
     loecher.sort_by(|a, b| a.u.total_cmp(&b.u));
 
@@ -111,8 +176,12 @@ fn wand(b: &mut Bau, pal: &EtagenPalette, seite: Seite, alle: &[Oeffnung], flueg
         Seite::West => quer + t / 2.0 + 0.02,
     };
     match seite {
-        Seite::Nord | Seite::Sued => b.block((von + bis) / 2.0, 0.0, innen, bis - von, 0.12, 0.04, leiste),
-        Seite::Ost | Seite::West => b.block(innen, 0.0, (von + bis) / 2.0, 0.04, 0.12, bis - von, leiste),
+        Seite::Nord | Seite::Sued => {
+            b.block((von + bis) / 2.0, 0.0, innen, bis - von, 0.12, 0.04, leiste)
+        }
+        Seite::Ost | Seite::West => {
+            b.block(innen, 0.0, (von + bis) / 2.0, 0.04, 0.12, bis - von, leiste)
+        }
     };
 }
 
@@ -129,10 +198,34 @@ fn fenster(b: &mut Bau, pal: &EtagenPalette, seite: Seite, quer: f32, o: &Oeffnu
     let hoehe = o.oben - o.unten;
     let mut g = b.gruppe(x, o.unten, z, rot);
     let rahmen = farbe(pal.leiste);
-    g.block(0.0, -0.05, 0.0, o.breite + 0.1, 0.05, WANDSTAERKE + 0.12, rahmen);
-    g.block(0.0, hoehe, 0.0, o.breite + 0.1, 0.05, WANDSTAERKE + 0.04, rahmen);
+    g.block(
+        0.0,
+        -0.05,
+        0.0,
+        o.breite + 0.1,
+        0.05,
+        WANDSTAERKE + 0.12,
+        rahmen,
+    );
+    g.block(
+        0.0,
+        hoehe,
+        0.0,
+        o.breite + 0.1,
+        0.05,
+        WANDSTAERKE + 0.04,
+        rahmen,
+    );
     if o.unten > 0.0 {
-        let mut glas = g.flaeche(0.0, hoehe / 2.0, 0.0, o.breite, hoehe, 0.0, Color::new(0.84, 0.95, 1.0, 0.18));
+        let mut glas = g.flaeche(
+            0.0,
+            hoehe / 2.0,
+            0.0,
+            o.breite,
+            hoehe,
+            0.0,
+            Color::new(0.84, 0.95, 1.0, 0.18),
+        );
         glas.enable_backface_culling(false);
         g.block(0.0, 0.0, 0.0, 0.05, hoehe, 0.06, rahmen);
     }
@@ -144,9 +237,33 @@ fn hinterbuero(b: &mut Bau, pal: &EtagenPalette, fluegel: u32) {
     let t = WANDSTAERKE;
     let z0 = fluegel_min_z(fluegel);
     let tiefe = BODEN.min_z - z0;
-    b.fester_block(FLUEGEL_MIN_X - t / 2.0, 0.0, BODEN.min_z - tiefe / 2.0, t, WANDHOEHE, tiefe, w);
-    b.fester_block((FLUEGEL_MIN_X + BODEN.max_x) / 2.0, 0.0, z0 - t / 2.0, BODEN.max_x - FLUEGEL_MIN_X + 2.0 * t, WANDHOEHE, t, w);
-    b.fester_block(BODEN.max_x + t / 2.0, 0.0, BODEN.min_z - tiefe / 2.0, t, WANDHOEHE, tiefe + t, w);
+    b.fester_block(
+        FLUEGEL_MIN_X - t / 2.0,
+        0.0,
+        BODEN.min_z - tiefe / 2.0,
+        t,
+        WANDHOEHE,
+        tiefe,
+        w,
+    );
+    b.fester_block(
+        (FLUEGEL_MIN_X + BODEN.max_x) / 2.0,
+        0.0,
+        z0 - t / 2.0,
+        BODEN.max_x - FLUEGEL_MIN_X + 2.0 * t,
+        WANDHOEHE,
+        t,
+        w,
+    );
+    b.fester_block(
+        BODEN.max_x + t / 2.0,
+        0.0,
+        BODEN.min_z - tiefe / 2.0,
+        t,
+        WANDHOEHE,
+        tiefe + t,
+        w,
+    );
 }
 
 /// Der Aufzugsschacht an der Nordwand mit zwei Schiebetüren (benannt "aufzug-tuer-l/r").
@@ -157,27 +274,88 @@ fn aufzug(b: &mut Bau, pal: &EtagenPalette) {
     let mitte_z = BODEN.min_z + AUFZUG_TIEFE / 2.0;
     let wd = AUFZUG_WAND;
     // Seitenwände.
-    b.fester_block(x0 + wd / 2.0, 0.0, mitte_z, wd, WANDHOEHE, AUFZUG_TIEFE, toenen(farbe(pal.leiste), 0.2));
-    b.fester_block(x1 - wd / 2.0, 0.0, mitte_z, wd, WANDHOEHE, AUFZUG_TIEFE, toenen(farbe(pal.leiste), 0.2));
+    b.fester_block(
+        x0 + wd / 2.0,
+        0.0,
+        mitte_z,
+        wd,
+        WANDHOEHE,
+        AUFZUG_TIEFE,
+        toenen(farbe(pal.leiste), 0.2),
+    );
+    b.fester_block(
+        x1 - wd / 2.0,
+        0.0,
+        mitte_z,
+        wd,
+        WANDHOEHE,
+        AUFZUG_TIEFE,
+        toenen(farbe(pal.leiste), 0.2),
+    );
     // Front: links und rechts der Tür, darüber.
     let fz = AUFZUG_VORNE - wd / 2.0;
     let seite = (AUFZUG_BREITE - AUFZUG_TUER) / 2.0;
     b.fester_block(x0 + seite / 2.0, 0.0, fz, seite, WANDHOEHE, wd, stahl);
     b.fester_block(x1 - seite / 2.0, 0.0, fz, seite, WANDHOEHE, wd, stahl);
-    b.block(AUFZUG_X, AUFZUG_TUER_HOEHE, fz, AUFZUG_TUER, WANDHOEHE - AUFZUG_TUER_HOEHE, wd, stahl);
+    b.block(
+        AUFZUG_X,
+        AUFZUG_TUER_HOEHE,
+        fz,
+        AUFZUG_TUER,
+        WANDHOEHE - AUFZUG_TUER_HOEHE,
+        wd,
+        stahl,
+    );
     // Kabinenboden und Anzeige über der Tür.
-    b.block(AUFZUG_X, 0.0, mitte_z, AUFZUG_BREITE - 2.0 * wd, 0.02, AUFZUG_TIEFE - wd, farbe("#4a4e69"));
-    let mut anzeige = b.quader(AUFZUG_X, AUFZUG_TUER_HOEHE + 0.35, AUFZUG_VORNE + 0.01, 0.7, 0.25, 0.02, farbe("#1b1b2f"));
+    b.block(
+        AUFZUG_X,
+        0.0,
+        mitte_z,
+        AUFZUG_BREITE - 2.0 * wd,
+        0.02,
+        AUFZUG_TIEFE - wd,
+        farbe("#4a4e69"),
+    );
+    let mut anzeige = b.quader(
+        AUFZUG_X,
+        AUFZUG_TUER_HOEHE + 0.35,
+        AUFZUG_VORNE + 0.01,
+        0.7,
+        0.25,
+        0.02,
+        farbe("#1b1b2f"),
+    );
     anzeige.set_emissive(farbe("#ff9f1c"));
     // Die Türen: halb so breit wie die Öffnung, gleiten zur Seite (siehe features/aufzug).
     let halb = AUFZUG_TUER / 2.0;
-    let l = b.block(AUFZUG_X - halb / 2.0, 0.0, fz + 0.03, halb, AUFZUG_TUER_HOEHE, 0.04, toenen(stahl, 0.25));
-    let r = b.block(AUFZUG_X + halb / 2.0, 0.0, fz + 0.03, halb, AUFZUG_TUER_HOEHE, 0.04, toenen(stahl, 0.25));
+    let l = b.block(
+        AUFZUG_X - halb / 2.0,
+        0.0,
+        fz + 0.03,
+        halb,
+        AUFZUG_TUER_HOEHE,
+        0.04,
+        toenen(stahl, 0.25),
+    );
+    let r = b.block(
+        AUFZUG_X + halb / 2.0,
+        0.0,
+        fz + 0.03,
+        halb,
+        AUFZUG_TUER_HOEHE,
+        0.04,
+        toenen(stahl, 0.25),
+    );
     b.merken("aufzug-tuer-l", l);
     b.merken("aufzug-tuer-r", r);
     b.nutzbar("aufzug", "aufzug", [AUFZUG_X, 1.2, mitte_z], 1.6);
     // Der Knopf neben der Tür.
-    b.nutzbar("aufzug", "aufzug-knopf", [x1 + 0.1, 1.2, AUFZUG_VORNE + 0.1], 1.4);
+    b.nutzbar(
+        "aufzug",
+        "aufzug-knopf",
+        [x1 + 0.1, 1.2, AUFZUG_VORNE + 0.1],
+        1.4,
+    );
 }
 
 /// Die Empore (Chefbüro) auf Pfosten, mit Glasbrüstung, Treppe und dem Besprechungsraum darunter.
@@ -190,21 +368,58 @@ fn empore(b: &mut Bau, pal: &EtagenPalette) {
     b.block(cx, EMPORE_Y - 0.2, cz, e.breite(), 0.2, e.tiefe(), holz);
     b.kasten(Kasten::neu(e.min_x, e.max_x, e.min_z, e.max_z, EMPORE_Y).mit_unten(EMPORE_Y - 0.2));
     // Pfosten an den offenen Ecken.
-    for (px, pz) in [(e.min_x + 0.1, e.min_z + 0.1), (e.max_x - 0.1, e.min_z + 0.1)] {
+    for (px, pz) in [
+        (e.min_x + 0.1, e.min_z + 0.1),
+        (e.max_x - 0.1, e.min_z + 0.1),
+    ] {
         b.saeule(px, 0.0, pz, 0.1, EMPORE_Y - 0.2, weiss);
         b.kasten(Kasten::um(px, pz, 0.2, 0.2, EMPORE_Y - 0.2));
     }
     // Glasbrüstung an Nord- und Westkante (Lücke für die Treppe).
     let glas = |b: &mut Bau, x: f32, z: f32, breite: f32, rot: f32| {
-        let mut g = b.flaeche(x, EMPORE_Y + 0.5, z, breite, 1.0, rot, Color::new(0.84, 0.95, 1.0, 0.22));
+        let mut g = b.flaeche(
+            x,
+            EMPORE_Y + 0.5,
+            z,
+            breite,
+            1.0,
+            rot,
+            Color::new(0.84, 0.95, 1.0, 0.22),
+        );
         g.enable_backface_culling(false);
     };
     glas(b, cx, e.min_z, e.breite(), 0.0);
     b.block(cx, EMPORE_Y + 1.0, e.min_z, e.breite(), 0.05, 0.08, holz);
-    b.kasten(Kasten::neu(e.min_x, e.max_x, e.min_z - 0.05, e.min_z + 0.05, EMPORE_Y + 1.05).mit_unten(EMPORE_Y).als_zaun());
+    b.kasten(
+        Kasten::neu(
+            e.min_x,
+            e.max_x,
+            e.min_z - 0.05,
+            e.min_z + 0.05,
+            EMPORE_Y + 1.05,
+        )
+        .mit_unten(EMPORE_Y)
+        .als_zaun(),
+    );
     let treppe_bis = TREPPE.min_z;
-    glas(b, e.min_x, (e.min_z + treppe_bis) / 2.0, treppe_bis - e.min_z, std::f32::consts::FRAC_PI_2);
-    b.kasten(Kasten::neu(e.min_x - 0.05, e.min_x + 0.05, e.min_z, treppe_bis, EMPORE_Y + 1.05).mit_unten(EMPORE_Y).als_zaun());
+    glas(
+        b,
+        e.min_x,
+        (e.min_z + treppe_bis) / 2.0,
+        treppe_bis - e.min_z,
+        std::f32::consts::FRAC_PI_2,
+    );
+    b.kasten(
+        Kasten::neu(
+            e.min_x - 0.05,
+            e.min_x + 0.05,
+            e.min_z,
+            treppe_bis,
+            EMPORE_Y + 1.05,
+        )
+        .mit_unten(EMPORE_Y)
+        .als_zaun(),
+    );
 
     // Die Treppe: Stufen an der Südwand hinauf nach Osten.
     let n = TREPPE_STUFEN as usize;
@@ -212,23 +427,70 @@ fn empore(b: &mut Bau, pal: &EtagenPalette) {
     for i in 0..n {
         let oben = (i + 1) as f32 / n as f32 * EMPORE_Y;
         let x = TREPPE.min_x + (i as f32 + 0.5) * lauf;
-        b.block(x, oben - 0.12, (TREPPE.min_z + TREPPE.max_z) / 2.0, lauf, 0.12, TREPPE.tiefe(), toenen(holz, if i % 2 == 0 { 0.0 } else { -0.08 }));
-        b.kasten(Kasten::neu(x - lauf / 2.0, x + lauf / 2.0, TREPPE.min_z, TREPPE.max_z, oben).mit_unten(oben - 0.12));
+        b.block(
+            x,
+            oben - 0.12,
+            (TREPPE.min_z + TREPPE.max_z) / 2.0,
+            lauf,
+            0.12,
+            TREPPE.tiefe(),
+            toenen(holz, if i % 2 == 0 { 0.0 } else { -0.08 }),
+        );
+        b.kasten(
+            Kasten::neu(
+                x - lauf / 2.0,
+                x + lauf / 2.0,
+                TREPPE.min_z,
+                TREPPE.max_z,
+                oben,
+            )
+            .mit_unten(oben - 0.12),
+        );
     }
-    b.block(TREPPE.min_x + TREPPE.breite() / 2.0, EMPORE_Y / 2.0, TREPPE.min_z - 0.03, TREPPE.breite(), 0.04, 0.04, holz);
+    b.block(
+        TREPPE.min_x + TREPPE.breite() / 2.0,
+        EMPORE_Y / 2.0,
+        TREPPE.min_z - 0.03,
+        TREPPE.breite(),
+        0.04,
+        0.04,
+        holz,
+    );
 
     // Besprechungsraum: Glas von den Pfosten bis zur Außenwand, Tür in der Nordwand (x 10..11.4).
     let (tx0, tx1) = (10.0, 11.4);
     let gh = EMPORE_Y - 0.25;
     let scheibe = |b: &mut Bau, x0: f32, x1: f32| {
-        let mut g = b.flaeche((x0 + x1) / 2.0, gh / 2.0, e.min_z + 0.15, x1 - x0, gh, 0.0, Color::new(0.84, 0.95, 1.0, 0.2));
+        let mut g = b.flaeche(
+            (x0 + x1) / 2.0,
+            gh / 2.0,
+            e.min_z + 0.15,
+            x1 - x0,
+            gh,
+            0.0,
+            Color::new(0.84, 0.95, 1.0, 0.2),
+        );
         g.enable_backface_culling(false);
         b.kasten(Kasten::neu(x0, x1, e.min_z + 0.1, e.min_z + 0.2, gh));
     };
     scheibe(b, e.min_x + 0.15, tx0);
     scheibe(b, tx1, e.max_x);
-    let mut w = b.flaeche(e.min_x + 0.15, gh / 2.0, (e.min_z + 0.15 + treppe_bis) / 2.0, treppe_bis - e.min_z - 0.15, gh, std::f32::consts::FRAC_PI_2, Color::new(0.84, 0.95, 1.0, 0.2));
+    let mut w = b.flaeche(
+        e.min_x + 0.15,
+        gh / 2.0,
+        (e.min_z + 0.15 + treppe_bis) / 2.0,
+        treppe_bis - e.min_z - 0.15,
+        gh,
+        std::f32::consts::FRAC_PI_2,
+        Color::new(0.84, 0.95, 1.0, 0.2),
+    );
     w.enable_backface_culling(false);
-    b.kasten(Kasten::neu(e.min_x + 0.1, e.min_x + 0.2, e.min_z + 0.15, e.max_z, gh));
+    b.kasten(Kasten::neu(
+        e.min_x + 0.1,
+        e.min_x + 0.2,
+        e.min_z + 0.15,
+        e.max_z,
+        gh,
+    ));
     let _ = farbe(pal.wand);
 }

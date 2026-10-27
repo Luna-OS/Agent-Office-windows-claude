@@ -12,7 +12,12 @@ use crate::office::{Anbindung, DACH, OfficeRef};
 use crate::ws::{self, Zukunft};
 
 pub async fn starten(k: &Konfig) -> anyhow::Result<Agenten> {
-    Agenten::starten(AgentenEinstellungen { daten_verzeichnis: k.daten.clone(), hook_port: 0, cli_pfad: None }).await
+    Agenten::starten(AgentenEinstellungen {
+        daten_verzeichnis: k.daten.clone(),
+        hook_port: 0,
+        cli_pfad: None,
+    })
+    .await
 }
 
 /// Der Absender für `agenten`: wer, auf welcher Etage (das Dach zählt als keine Projekt-Etage).
@@ -34,7 +39,13 @@ impl ws::Domaene for Domaene {
     }
 
     fn zustaendig(&self, n: &ClientNachricht) -> bool {
-        matches!(n, ClientNachricht::Agenten(_) | ClientNachricht::Arbeiter(_) | ClientNachricht::Aufgaben(_) | ClientNachricht::Github(_))
+        matches!(
+            n,
+            ClientNachricht::Agenten(_)
+                | ClientNachricht::Arbeiter(_)
+                | ClientNachricht::Aufgaben(_)
+                | ClientNachricht::Github(_)
+        )
     }
 
     fn nachricht<'a>(&'a self, o: &'a OfficeRef, von: &'a str, n: ClientNachricht) -> Zukunft<'a> {
@@ -64,11 +75,18 @@ impl ws::Domaene for Domaene {
 }
 
 /// Macht aus dem [`super::Anfrager`] den `agenten::Absender`, den vegas Routen als Extension erwarten.
-async fn absender_einsetzen(mut req: axum::extract::Request, next: axum::middleware::Next) -> axum::response::Response {
+async fn absender_einsetzen(
+    mut req: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> axum::response::Response {
     if let Some(a) = req.extensions().get::<super::Anfrager>().cloned() {
         req.extensions_mut().insert(Absender {
             verbindung: a.verbindung.unwrap_or_default(),
-            name: a.person.as_ref().map(|p| p.name.clone()).unwrap_or_default(),
+            name: a
+                .person
+                .as_ref()
+                .map(|p| p.name.clone())
+                .unwrap_or_default(),
             etage: a.person.and_then(|p| p.etage).filter(|e| e != DACH),
             konto: a.sitzung.konto,
         });
@@ -77,7 +95,8 @@ async fn absender_einsetzen(mut req: axum::extract::Request, next: axum::middlew
 }
 
 pub fn router(a: &Agenten) -> axum::Router {
-    a.router().layer(axum::middleware::from_fn(absender_einsetzen))
+    a.router()
+        .layer(axum::middleware::from_fn(absender_einsetzen))
 }
 
 struct AgentenAnbindung(Agenten);
@@ -86,7 +105,10 @@ impl Anbindung for AgentenAnbindung {
     fn etage_angemeldet(&self, id: &str, ordner: &Path) {
         self.0.etage_anmelden(id, ordner.to_path_buf());
         // Die Stühle am Besprechungstisch (Kopf zuerst) aus `welt`; einen Kerker hat die Karte noch nicht.
-        let stuehle = welt::grundriss::sitze::besprechungs_tische().into_iter().map(|t| t.id).collect();
+        let stuehle = welt::grundriss::sitze::besprechungs_tische()
+            .into_iter()
+            .map(|t| t.id)
+            .collect();
         self.0.besprechung_stuehle_setzen(id, stuehle);
         self.0.kerker_aktiv_setzen(id, false);
     }
@@ -101,11 +123,16 @@ impl Anbindung for AgentenAnbindung {
 
     fn zahlen(&self, etage: &str) -> Option<crate::etagen::Zahlen> {
         let (arbeiter, beschaeftigt, wartend) = self.0.zahlen(etage);
-        Some(crate::etagen::Zahlen { arbeiter: arbeiter as u32, beschaeftigt: beschaeftigt as u32, wartend: wartend as u32 })
+        Some(crate::etagen::Zahlen {
+            arbeiter: arbeiter as u32,
+            beschaeftigt: beschaeftigt as u32,
+            wartend: wartend as u32,
+        })
     }
 
     fn fluegel_geaendert(&self, id: &str, fluegel: u32) {
-        self.0.tische_setzen(id, crate::etagen::arbeitsplaetze(fluegel));
+        self.0
+            .tische_setzen(id, crate::etagen::arbeitsplaetze(fluegel));
     }
 }
 
@@ -129,7 +156,12 @@ fn meldungen_an_webhook(o: &OfficeRef, a: &Agenten) {
         {
             let mut z = zuletzt.lock().unwrap();
             let jetzt = Instant::now();
-            if z.0.get(&schluessel).is_some_and(|t| jetzt.duration_since(*t) < Duration::from_secs(60)) || z.1.is_some_and(|t| jetzt.duration_since(t) < Duration::from_secs(3)) {
+            if z.0
+                .get(&schluessel)
+                .is_some_and(|t| jetzt.duration_since(*t) < Duration::from_secs(60))
+                || z.1
+                    .is_some_and(|t| jetzt.duration_since(t) < Duration::from_secs(3))
+            {
                 return;
             }
             z.0.retain(|_, t| jetzt.duration_since(*t) < Duration::from_secs(600));
@@ -152,7 +184,12 @@ pub fn verbinden(o: &OfficeRef, a: Agenten) {
     o.anbinden(Arc::new(AgentenAnbindung(a.clone())));
     // Arbeiter eines Kontos laufen mit dessen eigenen Anmeldungen (leerer Wert = Variable entfernen).
     let schwach = Arc::downgrade(o);
-    a.konto_umgebung_setzen(Arc::new(move |konto: &str| schwach.upgrade().map(|o| crate::ws::anmeldungen::umgebung(&o, konto, None)).unwrap_or_default()));
+    a.konto_umgebung_setzen(Arc::new(move |konto: &str| {
+        schwach
+            .upgrade()
+            .map(|o| crate::ws::anmeldungen::umgebung(&o, konto, None))
+            .unwrap_or_default()
+    }));
     meldungen_an_webhook(o, &a);
     let _ = o.agenten.set(a);
     let o = o.clone();

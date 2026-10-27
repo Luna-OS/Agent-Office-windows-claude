@@ -8,6 +8,10 @@ struct Merker {
     titel: Option<String>,
     /// Letzter OSC 9;4-Fortschritt: `Some(true)` arbeitet, `Some(false)` ruht.
     fortschritt: Option<bool>,
+    /// OSC 9;4;4 (pausiert): wartet auf einen Menschen – bis zum Abholen.
+    wartet: bool,
+    /// OSC 7700;sitzung;<id> von ACP-Agenten – bis zum Abholen.
+    sitzung: Option<String>,
 }
 
 impl vt100::Callbacks for Merker {
@@ -19,6 +23,10 @@ impl vt100::Callbacks for Merker {
         // OSC 9;4;<zustand>[;<prozent>]: 0 heißt fertig/ruhend, alles andere beschäftigt.
         if params.len() >= 3 && params[0] == b"9" && params[1] == b"4" {
             self.fortschritt = Some(params[2] != b"0");
+            self.wartet |= params[2] == b"4";
+        }
+        if params.len() >= 3 && params[0] == b"7700" && params[1] == b"sitzung" {
+            self.sitzung = Some(String::from_utf8_lossy(params[2]).into_owned());
         }
     }
 }
@@ -37,11 +45,18 @@ pub struct Aenderung {
     pub text: String,
     pub neuer_titel: Option<String>,
     pub neuer_fortschritt: Option<bool>,
+    /// Der Agent wartet jetzt auf einen Menschen (OSC 9;4;4).
+    pub wartet: bool,
+    /// Eine neue Sitzungs-ID (OSC 7700;sitzung;<id>).
+    pub sitzung: Option<String>,
 }
 
 impl Terminal {
     pub fn neu(spalten: u16, zeilen: u16) -> Self {
-        Self { parser: vt100::Parser::new_with_callbacks(zeilen, spalten, 2000, Merker::default()), rest: Vec::new() }
+        Self {
+            parser: vt100::Parser::new_with_callbacks(zeilen, spalten, 2000, Merker::default()),
+            rest: Vec::new(),
+        }
     }
 
     /// Nimmt ein Stück PTY-Ausgabe auf. Ein am Ende abgeschnittenes UTF-8-Zeichen wartet auf das nächste Stück.
@@ -57,11 +72,20 @@ impl Terminal {
         let titel_vorher = self.parser.callbacks().titel.clone();
         let fortschritt_vorher = self.parser.callbacks().fortschritt;
         self.parser.process(&daten);
+        let merker = self.parser.callbacks_mut();
+        let wartet = std::mem::take(&mut merker.wartet);
+        let sitzung = merker.sitzung.take();
         let merker = self.parser.callbacks();
         Aenderung {
+            wartet,
+            sitzung,
             text: String::from_utf8_lossy(&daten).into_owned(),
-            neuer_titel: (merker.titel != titel_vorher).then(|| merker.titel.clone()).flatten(),
-            neuer_fortschritt: (merker.fortschritt != fortschritt_vorher).then_some(merker.fortschritt).flatten(),
+            neuer_titel: (merker.titel != titel_vorher)
+                .then(|| merker.titel.clone())
+                .flatten(),
+            neuer_fortschritt: (merker.fortschritt != fortschritt_vorher)
+                .then_some(merker.fortschritt)
+                .flatten(),
         }
     }
 
@@ -101,8 +125,17 @@ impl Terminal {
         let mut versatz = verlauf;
         loop {
             schirm.set_scrollback(versatz);
-            let nimm = if versatz == 0 { zeilen } else { zeilen.min(versatz) };
-            aus.extend(schirm.rows(0, spalten).take(nimm).map(|z| z.trim_end().to_string()));
+            let nimm = if versatz == 0 {
+                zeilen
+            } else {
+                zeilen.min(versatz)
+            };
+            aus.extend(
+                schirm
+                    .rows(0, spalten)
+                    .take(nimm)
+                    .map(|z| z.trim_end().to_string()),
+            );
             if versatz == 0 {
                 break;
             }
@@ -148,6 +181,10 @@ mod tests {
         assert_eq!(b.neuer_fortschritt, Some(true));
         let c = t.einspeisen(b"\x1b]9;4;0\x07");
         assert_eq!(c.neuer_fortschritt, Some(false));
+        let d = t.einspeisen(b"\x1b]9;4;4\x07\x1b]7700;sitzung;abc\x07");
+        assert!(d.wartet);
+        assert_eq!(d.sitzung.as_deref(), Some("abc"));
+        assert!(!t.einspeisen(b"x").wartet);
     }
 
     #[test]
@@ -156,7 +193,11 @@ mod tests {
         for i in 0..10 {
             t.einspeisen(format!("zeile {i}\r\n").as_bytes());
         }
-        let z: Vec<String> = t.alle_zeilen().into_iter().filter(|z| !z.is_empty()).collect();
+        let z: Vec<String> = t
+            .alle_zeilen()
+            .into_iter()
+            .filter(|z| !z.is_empty())
+            .collect();
         assert_eq!(z.first().map(String::as_str), Some("zeile 0"));
         assert_eq!(z.last().map(String::as_str), Some("zeile 9"));
         assert_eq!(z.len(), 10);

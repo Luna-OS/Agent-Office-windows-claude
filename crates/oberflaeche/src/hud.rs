@@ -9,7 +9,12 @@ use crate::zustand::zustand;
 
 /// Ein Knopf im Dock oben rechts.
 #[component]
-fn DockKnopf(symbol: &'static str, titel: &'static str, fenster: Fenster, #[prop(into, optional)] zahl: Option<Signal<usize>>) -> impl IntoView {
+fn DockKnopf(
+    symbol: &'static str,
+    titel: &'static str,
+    fenster: Fenster,
+    #[prop(into, optional)] zahl: Option<Signal<usize>>,
+) -> impl IntoView {
     view! {
         <button
             type="button"
@@ -34,10 +39,22 @@ fn DockKnopf(symbol: &'static str, titel: &'static str, fenster: Fenster, #[prop
 fn Etagenschild() -> impl IntoView {
     let z = zustand();
     let name = move || {
-        z.projekt.with(|p| p.as_ref().map(|p| p.name.clone())).unwrap_or_else(|| "OpenAgenticOffice".into())
+        z.projekt
+            .with(|p| p.as_ref().map(|p| p.name.clone()))
+            .unwrap_or_else(|| "OpenAgenticOffice".into())
     };
-    let branch = move || z.projekt.with(|p| p.as_ref().and_then(|p| p.branch.clone()));
-    let wartend = move || z.etagen.with(|l| l.iter().filter(|e| Some(&e.id) != z.etage.get().as_ref()).map(|e| e.wartend).sum::<u32>());
+    let branch = move || {
+        z.projekt
+            .with(|p| p.as_ref().and_then(|p| p.branch.clone()))
+    };
+    let wartend = move || {
+        z.etagen.with(|l| {
+            l.iter()
+                .filter(|e| Some(&e.id) != z.etage.get().as_ref())
+                .map(|e| e.wartend)
+                .sum::<u32>()
+        })
+    };
     view! {
         <button
             type="button"
@@ -85,7 +102,12 @@ fn Meldungen() -> impl IntoView {
 pub fn Hud() -> impl IntoView {
     let z = zustand();
     let offene_aufgaben = Signal::derive(move || {
-        z.board.with(|b| b.aufgaben.iter().filter(|a| a.status != protokoll::aufgaben::AufgabenStatus::Erledigt).count())
+        z.board.with(|b| {
+            b.aufgaben
+                .iter()
+                .filter(|a| a.status != protokoll::aufgaben::AufgabenStatus::Erledigt)
+                .count()
+        })
     });
     view! {
         <div id="hud" class="pointer-events-none fixed inset-0 z-10 select-none">

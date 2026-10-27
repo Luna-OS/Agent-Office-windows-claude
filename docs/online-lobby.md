@@ -48,9 +48,9 @@ Die App für Windows und macOS ist ein [Connector](connector.md): Sie verbindet 
    Tailnet oder NetBird-Netz, oder `umbrel.local:4600` im Heimnetz) und **Verbinden**. Der Connector
    prüft, ob die Lobby antwortet, und merkt sie sich.
 2. **Du als Host, beim ersten Mal**: Im Office mit dem Office-Passwort von der Seite der Umbrel-App
-   anmelden (Name leer lassen). Dann unter **☰ → 🔑 Konten** Name und Passwort wählen: Das ist dein
+   anmelden (Name leer lassen). Dann unter **☰ → 👥 Team** Name und Passwort wählen: Das ist dein
    Admin-Konto, ab jetzt meldest du dich damit an.
-3. **🔐 Deine Anmeldungen** (**☰**-Menü): **Mit Claude anmelden** (Claudes Seite geht im Browser auf, den
+3. **🔑 Anmeldungen** (**☰**-Menü): **Mit Claude anmelden** (Claudes Seite geht im Browser auf, den
    Code dort kopieren und im Office einfügen) und **Mit GitHub anmelden** (Einmal-Code kopieren, auf GitHub
    einfügen). Ab jetzt laufen deine Arbeiter auf dem Umbrel mit deinem Claude-Abo, und auf GitHub handelt
    das Office als du.
@@ -64,12 +64,12 @@ Beim nächsten Start kennt der Connector die Lobby schon; ein Klick auf sie öff
 1. Mitspieler brauchen einen Weg zu deinem Umbrel: im selben Netz, oder über [Tailscale](https://tailscale.com)
    oder NetBird (teile den Umbrel mit ihnen). Über das offene Internet solltest du die Lobby nur hinter
    HTTPS stellen.
-2. Im Office unter **☰ → 🔑 Konten** einen **Einladungslink** (`…/beitreten#…`) erstellen und kopieren. Der
+2. Im Office unter **☰ → 👥 Team** einen **Einladungslink** (`…/beitreten#…`) erstellen und kopieren. Der
    Link funktioniert einmal und gilt 7 Tage.
 3. Wer eingeladen ist, installiert den Connector, fügt den Link unter **Lobby beitreten** ein, wählt Name und
    Passwort und meldet sich mit dem **eigenen** Claude und GitHub an. Ohne Connector geht der Link auch im
    Browser.
-4. Wenn alle ein Konto haben: das gemeinsame Passwort im Office unter ☰ → 🔑 Konten ausschalten.
+4. Wenn alle ein Konto haben: das gemeinsame Passwort im Office unter ☰ → 👥 Team ausschalten.
 
 ## Ohne Umbrel: die Lobby auf deinem PC hosten
 
@@ -85,7 +85,7 @@ Um Mitspieler hereinzulassen:
 3. Der Connector zeigt die **Einladung**: deine Adresse (z. B. `192.168.178.20:4600` im WLAN, oder die über
    Tailscale oder NetBird) und das Passwort. Verschick beides.
 4. Besser mit eigenem Konto (für das eigene GitHub, die eigenen Projekte und die eigene KI): im Office unter
-   **☰ → 🔑 Konten** einen Einladungslink erstellen und weitergeben. Wer eingeladen ist, fügt ihn im eigenen
+   **☰ → 👥 Team** einen Einladungslink erstellen und weitergeben. Wer eingeladen ist, fügt ihn im eigenen
    Connector ein.
 
 Wer mit dem Passwort hereinkommt, ist Admin und kann Arbeiter einstellen, die **auf deinem Computer**
@@ -100,10 +100,10 @@ Auf der Kommandozeile geht dasselbe ohne Connector:
 
 Jeder Arbeiter läuft mit dem Claude-Abo von dem, der ihn eingestellt hat:
 
-- **Eigene KI:** Mit einem Konto meldet sich jeder Spieler im Office unter **☰ → 🔐 Deine Anmeldungen** mit
+- **Eigene KI:** Mit einem Konto meldet sich jeder Spieler im Office unter **☰ → 🔑 Anmeldungen** mit
   seinem eigenen Claude-Abo an (*Mit Claude anmelden*, oder ein Token aus `claude setup-token`). Seine
   Arbeiter laufen dann auf seinem Abo und seinen Limits, auch wenn sie auf deinem Umbrel laufen.
-- **KI des Hosts:** Unter **☰ → 🔑 Konten → ✳️ Claude des Office → Für alle freigeben** gibt ein Admin die
+- **KI des Hosts:** Unter **☰ → 👥 Team → ✳️ Claude des Office → Für alle freigeben** gibt ein Admin die
   Claude-Anmeldung des Office (also deine) für alle frei. Jeder Spieler wählt dann **Claude des Hosts
   nutzen** oder bleibt bei seinem eigenen und kann jederzeit wechseln. Laufende Arbeiter behalten das Abo,
   mit dem sie gestartet sind. Stoppt der Admin das Teilen, laufen neue Arbeiter der Mitspieler wieder auf
@@ -117,7 +117,7 @@ GitHub bleibt pro Person: Kommentare, Commits und Pull Requests erscheinen unter
 
 Jeder Spieler kann sein eigenes Projekt als Etage ins Haus holen, auch ein privates:
 
-1. Der Mitspieler meldet sich im Office unter **🔐 Deine Anmeldungen** mit **seinem** GitHub an (*Mit GitHub
+1. Der Mitspieler meldet sich im Office unter **🔑 Anmeldungen** mit **seinem** GitHub an (*Mit GitHub
    anmelden*, Code bei github.com/login/device eingeben). Sein GitHub auf seinem eigenen PC zählt nicht: Die
    Lobby klont auf dem Rechner, auf dem sie läuft.
 2. Im Aufzug (**E**) → *Projekt hinzufügen* sieht er dann **seine** Repositorys und fügt eins hinzu. Es wird

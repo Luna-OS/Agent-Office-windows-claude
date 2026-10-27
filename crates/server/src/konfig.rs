@@ -50,7 +50,10 @@ pub enum Befehl {
     Hilfe,
     Version,
     /// `konten …`: Konten ohne laufendes Office verwalten.
-    Konten { daten: PathBuf, argumente: Vec<String> },
+    Konten {
+        daten: PathBuf,
+        argumente: Vec<String>,
+    },
 }
 
 pub const HILFE: &str = "\
@@ -90,11 +93,16 @@ fn an(name: &str) -> bool {
 
 /// Der Home-Ordner des Nutzers.
 pub fn home() -> PathBuf {
-    env::var_os("USERPROFILE").or_else(|| env::var_os("HOME")).map(PathBuf::from).unwrap_or_else(|| PathBuf::from("."))
+    env::var_os("USERPROFILE")
+        .or_else(|| env::var_os("HOME"))
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("."))
 }
 
 fn standard_daten() -> PathBuf {
-    umgebung("OFFICE_HOME").map(PathBuf::from).unwrap_or_else(|| home().join("open-agentic-office"))
+    umgebung("OFFICE_HOME")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| home().join("open-agentic-office"))
 }
 
 /// Wo der gebaute Client liegt: `--client`, `OFFICE_CLIENT`, `dist/` neben der Binärdatei oder im Arbeitsordner.
@@ -110,7 +118,11 @@ fn standard_client() -> PathBuf {
     }
     kandidaten.push(PathBuf::from("dist"));
     kandidaten.push(PathBuf::from("crates/client/dist"));
-    kandidaten.iter().find(|p| p.join("index.html").is_file()).cloned().unwrap_or_else(|| PathBuf::from("dist"))
+    kandidaten
+        .iter()
+        .find(|p| p.join("index.html").is_file())
+        .cloned()
+        .unwrap_or_else(|| PathBuf::from("dist"))
 }
 
 /// Liest die Argumente (ohne den Programmnamen).
@@ -123,17 +135,31 @@ pub fn lesen(args: impl IntoIterator<Item = String>) -> Result<Befehl> {
         let mut it = args.into_iter();
         while let Some(a) = it.next() {
             if a == "--daten" || a == "--home" {
-                daten = PathBuf::from(it.next().ok_or_else(|| anyhow!("--daten braucht einen Ordner"))?);
+                daten = PathBuf::from(
+                    it.next()
+                        .ok_or_else(|| anyhow!("--daten braucht einen Ordner"))?,
+                );
             } else {
                 rest.push(a);
             }
         }
-        return Ok(Befehl::Konten { daten, argumente: rest });
+        return Ok(Befehl::Konten {
+            daten,
+            argumente: rest,
+        });
     }
 
     let mut k = Konfig {
-        host: umgebung("OFFICE_HOST").map(|h| h.parse()).transpose().context("OFFICE_HOST ist keine IP-Adresse")?.unwrap_or(IpAddr::from([127, 0, 0, 1])),
-        port: umgebung("PORT").map(|p| p.parse()).transpose().context("PORT ist keine Zahl")?.unwrap_or(4600),
+        host: umgebung("OFFICE_HOST")
+            .map(|h| h.parse())
+            .transpose()
+            .context("OFFICE_HOST ist keine IP-Adresse")?
+            .unwrap_or(IpAddr::from([127, 0, 0, 1])),
+        port: umgebung("PORT")
+            .map(|p| p.parse())
+            .transpose()
+            .context("PORT ist keine Zahl")?
+            .unwrap_or(4600),
         passwort: umgebung("OFFICE_PASSWORT"),
         daten: standard_daten(),
         projekte: umgebung("OFFICE_PROJEKTE").map(PathBuf::from),
@@ -148,7 +174,8 @@ pub fn lesen(args: impl IntoIterator<Item = String>) -> Result<Befehl> {
         stadt: umgebung("OFFICE_STADT"),
         selbstupdate: an("OFFICE_SELBSTUPDATE"),
         oeffentlicher_host: umgebung("OFFICE_OEFFENTLICHER_HOST"),
-        tailscale_host: umgebung("OFFICE_TAILSCALE_HOST").map(|h| h.to_lowercase().trim_end_matches('.').to_string()),
+        tailscale_host: umgebung("OFFICE_TAILSCALE_HOST")
+            .map(|h| h.to_lowercase().trim_end_matches('.').to_string()),
         deploy_skript: umgebung("OFFICE_DEPLOY_SKRIPT"),
         deploy_befehl: umgebung("OFFICE_DEPLOY_BEFEHL"),
         einrichten: false,
@@ -159,12 +186,23 @@ pub fn lesen(args: impl IntoIterator<Item = String>) -> Result<Befehl> {
     }
     let mut it = args.into_iter();
     while let Some(a) = it.next() {
-        let mut wert = |name: &str| it.next().ok_or_else(|| anyhow!("{name} braucht einen Wert"));
+        let mut wert = |name: &str| {
+            it.next()
+                .ok_or_else(|| anyhow!("{name} braucht einen Wert"))
+        };
         match a.as_str() {
             "-h" | "--hilfe" | "--help" => return Ok(Befehl::Hilfe),
             "-V" | "--version" => return Ok(Befehl::Version),
-            "--port" => k.port = wert("--port")?.parse().context("--port braucht eine Zahl")?,
-            "--host" => k.host = wert("--host")?.parse().context("--host braucht eine IP-Adresse")?,
+            "--port" => {
+                k.port = wert("--port")?
+                    .parse()
+                    .context("--port braucht eine Zahl")?
+            }
+            "--host" => {
+                k.host = wert("--host")?
+                    .parse()
+                    .context("--host braucht eine IP-Adresse")?
+            }
             "--passwort" | "--password" => k.passwort = Some(wert("--passwort")?),
             "--passwort-zuruecksetzen" | "--reset-password" => k.passwort_zuruecksetzen = true,
             "--daten" | "--home" => k.daten = PathBuf::from(wert("--daten")?),
@@ -174,7 +212,13 @@ pub fn lesen(args: impl IntoIterator<Item = String>) -> Result<Befehl> {
             "--no-open" | "--nicht-oeffnen" => k.oeffnen = false,
             "--proxy-vertrauen" | "--trust-proxy" => k.proxy_vertrauen = true,
             "--beanspruch-token" => k.beanspruch_token = Some(wert("--beanspruch-token")?),
-            "--max-arbeiter" => k.max_arbeiter = Some(wert("--max-arbeiter")?.parse().context("--max-arbeiter braucht eine Zahl")?),
+            "--max-arbeiter" => {
+                k.max_arbeiter = Some(
+                    wert("--max-arbeiter")?
+                        .parse()
+                        .context("--max-arbeiter braucht eine Zahl")?,
+                )
+            }
             "--stadt" => k.stadt = Some(wert("--stadt")?),
             s if s.starts_with('-') => bail!("Unbekannte Option {s} (siehe --hilfe)"),
             ordner => {
@@ -222,7 +266,14 @@ mod tests {
 
     #[test]
     fn flags_und_ordner() {
-        let k = starten(&["--port", "4700", "--no-open", "--passwort", "geheim", "projekt"]);
+        let k = starten(&[
+            "--port",
+            "4700",
+            "--no-open",
+            "--passwort",
+            "geheim",
+            "projekt",
+        ]);
         assert_eq!(k.port, 4700);
         assert!(!k.oeffnen);
         assert_eq!(k.passwort.as_deref(), Some("geheim"));

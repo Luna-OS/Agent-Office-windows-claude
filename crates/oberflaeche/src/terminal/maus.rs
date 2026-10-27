@@ -15,14 +15,20 @@ fn zelle(x: f64, y: f64, flaeche: NodeRef<Div>, spalten: u16, zeilen: u16) -> Op
     let r = erste.get_bounding_client_rect();
     let zeile_h = r.height().max(1.0);
     let breite = r.width().max(1.0) / spalten as f64;
-    let s = ((x - r.left()) / breite).floor().clamp(0.0, spalten as f64 - 1.0) as u16;
-    let z = ((y - r.top()) / zeile_h).floor().clamp(0.0, zeilen as f64 - 1.0) as u16;
+    let s = ((x - r.left()) / breite)
+        .floor()
+        .clamp(0.0, spalten as f64 - 1.0) as u16;
+    let z = ((y - r.top()) / zeile_h)
+        .floor()
+        .clamp(0.0, zeilen as f64 - 1.0) as u16;
     Some((s + 1, z + 1))
 }
 
 fn sequenz(knopf: u8, s: u16, z: u16, gedrueckt: bool, kodierung: MouseProtocolEncoding) -> String {
     match kodierung {
-        MouseProtocolEncoding::Sgr => format!("\x1b[<{knopf};{s};{z}{}", if gedrueckt { 'M' } else { 'm' }),
+        MouseProtocolEncoding::Sgr => {
+            format!("\x1b[<{knopf};{s};{z}{}", if gedrueckt { 'M' } else { 'm' })
+        }
         _ => {
             let b = if gedrueckt { knopf } else { 3 };
             let zeichen = |v: u16| char::from_u32(32 + v.min(223) as u32).unwrap_or(' ');
@@ -36,30 +42,58 @@ fn modus(arbeiter: &str) -> Option<(MouseProtocolMode, MouseProtocolEncoding, u1
     sitzung::mit(arbeiter, |s| {
         let sc = s.parser.screen();
         let (z, sp) = sc.size();
-        (sc.mouse_protocol_mode(), sc.mouse_protocol_encoding(), sp.get(), z.get(), sc.alternate_screen())
+        (
+            sc.mouse_protocol_mode(),
+            sc.mouse_protocol_encoding(),
+            sp.get(),
+            z.get(),
+            sc.alternate_screen(),
+        )
     })
 }
 
 /// Mausrad.
 pub fn rad(arbeiter: &str, e: &web_sys::WheelEvent, flaeche: NodeRef<Div>) {
-    let Some((m, kod, spalten, zeilen, alternativ)) = modus(arbeiter) else { return };
+    let Some((m, kod, spalten, zeilen, alternativ)) = modus(arbeiter) else {
+        return;
+    };
     e.prevent_default();
     let hoch = e.delta_y() < 0.0;
     let schritte = ((e.delta_y().abs() / 40.0).ceil() as usize).clamp(1, 10);
     if m != MouseProtocolMode::None {
-        let Some((s, z)) = zelle(e.client_x() as f64, e.client_y() as f64, flaeche, spalten, zeilen) else { return };
+        let Some((s, z)) = zelle(
+            e.client_x() as f64,
+            e.client_y() as f64,
+            flaeche,
+            spalten,
+            zeilen,
+        ) else {
+            return;
+        };
         let seq = sequenz(if hoch { 64 } else { 65 }, s, z, true, kod);
         super::eingeben(arbeiter, seq.repeat(schritte));
     } else if alternativ {
-        super::eingeben(arbeiter, (if hoch { "\x1b[A" } else { "\x1b[B" }).repeat(schritte));
+        super::eingeben(
+            arbeiter,
+            (if hoch { "\x1b[A" } else { "\x1b[B" }).repeat(schritte),
+        );
     } else {
-        sitzung::scrollen(arbeiter, if hoch { 3 * schritte as i32 } else { -3 * schritte as i32 });
+        sitzung::scrollen(
+            arbeiter,
+            if hoch {
+                3 * schritte as i32
+            } else {
+                -3 * schritte as i32
+            },
+        );
     }
 }
 
 /// Maustaste gedrückt oder losgelassen.
 pub fn knopf(arbeiter: &str, e: &web_sys::MouseEvent, flaeche: NodeRef<Div>, gedrueckt: bool) {
-    let Some((m, kod, spalten, zeilen, _)) = modus(arbeiter) else { return };
+    let Some((m, kod, spalten, zeilen, _)) = modus(arbeiter) else {
+        return;
+    };
     // Ohne Maus-Modus markiert der Browser Text; Shift markiert immer.
     if m == MouseProtocolMode::None || e.shift_key() {
         return;
@@ -67,7 +101,15 @@ pub fn knopf(arbeiter: &str, e: &web_sys::MouseEvent, flaeche: NodeRef<Div>, ged
     if !gedrueckt && m == MouseProtocolMode::Press {
         return;
     }
-    let Some((s, z)) = zelle(e.client_x() as f64, e.client_y() as f64, flaeche, spalten, zeilen) else { return };
+    let Some((s, z)) = zelle(
+        e.client_x() as f64,
+        e.client_y() as f64,
+        flaeche,
+        spalten,
+        zeilen,
+    ) else {
+        return;
+    };
     let knopf = match e.button() {
         1 => 1,
         2 => 2,
@@ -81,11 +123,16 @@ pub fn knopf(arbeiter: &str, e: &web_sys::MouseEvent, flaeche: NodeRef<Div>, ged
 /// Arbeiters, und ihr Pfad wird eingetippt, damit der Agent sie lesen kann.
 pub fn dateien_ablegen(arbeiter: &str, dateien: web_sys::FileList) {
     for i in 0..dateien.length() {
-        let Some(datei) = dateien.item(i) else { continue };
+        let Some(datei) = dateien.item(i) else {
+            continue;
+        };
         let a = arbeiter.to_string();
         leptos::task::spawn_local(async move {
             let name = js_sys::encode_uri_component(&datei.name());
-            let pfad = format!("/api/agenten/arbeiter/{}/ablegen?name={name}", js_sys::encode_uri_component(&a));
+            let pfad = format!(
+                "/api/agenten/arbeiter/{}/ablegen?name={name}",
+                js_sys::encode_uri_component(&a)
+            );
             match crate::http::hochladen(&pfad, &datei).await {
                 Ok(r) if r.ok() => {
                     if let Some(e) = r.json.get("eingabe").and_then(|e| e.as_str()) {
@@ -102,7 +149,9 @@ pub fn dateien_ablegen(arbeiter: &str, dateien: web_sys::FileList) {
 /// Etwas auf das Terminal gezogen: Dateien hochladen, Text eintippen.
 pub fn ablegen(arbeiter: &str, e: web_sys::DragEvent) {
     e.prevent_default();
-    let Some(daten) = e.data_transfer() else { return };
+    let Some(daten) = e.data_transfer() else {
+        return;
+    };
     if let Some(dateien) = daten.files()
         && dateien.length() > 0
     {

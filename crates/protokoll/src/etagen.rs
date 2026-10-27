@@ -132,13 +132,21 @@ pub enum Client {
         neu_laden: bool,
     },
     /// Ein Repository (owner/name oder URL) klonen und zur Etage machen; Antwort `Hinzugefuegt`.
-    Hinzufuegen { repo: String },
+    Hinzufuegen {
+        repo: String,
+    },
     /// Einen laufenden Klon abbrechen (Admins oder wer ihn gestartet hat).
-    Abbrechen { etage: String },
+    Abbrechen {
+        etage: String,
+    },
     /// Eine Etage entfernen (nur Admins). Der Checkout bleibt auf der Platte.
-    Entfernen { etage: String },
+    Entfernen {
+        etage: String,
+    },
     /// Wohin neue Etagen geklont werden (nur Admins); "" = Standard.
-    ProjekteOrdner { ordner: String },
+    ProjekteOrdner {
+        ordner: String,
+    },
     /// Ein Schild über einen Schreibtisch hängen; leerer Text nimmt es ab.
     Schild {
         tisch: String,
@@ -168,7 +176,9 @@ pub enum Server {
         ort: Ort,
     },
     /// Alle Etagen, für den Aufzug (bei jeder Änderung).
-    Liste { etagen: Vec<EtageInfo> },
+    Liste {
+        etagen: Vec<EtageInfo>,
+    },
     /// Antwort auf `Repos`. `eigene`: mit der eigenen GitHub-Anmeldung gelistet.
     Repos {
         repos: Vec<RepoAuswahl>,
@@ -185,7 +195,11 @@ pub enum Server {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         fehler: Option<String>,
     },
-    ProjekteOrdner { stand: ProjekteOrdner },
+    ProjekteOrdner {
+        stand: ProjekteOrdner,
+    },
     /// Schilder oder Ausbau der eigenen Etage haben sich geändert.
-    Grundriss { grundriss: Grundriss },
+    Grundriss {
+        grundriss: Grundriss,
+    },
 }

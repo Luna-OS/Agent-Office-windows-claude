@@ -9,6 +9,10 @@ license.workspace = true
 name = "office-agenten"
 path = "src/bin/office-agenten.rs"
 
+[[bin]]
+name = "office-pty-wirt"
+path = "src/bin/office-pty-wirt.rs"
+
 [dependencies]
 protokoll.workspace = true
 serde.workspace = true

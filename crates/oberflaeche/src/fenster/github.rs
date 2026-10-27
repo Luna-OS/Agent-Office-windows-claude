@@ -25,13 +25,24 @@ thread_local! {
 }
 
 fn stand() -> RwSignal<Stand> {
-    STAND.with(|s| *s.get_or_init(|| RwSignal::new(Stand::default())))
+    STAND.with(|s| *s.get_or_init(|| crate::zustand::global(|| RwSignal::new(Stand::default()))))
 }
 
 pub fn empfangen(m: &Server) {
     #[allow(irrefutable_let_patterns)]
-    if let Server::Stand { issues, prs, fehler, laedt } = m {
-        stand().set(Stand { issues: issues.clone(), prs: prs.clone(), fehler: fehler.clone(), laedt: *laedt });
+    if let Server::Stand {
+        issues,
+        prs,
+        fehler,
+        laedt,
+    } = m
+    {
+        stand().set(Stand {
+            issues: issues.clone(),
+            prs: prs.clone(),
+            fehler: fehler.clone(),
+            laedt: *laedt,
+        });
     }
 }
 
@@ -199,8 +210,12 @@ pub fn Github() -> impl IntoView {
     .into_any();
 
     let detail = move || match wahl.get() {
-        Some(Wahl::Issue(n)) => s.with(|s| s.issues.iter().find(|i| i.nummer == n).cloned()).map(|i| view! { <IssueAnsicht i=i /> }.into_any()),
-        Some(Wahl::Pr(n)) => s.with(|s| s.prs.iter().find(|p| p.nummer == n).cloned()).map(|p| view! { <PrAnsicht p=p /> }.into_any()),
+        Some(Wahl::Issue(n)) => s
+            .with(|s| s.issues.iter().find(|i| i.nummer == n).cloned())
+            .map(|i| view! { <IssueAnsicht i=i /> }.into_any()),
+        Some(Wahl::Pr(n)) => s
+            .with(|s| s.prs.iter().find(|p| p.nummer == n).cloned())
+            .map(|p| view! { <PrAnsicht p=p /> }.into_any()),
         Some(Wahl::Neu) => Some(view! { <NeuesIssue wahl=wahl /> }.into_any()),
         None => None,
     };

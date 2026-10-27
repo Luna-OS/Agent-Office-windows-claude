@@ -36,6 +36,7 @@ fn main() {
         befehl: Rc::new(|b| match b {
             Befehl::ZurEtage(etage) => welt_anbindung::zur_etage(&etage),
             Befehl::Perspektive(ich) => welt_anbindung::perspektive(ich),
+            Befehl::ZurGarage => welt_anbindung::zur_garage(),
             andere => medien_anbindung::befehl(&andere),
         }),
     });

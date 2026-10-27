@@ -73,7 +73,9 @@ pub fn installieren(reg: &mut Register<Kontext>) {
                 Bildschirm::Tv => "tv".to_string(),
                 Bildschirm::Schreibtisch(t) => format!("monitor:{t}"),
             };
-            let Some(knoten) = kx.gebaut.teile.get_mut(&name) else { continue };
+            let Some(knoten) = kx.gebaut.teile.get_mut(&name) else {
+                continue;
+            };
             match bild {
                 Some((b, h, rgba)) => {
                     let tex = match texturen.get(&ziel) {
@@ -82,7 +84,16 @@ pub fn installieren(reg: &mut Register<Kontext>) {
                             t.clone()
                         }
                         _ => {
-                            let t = Texture::new(b, h, &rgba, wgpu::TextureFormat::Rgba8UnormSrgb, wgpu::AddressMode::ClampToEdge, wgpu::FilterMode::Linear, false, 1);
+                            let t = Texture::new(
+                                b,
+                                h,
+                                &rgba,
+                                wgpu::TextureFormat::Rgba8UnormSrgb,
+                                wgpu::AddressMode::ClampToEdge,
+                                wgpu::FilterMode::Linear,
+                                false,
+                                1,
+                            );
                             texturen.insert(ziel.clone(), t.clone());
                             t
                         }
@@ -93,7 +104,9 @@ pub fn installieren(reg: &mut Register<Kontext>) {
                 }
                 None => {
                     texturen.remove(&ziel);
-                    knoten.set_texture(kiss3d::resource::TextureManager::get_global_manager(|tm| tm.get_default()));
+                    knoten.set_texture(kiss3d::resource::TextureManager::get_global_manager(
+                        |tm| tm.get_default(),
+                    ));
                     knoten.set_color(farbe("#0d1b2a"));
                     knoten.set_emissive(farbe("#0d1b2a"));
                 }
@@ -106,9 +119,22 @@ pub fn installieren(reg: &mut Register<Kontext>) {
 fn schreiben(t: &Texture, b: u32, h: u32, rgba: &[u8]) {
     let ctx = Context::get();
     ctx.queue.write_texture(
-        wgpu::TexelCopyTextureInfo { texture: &t.texture, mip_level: 0, origin: wgpu::Origin3d::ZERO, aspect: wgpu::TextureAspect::All },
+        wgpu::TexelCopyTextureInfo {
+            texture: &t.texture,
+            mip_level: 0,
+            origin: wgpu::Origin3d::ZERO,
+            aspect: wgpu::TextureAspect::All,
+        },
         rgba,
-        wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(4 * b), rows_per_image: Some(h) },
-        wgpu::Extent3d { width: b, height: h, depth_or_array_layers: 1 },
+        wgpu::TexelCopyBufferLayout {
+            offset: 0,
+            bytes_per_row: Some(4 * b),
+            rows_per_image: Some(h),
+        },
+        wgpu::Extent3d {
+            width: b,
+            height: h,
+            depth_or_array_layers: 1,
+        },
     );
 }

@@ -347,21 +347,42 @@ pub enum Client {
 #[serde(tag = "typ", rename_all = "snake_case")]
 pub enum Server {
     /// Die letzten Nachrichten und der ganze Feed (beim Betreten der Etage).
-    Stand { nachrichten: Vec<BusNachricht>, feed: Vec<FeedEintrag> },
+    Stand {
+        nachrichten: Vec<BusNachricht>,
+        feed: Vec<FeedEintrag>,
+    },
     /// Eine neue Nachricht auf dem Bus.
-    Nachricht { nachricht: BusNachricht },
+    Nachricht {
+        nachricht: BusNachricht,
+    },
     /// Eine Zeile im Feed hat sich geändert.
-    Feed { eintrag: FeedEintrag },
+    Feed {
+        eintrag: FeedEintrag,
+    },
     /// Ein Arbeiter ist aus dem Feed verschwunden.
-    FeedEntfernt { arbeiter: String },
-    Nutzung { stand: Nutzung },
-    Limits { stand: Limits },
+    FeedEntfernt {
+        arbeiter: String,
+    },
+    Nutzung {
+        stand: Nutzung,
+    },
+    Limits {
+        stand: Limits,
+    },
     /// Die Dienste der Etage (beim Betreten und bei jeder Änderung).
-    Dienste { liste: Vec<Dienst> },
+    Dienste {
+        liste: Vec<Dienst>,
+    },
     /// Der Besprechungsraum der Etage (beim Betreten und bei jeder Änderung).
-    Besprechung { stand: BesprechungStand },
+    Besprechung {
+        stand: BesprechungStand,
+    },
     /// Der Kerker der Etage (beim Betreten und wenn jemand eingesperrt wird).
-    Kerker { stand: Kerker },
+    Kerker {
+        stand: Kerker,
+    },
     /// Alle Prompts (beim Verbinden und nach jeder Änderung).
-    Prompts { liste: Vec<PromptInfo> },
+    Prompts {
+        liste: Vec<PromptInfo>,
+    },
 }

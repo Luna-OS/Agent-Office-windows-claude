@@ -38,14 +38,18 @@ pub fn pruefen() {
         }
         if let Some(schluessel) = hash.strip_prefix("#schluessel=") {
             let _ = http::schicken("/api/link", &json!({ "schluessel": schluessel })).await;
-            let _ = window().history().and_then(|h| h.replace_state_with_url(&wasm_bindgen::JsValue::NULL, "", Some("/")));
+            let _ = window().history().and_then(|h| {
+                h.replace_state_with_url(&wasm_bindgen::JsValue::NULL, "", Some("/"))
+            });
         }
         match http::holen("/api/anmeldung").await {
             Ok(a) => {
                 let info: AnmeldeInfo = serde_json::from_value(a.json).unwrap_or_default();
                 let offen_rein = !info.angemeldet
                     && info.offen
-                    && http::schicken("/api/anmeldung", &json!({ "passwort": "" })).await.is_ok_and(|a| a.ok());
+                    && http::schicken("/api/anmeldung", &json!({ "passwort": "" }))
+                        .await
+                        .is_ok_and(|a| a.ok());
                 if info.angemeldet || offen_rein {
                     ins_office();
                 } else {

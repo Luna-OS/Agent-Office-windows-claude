@@ -16,16 +16,33 @@ fn s(n: Server) -> ServerNachricht {
 
 /// Arbeiter im ganzen Office (von den Anbindungen).
 fn arbeiter(o: &OfficeRef) -> u32 {
-    let ids: Vec<String> = o.etagen.liste.lock().unwrap().iter().map(|e| e.id.clone()).collect();
+    let ids: Vec<String> = o
+        .etagen
+        .liste
+        .lock()
+        .unwrap()
+        .iter()
+        .map(|e| e.id.clone())
+        .collect();
     ids.iter().map(|id| o.zahlen(id).arbeiter).sum()
 }
 
 pub fn maschine_an_alle(o: &OfficeRef) {
-    o.an_alle(&s(Server::Maschine { stand: o.einstellungen.maschine(arbeiter(o)) }), None);
+    o.an_alle(
+        &s(Server::Maschine {
+            stand: o.einstellungen.maschine(arbeiter(o)),
+        }),
+        None,
+    );
 }
 
 pub fn himmel_an_alle(o: &OfficeRef) {
-    o.an_alle(&s(Server::Himmel { stand: o.einstellungen.himmel.stand() }), None);
+    o.an_alle(
+        &s(Server::Himmel {
+            stand: o.einstellungen.himmel.stand(),
+        }),
+        None,
+    );
 }
 
 impl Domaene for EinstellungenDomaene {
@@ -52,13 +69,20 @@ impl Domaene for EinstellungenDomaene {
     }
 
     fn nachricht<'a>(&'a self, o: &'a OfficeRef, von: &'a str, n: ClientNachricht) -> Zukunft<'a> {
-        let ClientNachricht::Einstellungen(c) = n else { return fertig() };
+        let ClientNachricht::Einstellungen(c) = n else {
+            return fertig();
+        };
         let wer = o.person(von).map(|p| p.name).unwrap_or_default();
         let admin = o.ist_admin(von);
         let e = &o.einstellungen;
         match c {
             Client::Webhook { url } => match e.webhook_setzen(&url, &wer) {
-                Ok(()) => o.an_alle(&s(Server::Benachrichtigung { stand: e.benachrichtigung() }), None),
+                Ok(()) => o.an_alle(
+                    &s(Server::Benachrichtigung {
+                        stand: e.benachrichtigung(),
+                    }),
+                    None,
+                ),
                 Err(f) => o.hinweis(von, f, Stufe::Warnung),
             },
             Client::WebhookTesten => {
@@ -86,13 +110,25 @@ impl Domaene for EinstellungenDomaene {
             }
             Client::UpdatePruefen | Client::UpdateStarten => {
                 let starten = matches!(c, Client::UpdateStarten);
-                let skript = o.konfig.deploy_skript.clone().filter(|_| o.konfig.selbstupdate);
+                let skript = o
+                    .konfig
+                    .deploy_skript
+                    .clone()
+                    .filter(|_| o.konfig.selbstupdate);
                 let Some(skript) = skript else {
-                    o.hinweis(von, "Dieses Office kann sich nicht selbst aktualisieren", Stufe::Info);
+                    o.hinweis(
+                        von,
+                        "Dieses Office kann sich nicht selbst aktualisieren",
+                        Stufe::Info,
+                    );
                     return fertig();
                 };
                 if starten && !admin {
-                    o.hinweis(von, "Nur Admins können das Office aktualisieren", Stufe::Warnung);
+                    o.hinweis(
+                        von,
+                        "Nur Admins können das Office aktualisieren",
+                        Stufe::Warnung,
+                    );
                     return fertig();
                 }
                 let o = o.clone();
@@ -106,8 +142,17 @@ impl Domaene for EinstellungenDomaene {
                         u.prueft = true;
                     }
                     *o.einstellungen.update.lock().unwrap() = u.clone();
-                    o.an_alle(&s(Server::Update { stand: Box::new(u.clone()) }), None);
-                    let u = if starten { crate::einstellungen::update::starten(&skript, u).await } else { crate::einstellungen::update::pruefen(&skript, u).await };
+                    o.an_alle(
+                        &s(Server::Update {
+                            stand: Box::new(u.clone()),
+                        }),
+                        None,
+                    );
+                    let u = if starten {
+                        crate::einstellungen::update::starten(&skript, u).await
+                    } else {
+                        crate::einstellungen::update::pruefen(&skript, u).await
+                    };
                     *o.einstellungen.update.lock().unwrap() = u.clone();
                     o.an_alle(&s(Server::Update { stand: Box::new(u) }), None);
                 });
@@ -123,7 +168,8 @@ impl Domaene for EinstellungenDomaene {
             Client::KarteSetzen { karte } => {
                 if let Some(k) = karte {
                     let k: String = k.chars().take(64).collect();
-                    let bekannt = k == "office" || k == "burg" || e.karte().eigene.iter().any(|x| x.id == k);
+                    let bekannt =
+                        k == "office" || k == "burg" || e.karte().eigene.iter().any(|x| x.id == k);
                     if !bekannt {
                         o.hinweis(von, "Diese Karte gibt es nicht", Stufe::Warnung);
                         return fertig();

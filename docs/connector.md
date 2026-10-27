@@ -10,7 +10,7 @@ auch alle Arbeiter. Dein Computer zeigt nur das Office.
 Das Wichtigste: **Jeder Spieler meldet sich mit seinem eigenen Claude und GitHub an.** Deine Arbeiter
 laufen dann mit deinem Claude-Abo, und auf GitHub erscheinen Kommentare, Commits und Pull Requests unter
 deinem Namen, auch wenn alles auf dem Umbrel läuft. Die Anmeldungen laufen über den Server, nicht über
-den Connector: Du findest sie im Office unter **☰ → 🔐 Deine Anmeldungen**.
+den Connector: Du findest sie im Office unter **☰ → 🔑 Anmeldungen**.
 
 Die Hülle ist in Rust geschrieben (`desktop/`, [tao](https://github.com/tauri-apps/tao) und
 [wry](https://github.com/tauri-apps/wry), das WebView des Systems), ohne Electron und ohne Node.js.
@@ -27,19 +27,19 @@ Die Hülle ist in Rust geschrieben (`desktop/`, [tao](https://github.com/tauri-a
    - Mit einem Einladungslink wählst du deinen Namen und ein Passwort: Das ist dein Konto in der Lobby.
    - Später meldest du dich mit Name und Passwort an.
    - Wer die Lobby aufgesetzt hat, kommt beim ersten Mal mit dem **Office-Passwort** herein (Name leer
-     lassen; bei der Umbrel-App steht es auf ihrer Seite) und legt dann unter **☰ → 🔑 Konten** sein
+     lassen; bei der Umbrel-App steht es auf ihrer Seite) und legt dann unter **☰ → 👥 Team** sein
      eigenes Konto an, als Admin.
-4. **🔐 Deine Anmeldungen** im Office (jede Karte zeigt ✅ und mit welchem Konto du angemeldet bist):
+4. **🔑 Anmeldungen** im Office (jede Karte zeigt ✅ und mit welchem Konto du angemeldet bist):
    - **✳️ Claude → Mit Claude anmelden**: Claudes Anmeldeseite geht auf. Melde dich mit deinem eigenen
      Claude-Konto an, kopier den Code und füge ihn ein. Oder füge einen Token aus `claude setup-token` ein.
    - **🐙 GitHub → Mit GitHub anmelden**: Das Office zeigt einen Einmal-Code. Auf github.com/login/device
      einfügen und bestätigen. Oder füge einen GitHub-Token ein.
-   - Teilt der Host sein Claude (unter ☰ → 🔑 Konten), gibt es **Claude des Hosts nutzen**. Du kannst
+   - Teilt der Host sein Claude (unter ☰ → 👥 Team), gibt es **Claude des Hosts nutzen**. Du kannst
      jederzeit zwischen deinem und seinem wechseln.
 5. **🌐 Im Browser öffnen**: Dein Browser öffnet das Office. Mit **Im Fenster öffnen** zeigt es der
    Connector in einem eigenen Fenster; über das Symbol im Infobereich kommst du zurück zum Connector.
 
-Als Admin machst du im Office unter **☰ → 🔑 Konten** einen Einladungslink (einmal gültig, 7 Tage) und
+Als Admin machst du im Office unter **☰ → 👥 Team** einen Einladungslink (einmal gültig, 7 Tage) und
 schickst ihn weiter. Wer ihn bekommt, fügt ihn im eigenen Connector unter **Lobby beitreten** ein.
 
 ## Sprache und Bildschirm teilen im Browser
@@ -60,7 +60,7 @@ Unter **Ohne Server → Auf diesem Computer starten** startet der Connector den 
 (`open-agentic-office`, mitgeliefert) auf deinem Computer: nur für dich (`127.0.0.1`), auf Port 4600 oder
 dem nächsten freien, mit `--no-open`, und öffnet ihn danach. Dort gilt kein Passwort, weil niemand sonst
 hineinkommt. Die Anmeldungen sind die deines Computers (Claude Code, `gh`), sie stehen genauso unter
-**☰ → 🔐 Deine Anmeldungen**. Andere lässt du über **Lobby für andere öffnen** herein
+**☰ → 🔑 Anmeldungen**. Andere lässt du über **Lobby für andere öffnen** herein
 ([so geht's](online-lobby.md#ohne-umbrel-die-lobby-auf-deinem-pc-hosten)). Das kostet Rechenleistung;
 soll dein PC geschont werden, nimm den Umbrel.
 

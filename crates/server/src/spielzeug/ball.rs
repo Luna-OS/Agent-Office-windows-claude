@@ -31,7 +31,11 @@ pub fn nehmen(b: &mut Ball, id: &str) -> bool {
     if b.halter.as_deref() == Some(id) {
         return false;
     }
-    *b = Ball { halter: Some(id.into()), wurf: None, werfer: None };
+    *b = Ball {
+        halter: Some(id.into()),
+        wurf: None,
+        werfer: None,
+    };
     true
 }
 
@@ -40,10 +44,24 @@ pub fn werfen(b: &mut Ball, id: &str, [x, y, z]: [f32; 3], [vx, vy, vz]: [f32; 3
     if b.halter.as_deref() != Some(id) {
         return false;
     }
-    let gut = |v: f32, max: f32| if v.is_finite() { v.clamp(-max, max) } else { 0.0 };
+    let gut = |v: f32, max: f32| {
+        if v.is_finite() {
+            v.clamp(-max, max)
+        } else {
+            0.0
+        }
+    };
     *b = Ball {
         halter: None,
-        wurf: Some(Wurf { x: gut(x, 60.0), y: gut(y, 30.0).max(0.0), z: gut(z, 60.0), vx: gut(vx, MAX_TEMPO), vy: gut(vy, MAX_TEMPO), vz: gut(vz, MAX_TEMPO), vergangen_ms: 0 }),
+        wurf: Some(Wurf {
+            x: gut(x, 60.0),
+            y: gut(y, 30.0).max(0.0),
+            z: gut(z, 60.0),
+            vx: gut(vx, MAX_TEMPO),
+            vy: gut(vy, MAX_TEMPO),
+            vz: gut(vz, MAX_TEMPO),
+            vergangen_ms: 0,
+        }),
         werfer: Some(id.into()),
     };
     true

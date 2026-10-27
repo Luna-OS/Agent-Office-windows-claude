@@ -35,17 +35,28 @@ async fn anmelden(mut anfrage: Request, weiter: Next) -> Result<Response, Status
 #[tokio::main]
 async fn main() {
     let ordner = std::env::temp_dir().join("medien-bildschirm-test");
-    let medien = Medien::neu(MedienEinstellungen { datenordner: ordner, ice: vec![] });
+    let medien = Medien::neu(MedienEinstellungen {
+        datenordner: ordner,
+        ice: vec![],
+    });
     let mut ereignisse = medien.ereignisse();
     tokio::spawn(async move {
         while let Ok(e) = ereignisse.recv().await {
-            println!("Ereignis an {:?}: {}", e.ziel, serde_json::to_string(&e.nachricht).unwrap_or_default());
+            println!(
+                "Ereignis an {:?}: {}",
+                e.ziel,
+                serde_json::to_string(&e.nachricht).unwrap_or_default()
+            );
         }
     });
-    let app = Router::new().nest(PFAD, medien.router()).layer(middleware::from_fn(anmelden));
+    let app = Router::new()
+        .nest(PFAD, medien.router())
+        .layer(middleware::from_fn(anmelden));
     let port = std::env::var("PORT").unwrap_or_else(|_| "7878".into());
     let adresse = format!("127.0.0.1:{port}");
-    let horcher = tokio::net::TcpListener::bind(&adresse).await.expect("Port belegt");
+    let horcher = tokio::net::TcpListener::bind(&adresse)
+        .await
+        .expect("Port belegt");
     println!("Test-Route läuft auf http://{adresse}{PFAD}/");
     axum::serve(horcher, app).await.expect("Server abgebrochen");
 }

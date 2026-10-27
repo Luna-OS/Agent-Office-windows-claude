@@ -8,7 +8,9 @@ pub mod vorhersage;
 use std::path::PathBuf;
 use std::sync::Mutex;
 
-use protokoll::einstellungen::{Benachrichtigung, Karte, Maschine, Thema, ThemaWahl, Update, WebhookArt, WebhookInfo};
+use protokoll::einstellungen::{
+    Benachrichtigung, Karte, Maschine, Thema, ThemaWahl, Update, WebhookArt, WebhookInfo,
+};
 use serde::{Deserialize, Serialize};
 
 use crate::konfig::Konfig;
@@ -109,13 +111,29 @@ impl Einstellungen {
                 if p.extension().and_then(|e| e.to_str()) != Some("json") {
                     continue;
                 }
-                let id = p.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
-                let (daten, fehler) = match std::fs::read(&p).map_err(|e| e.to_string()).and_then(|b| serde_json::from_slice::<serde_json::Value>(&b).map_err(|e| e.to_string())) {
-                    Ok(v) => (Some(v), None),
-                    Err(e) => (None, Some(format!("Lässt sich nicht lesen: {e}"))),
-                };
-                let name = daten.as_ref().and_then(|d| d.get("name")).and_then(|n| n.as_str()).unwrap_or(&id).to_string();
-                eigene.push(protokoll::einstellungen::EigeneKarte { id, name, daten, fehler });
+                let id = p
+                    .file_stem()
+                    .map(|s| s.to_string_lossy().into_owned())
+                    .unwrap_or_default();
+                let (daten, fehler) =
+                    match std::fs::read(&p).map_err(|e| e.to_string()).and_then(|b| {
+                        serde_json::from_slice::<serde_json::Value>(&b).map_err(|e| e.to_string())
+                    }) {
+                        Ok(v) => (Some(v), None),
+                        Err(e) => (None, Some(format!("Lässt sich nicht lesen: {e}"))),
+                    };
+                let name = daten
+                    .as_ref()
+                    .and_then(|d| d.get("name"))
+                    .and_then(|n| n.as_str())
+                    .unwrap_or(&id)
+                    .to_string();
+                eigene.push(protokoll::einstellungen::EigeneKarte {
+                    id,
+                    name,
+                    daten,
+                    fehler,
+                });
             }
         }
         eigene.sort_by(|a, b| a.id.cmp(&b.id));
@@ -145,11 +163,27 @@ impl Einstellungen {
         } else {
             WebhookArt::Andere
         };
-        let ende: String = url.chars().rev().take(4).collect::<Vec<_>>().into_iter().rev().collect();
+        let ende: String = url
+            .chars()
+            .rev()
+            .take(4)
+            .collect::<Vec<_>>()
+            .into_iter()
+            .rev()
+            .collect();
         let hinweis = format!("{host}/…{ende}");
         self.aendern(|d| {
             d.webhook_url = Some(url.to_string());
-            d.benachrichtigung = Benachrichtigung { webhook: Some(WebhookInfo { art, hinweis, von: von.into(), um: jetzt_ms() }), fehler: None, zuletzt_gesendet: None };
+            d.benachrichtigung = Benachrichtigung {
+                webhook: Some(WebhookInfo {
+                    art,
+                    hinweis,
+                    von: von.into(),
+                    um: jetzt_ms(),
+                }),
+                fehler: None,
+                zuletzt_gesendet: None,
+            };
         });
         Ok(())
     }
@@ -164,7 +198,8 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let e = Einstellungen::laden(&Konfig::fuer_test(dir.path().into()));
         assert!(e.webhook_setzen("http://x", "a").is_err());
-        e.webhook_setzen("https://hooks.slack.com/services/T/B/abcd1234", "Luna").unwrap();
+        e.webhook_setzen("https://hooks.slack.com/services/T/B/abcd1234", "Luna")
+            .unwrap();
         let b = e.benachrichtigung();
         let w = b.webhook.unwrap();
         assert_eq!(w.art, WebhookArt::Slack);

@@ -38,11 +38,11 @@ Das Office lauscht in seiner Maschine auf `127.0.0.1:4600`, und alle erreichen e
 | `/data/home/.local`, `.claude`, `.claude.json` | Claude Code selbst, seine Anmeldung und die Sitzungen, die Arbeiter fortsetzen |
 | `/data/home/.config/gh`, `.gitconfig` | Die Anmeldung der GitHub CLI sowie Name und E-Mail für git |
 | `/data/ssh` | Der SSH-Host-Schlüssel, damit ssh dem Office nach einem neuen Ausrollen weiter vertraut |
-| `/data/team` | SSH-Schlüssel der Mitspieler, aus **👥 Mitspieler einladen** |
+| `/data/team` | SSH-Schlüssel der Mitspieler, aus **👥 Team** |
 
 `/data/home` ist das Home-Verzeichnis von `agentoffice`, also liegt alles andere, was ein Arbeiter in `~` ablegt, ebenfalls auf dem Volume. Der Rest der Maschine (der Office-Code in `/opt/open-agentic-office`, alles systemweit Installierte) kommt jedes Mal frisch aus dem Image. Ein Neustart oder neues Ausrollen hält laufende Arbeiter an; sie kommen an ihren Schreibtischen zurück, wenn das Office es tut. Fly macht außerdem täglich einen Snapshot des Volumes und behält die der letzten fünf Tage (`fly volumes snapshots list -a <app> <volume-id>`; `fly volumes list -a <app>` zeigt die ID).
 
-**Dein Team einladen.** Mitspieler brauchen weder ein Fly-Konto noch dieses Repo, nur `ssh`. Klicke im Office im **☰**-Menü auf **👥 Mitspieler einladen** und tippe ihren GitHub-Benutzernamen, oder führe `deploy/fly.sh invite octocat` aus. In beiden Fällen bekommen sie einen Befehl wie:
+**Dein Team einladen.** Mitspieler brauchen weder ein Fly-Konto noch dieses Repo, nur `ssh`. Klicke im Office im **☰**-Menü auf **👥 Team** und tippe ihren GitHub-Benutzernamen, oder führe `deploy/fly.sh invite octocat` aus. In beiden Fällen bekommen sie einen Befehl wie:
 
 ```
 ssh -L 4600:localhost:4600 ssh://office@137.66.12.34:31337

@@ -28,7 +28,11 @@ impl AbzeichenArt {
 }
 
 #[component]
-pub fn Abzeichen(#[prop(optional)] art: AbzeichenArt, #[prop(into, optional)] class: String, children: Children) -> impl IntoView {
+pub fn Abzeichen(
+    #[prop(optional)] art: AbzeichenArt,
+    #[prop(into, optional)] class: String,
+    children: Children,
+) -> impl IntoView {
     let k = tw_merge!(
         "inline-flex items-center justify-center rounded-md border px-2 py-0.5 text-xs font-semibold w-fit whitespace-nowrap shrink-0 gap-1",
         art.klassen(),

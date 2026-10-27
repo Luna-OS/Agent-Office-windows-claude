@@ -87,7 +87,13 @@ pub struct Register<C> {
 
 impl<C> Default for Register<C> {
     fn default() -> Self {
-        Self { ticks: Vec::new(), bindungen: Vec::new(), interaktionen: BTreeMap::new(), aktiv: None, neue: None }
+        Self {
+            ticks: Vec::new(),
+            bindungen: Vec::new(),
+            interaktionen: BTreeMap::new(),
+            aktiv: None,
+            neue: None,
+        }
     }
 }
 
@@ -104,8 +110,17 @@ impl<C> Register<C> {
     }
 
     /// Eine Taste des Office: läuft, wenn `wenn` (falls gesetzt) zutrifft; `true` = verbraucht.
-    pub fn taste(&mut self, code: &'static str, wenn: Option<WennFn<C>>, tun: impl FnMut(&mut C) -> bool + 'static) {
-        self.bindungen.push(Bindung { code, wenn, tun: Box::new(tun) });
+    pub fn taste(
+        &mut self,
+        code: &'static str,
+        wenn: Option<WennFn<C>>,
+        tun: impl FnMut(&mut C) -> bool + 'static,
+    ) {
+        self.bindungen.push(Bindung {
+            code,
+            wenn,
+            tun: Box::new(tun),
+        });
     }
 
     /// Was eine Art von Ding tut. Jede Art genau einmal.
@@ -115,7 +130,13 @@ impl<C> Register<C> {
         hinweis: impl Fn(&C, &Nutzbar) -> Option<String> + 'static,
         nutzen: impl FnMut(&mut C, &Nutzbar) + 'static,
     ) {
-        let alt = self.interaktionen.insert(art, Interaktion { hinweis: Box::new(hinweis), nutzen: Box::new(nutzen) });
+        let alt = self.interaktionen.insert(
+            art,
+            Interaktion {
+                hinweis: Box::new(hinweis),
+                nutzen: Box::new(nutzen),
+            },
+        );
         assert!(alt.is_none(), "Interaktion '{art}' doppelt registriert");
     }
 
@@ -190,7 +211,9 @@ impl<C> Register<C> {
             return a.hinweis(kx);
         }
         let z = ziel?;
-        self.interaktionen.get(z.art).and_then(|i| (i.hinweis)(kx, z))
+        self.interaktionen
+            .get(z.art)
+            .and_then(|i| (i.hinweis)(kx, z))
     }
 
     /// E an einem Ding.
@@ -304,8 +327,17 @@ mod tests {
     #[test]
     fn interaktion_und_hinweis() {
         let mut r: Register<Kx> = Register::neu();
-        r.interaktion("kaffee", |_, _| Some("E: Kaffee".into()), |k, n| k.log.push(n.id.clone()));
-        let ding = Nutzbar { art: "kaffee", id: "maschine".into(), pos: [0.0, 1.0, -1.0], reichweite: 1.5 };
+        r.interaktion(
+            "kaffee",
+            |_, _| Some("E: Kaffee".into()),
+            |k, n| k.log.push(n.id.clone()),
+        );
+        let ding = Nutzbar {
+            art: "kaffee",
+            id: "maschine".into(),
+            pos: [0.0, 1.0, -1.0],
+            reichweite: 1.5,
+        };
         let k0 = Kx::default();
         assert_eq!(r.hinweis(&k0, Some(&ding)).as_deref(), Some("E: Kaffee"));
         let mut k = Kx::default();
@@ -324,9 +356,24 @@ mod tests {
     #[test]
     fn anvisieren_nimmt_was_vor_einem_liegt() {
         let dinge = vec![
-            Nutzbar { art: "a", id: "vorn".into(), pos: [0.0, 1.4, -1.5], reichweite: 2.0 },
-            Nutzbar { art: "a", id: "hinten".into(), pos: [0.0, 1.4, 1.5], reichweite: 2.0 },
-            Nutzbar { art: "a", id: "weit".into(), pos: [0.0, 1.4, -9.0], reichweite: 2.0 },
+            Nutzbar {
+                art: "a",
+                id: "vorn".into(),
+                pos: [0.0, 1.4, -1.5],
+                reichweite: 2.0,
+            },
+            Nutzbar {
+                art: "a",
+                id: "hinten".into(),
+                pos: [0.0, 1.4, 1.5],
+                reichweite: 2.0,
+            },
+            Nutzbar {
+                art: "a",
+                id: "weit".into(),
+                pos: [0.0, 1.4, -9.0],
+                reichweite: 2.0,
+            },
         ];
         let z = anvisieren(&dinge, [0.0, 1.4, 0.0], [0.0, 0.0, -1.0]).unwrap();
         assert_eq!(z.id, "vorn");

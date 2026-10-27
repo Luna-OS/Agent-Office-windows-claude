@@ -16,6 +16,7 @@ pub mod farben;
 pub mod grundriss;
 pub mod kollision;
 pub mod register;
+pub mod rundkurs;
 pub mod spiellogik;
 pub mod zustand;
 
@@ -40,8 +41,9 @@ pub mod welt;
 
 #[cfg(feature = "3d")]
 pub use api::{
-    Bildschirm, CANVAS_ID, Hoerer, Klang, Umgebung, bei_hoerer, bei_klang, LeinwandBlick, WeltAktion, bei_abstaende, bei_aktion, bei_hinweis, bei_leinwand, bei_senden, bildschirm_leeren,
-    bildschirm_setzen, eingabe_sperren, nachricht, perspektive_setzen, zur_etage,
+    Bildschirm, CANVAS_ID, Hoerer, Klang, LeinwandBlick, Umgebung, WeltAktion, bei_abstaende,
+    bei_aktion, bei_hinweis, bei_hoerer, bei_klang, bei_leinwand, bei_senden, bildschirm_leeren,
+    bildschirm_setzen, eingabe_sperren, nachricht, perspektive_setzen, zur_etage, zur_garage,
 };
 #[cfg(feature = "3d")]
 pub use eingabe::{zeiger_fangen, zeiger_freigeben};

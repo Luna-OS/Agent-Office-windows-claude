@@ -6,7 +6,7 @@ use serde_json::Value;
 use super::{HookEreignis, Provider, StartEingabe, StartPlan, claude_artige_hooks, wert_gueltig};
 
 /// Für Provider ohne System-Prompt-Option: die Anleitung kommt vor den ersten Auftrag.
-fn mit_anleitung(e: &StartEingabe) -> Option<String> {
+pub(super) fn mit_anleitung(e: &StartEingabe) -> Option<String> {
     if e.fortsetzen.is_some() {
         return e.prompt.map(str::to_string);
     }
@@ -17,7 +17,12 @@ fn mit_anleitung(e: &StartEingabe) -> Option<String> {
 }
 
 /// Hängt den Auftrag an die Befehlszeile oder lässt ihn tippen (bei Windows-Skripten).
-fn auftrag(plan: &mut StartPlan, e: &StartEingabe, prompt: Option<String>, vorsatz: &[&str]) {
+pub(super) fn auftrag(
+    plan: &mut StartPlan,
+    e: &StartEingabe,
+    prompt: Option<String>,
+    vorsatz: &[&str],
+) {
     let Some(p) = prompt else { return };
     if e.skript {
         plan.prompt_tippen = Some(p);
@@ -27,7 +32,7 @@ fn auftrag(plan: &mut StartPlan, e: &StartEingabe, prompt: Option<String>, vorsa
     }
 }
 
-fn modell(plan: &mut StartPlan, e: &StartEingabe, option: &str) {
+pub(super) fn modell(plan: &mut StartPlan, e: &StartEingabe, option: &str) {
     if let Some(m) = e.info.modell.as_deref().filter(|m| wert_gueltig(m)) {
         plan.argumente.extend([option.to_string(), m.to_string()]);
     }
@@ -35,7 +40,14 @@ fn modell(plan: &mut StartPlan, e: &StartEingabe, option: &str) {
 
 pub struct Codex;
 
-const CODEX_EREIGNISSE: &[&str] = &["SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "PermissionRequest", "Stop"];
+const CODEX_EREIGNISSE: &[&str] = &[
+    "SessionStart",
+    "UserPromptSubmit",
+    "PreToolUse",
+    "PostToolUse",
+    "PermissionRequest",
+    "Stop",
+];
 
 impl Provider for Codex {
     fn id(&self) -> &'static str {
@@ -65,12 +77,18 @@ impl Provider for Codex {
             let befehl = format!("\"{}\" hook codex {ereignis}", e.cli);
             // Der Befehl als TOML-String (JSON-Quoting ist dafür gültig).
             let befehl = serde_json::to_string(&befehl).unwrap_or_default();
-            plan.argumente.extend(["-c".into(), format!("hooks.{ereignis}=[{{hooks=[{{type=\"command\",command={befehl},timeout=5}}]}}]")]);
+            plan.argumente.extend([
+                "-c".into(),
+                format!(
+                    "hooks.{ereignis}=[{{hooks=[{{type=\"command\",command={befehl},timeout=5}}]}}]"
+                ),
+            ]);
         }
         plan.argumente.push("--no-alt-screen".into());
         modell(&mut plan, e, "--model");
         if let Some(a) = e.info.aufwand.as_deref().filter(|a| wert_gueltig(a)) {
-            plan.argumente.extend(["-c".into(), format!("model_reasoning_effort=\"{a}\"")]);
+            plan.argumente
+                .extend(["-c".into(), format!("model_reasoning_effort=\"{a}\"")]);
         }
         if let Some(s) = e.fortsetzen.filter(|s| wert_gueltig(s)) {
             plan.argumente.extend(["resume".into(), s.into()]);
@@ -154,7 +172,8 @@ impl Provider for Grok {
     }
     fn starten(&self, e: &StartEingabe) -> StartPlan {
         let mut plan = StartPlan::default();
-        plan.argumente.extend(["--no-alt-screen".into(), "--trust".into()]);
+        plan.argumente
+            .extend(["--no-alt-screen".into(), "--trust".into()]);
         if let Some(s) = e.fortsetzen.filter(|s| wert_gueltig(s)) {
             plan.argumente.extend(["--resume".into(), s.into()]);
         } else {
@@ -211,7 +230,10 @@ impl Provider for Eigen {
         ""
     }
     fn starten(&self, e: &StartEingabe) -> StartPlan {
-        StartPlan { prompt_tippen: mit_anleitung(e), ..Default::default() }
+        StartPlan {
+            prompt_tippen: mit_anleitung(e),
+            ..Default::default()
+        }
     }
 }
 
@@ -220,8 +242,19 @@ mod tests {
     use super::*;
     use crate::provider::claude::tests::info;
 
-    fn eingabe<'a>(i: &'a protokoll::arbeiter::ArbeiterInfo, dir: &'a std::path::Path) -> StartEingabe<'a> {
-        StartEingabe { info: i, prompt: Some("Tu was"), fortsetzen: None, anleitung: "ANL", daten: dir, cli: "/bin/office-agenten", skript: false }
+    fn eingabe<'a>(
+        i: &'a protokoll::arbeiter::ArbeiterInfo,
+        dir: &'a std::path::Path,
+    ) -> StartEingabe<'a> {
+        StartEingabe {
+            info: i,
+            prompt: Some("Tu was"),
+            fortsetzen: None,
+            anleitung: "ANL",
+            daten: dir,
+            cli: "/bin/office-agenten",
+            skript: false,
+        }
     }
 
     #[test]
@@ -232,14 +265,21 @@ mod tests {
         let a = plan.argumente.join(" ");
         assert!(a.contains("hooks.Stop=[{hooks=[{type=\"command\",command=\"\\\"/bin/office-agenten\\\" hook codex Stop\""));
         assert_eq!(plan.argumente.last().unwrap(), "ANL\n\nTu was");
-        assert!(Codex.hook("Stop", &serde_json::json!({"agent_id": "x"})).is_empty());
+        assert!(
+            Codex
+                .hook("Stop", &serde_json::json!({"agent_id": "x"}))
+                .is_empty()
+        );
     }
 
     #[test]
     fn skript_tippt_den_auftrag() {
         let dir = tempfile::tempdir().unwrap();
         let i = info();
-        let e = StartEingabe { skript: true, ..eingabe(&i, dir.path()) };
+        let e = StartEingabe {
+            skript: true,
+            ..eingabe(&i, dir.path())
+        };
         let plan = OpenCode.starten(&e);
         assert!(!plan.argumente.iter().any(|a| a.contains("Tu was")));
         assert_eq!(plan.prompt_tippen.as_deref(), Some("ANL\n\nTu was"));

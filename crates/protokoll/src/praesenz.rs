@@ -153,7 +153,13 @@ pub enum Stufe {
 #[serde(tag = "typ", rename_all = "snake_case")]
 pub enum Client {
     /// Eigene Position (mehrmals pro Sekunde, solange man sich bewegt).
-    Bewegen { x: f32, y: f32, z: f32, rot_y: f32, laeuft: bool },
+    Bewegen {
+        x: f32,
+        y: f32,
+        z: f32,
+        rot_y: f32,
+        laeuft: bool,
+    },
     /// Etwas in der Hand: Zigarette, Golfschläger, Getränk, Dart/Axt. Fehlende Felder bleiben, wie sie sind;
     /// bei `getraenk`/`wirft` heißt `null` "weggelegt" – darum `Option<Option<_>>`.
     Handlung {
@@ -161,9 +167,17 @@ pub enum Client {
         rauchen: Option<bool>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         golfen: Option<bool>,
-        #[serde(default, skip_serializing_if = "Option::is_none", with = "doppel_option")]
+        #[serde(
+            default,
+            skip_serializing_if = "Option::is_none",
+            with = "doppel_option"
+        )]
         getraenk: Option<Option<Getraenk>>,
-        #[serde(default, skip_serializing_if = "Option::is_none", with = "doppel_option")]
+        #[serde(
+            default,
+            skip_serializing_if = "Option::is_none",
+            with = "doppel_option"
+        )]
         wirft: Option<Option<Barspiel>>,
     },
     /// Hinsetzen (`sitz` wie "couch:1") oder aufstehen (ohne).
@@ -177,9 +191,15 @@ pub enum Client {
         karte: Option<GetragenesIssue>,
     },
     /// Ein Emote (begrenzt: 3 auf einmal, dann eins alle 2 s).
-    Emote { emote: Emote },
+    Emote {
+        emote: Emote,
+    },
     /// Name, Farbe und Aussehen von der Figurenwahl.
-    Profil { name: String, farbe: String, aussehen: Aussehen },
+    Profil {
+        name: String,
+        farbe: String,
+        aussehen: Aussehen,
+    },
     /// Was man gerade offen hat; ohne `was` ist man zurück im Office.
     Tut {
         #[serde(default)]
@@ -188,10 +208,16 @@ pub enum Client {
         liest: bool,
     },
     /// In der 2D-Ansicht (Handy) oder wieder in 3D.
-    Lite { an: bool },
-    Chat { text: String },
+    Lite {
+        an: bool,
+    },
+    Chat {
+        text: String,
+    },
     /// `um` kommt im `Pong` zurück (Uhrzeit des Clients, für die Laufzeit).
-    Ping { um: f64 },
+    Ping {
+        um: f64,
+    },
 }
 
 /// Nachrichten an den Browser.
@@ -214,34 +240,66 @@ pub enum Server {
         einladungen: bool,
     },
     /// Jemand kam auf die Etage (oder ins Office).
-    PersonDa { person: Person },
+    PersonDa {
+        person: Person,
+    },
     /// Profil, Sitz, Hand, Voice ... von jemandem haben sich geändert.
-    PersonGeaendert { person: Person },
-    PersonBewegt { id: String, x: f32, y: f32, z: f32, rot_y: f32, laeuft: bool },
+    PersonGeaendert {
+        person: Person,
+    },
+    PersonBewegt {
+        id: String,
+        x: f32,
+        y: f32,
+        z: f32,
+        rot_y: f32,
+        laeuft: bool,
+    },
     /// Jemand ging (von der Etage oder aus dem Office).
-    PersonWeg { id: String },
-    PersonEmote { id: String, emote: Emote },
-    Chat { zeile: ChatZeile },
+    PersonWeg {
+        id: String,
+    },
+    PersonEmote {
+        id: String,
+        emote: Emote,
+    },
+    Chat {
+        zeile: ChatZeile,
+    },
     /// Eine kurze Meldung am Bildschirmrand.
-    Hinweis { text: String, stufe: Stufe },
+    Hinweis {
+        text: String,
+        stufe: Stufe,
+    },
     /// Der Platz ist schon besetzt (von `von`, einem Namen).
-    SitzBelegt { sitz: String, von: String },
+    SitzBelegt {
+        sitz: String,
+        von: String,
+    },
     /// `jetzt` ist die Uhr des Servers in ms, nach der z. B. die Jukebox den Takt hält.
-    Pong { um: f64, jetzt: u64 },
+    Pong {
+        um: f64,
+        jetzt: u64,
+    },
 }
 
 /// Serde-Hilfe: unterscheidet "Feld fehlt" (`None`) von "Feld ist null" (`Some(None)`).
 mod doppel_option {
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-    pub fn serialize<T: Serialize, S: Serializer>(w: &Option<Option<T>>, s: S) -> Result<S::Ok, S::Error> {
+    pub fn serialize<T: Serialize, S: Serializer>(
+        w: &Option<Option<T>>,
+        s: S,
+    ) -> Result<S::Ok, S::Error> {
         match w {
             Some(inner) => inner.serialize(s),
             None => s.serialize_none(),
         }
     }
 
-    pub fn deserialize<'de, T: Deserialize<'de>, D: Deserializer<'de>>(d: D) -> Result<Option<Option<T>>, D::Error> {
+    pub fn deserialize<'de, T: Deserialize<'de>, D: Deserializer<'de>>(
+        d: D,
+    ) -> Result<Option<Option<T>>, D::Error> {
         Option::<T>::deserialize(d).map(Some)
     }
 }
@@ -254,7 +312,9 @@ mod tests {
     fn handlung_unterscheidet_null_und_fehlend() {
         let c: Client = serde_json::from_str(r#"{"typ":"handlung","getraenk":null}"#).unwrap();
         match c {
-            Client::Handlung { getraenk, wirft, .. } => {
+            Client::Handlung {
+                getraenk, wirft, ..
+            } => {
                 assert_eq!(getraenk, Some(None));
                 assert_eq!(wirft, None);
             }
@@ -264,7 +324,14 @@ mod tests {
 
     #[test]
     fn bewegen_rundreise() {
-        let json = serde_json::to_string(&Client::Bewegen { x: 1.0, y: 0.0, z: 2.0, rot_y: 0.5, laeuft: true }).unwrap();
+        let json = serde_json::to_string(&Client::Bewegen {
+            x: 1.0,
+            y: 0.0,
+            z: 2.0,
+            rot_y: 0.5,
+            laeuft: true,
+        })
+        .unwrap();
         assert!(json.contains(r#""typ":"bewegen""#));
         let _: Client = serde_json::from_str(&json).unwrap();
     }

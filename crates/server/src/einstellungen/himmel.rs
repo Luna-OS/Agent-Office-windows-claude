@@ -58,7 +58,15 @@ impl HimmelWetter {
         let (breite, laenge) = ort_raten(versatz);
         Self {
             stadt,
-            stand: Mutex::new(Himmel { breite, laenge, utc_versatz: versatz, wetter: Wetter::Klar, staerke: 0.0, stadt: None, temperatur: None }),
+            stand: Mutex::new(Himmel {
+                breite,
+                laenge,
+                utc_versatz: versatz,
+                wetter: Wetter::Klar,
+                staerke: 0.0,
+                stadt: None,
+                temperatur: None,
+            }),
         }
     }
 
@@ -97,7 +105,11 @@ impl HimmelWetter {
             }
             los -= g;
         }
-        h.staerke = if h.wetter == Wetter::Klar { 0.0 } else { rng.random_range(0.2..1.0) };
+        h.staerke = if h.wetter == Wetter::Klar {
+            0.0
+        } else {
+            rng.random_range(0.2..1.0)
+        };
         h.clone()
     }
 }

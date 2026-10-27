@@ -29,16 +29,29 @@ pub type DiensteBeobachter = Arc<dyn Fn(Vec<u16>) + Send + Sync>;
 
 impl crate::Innen {
     pub(crate) fn melden(&self, etage: &str, name: &str, art: MeldungArt, text: String) {
-        let f = self.meldungen.lock().unwrap_or_else(|e| e.into_inner()).clone();
+        let f = self
+            .meldungen
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone();
         if let Some(f) = f {
-            let m = Meldung { etage: etage.to_string(), arbeiter_name: name.to_string(), art, text };
+            let m = Meldung {
+                etage: etage.to_string(),
+                arbeiter_name: name.to_string(),
+                art,
+                text,
+            };
             // Nie unter dem Zustands-Schloss in fremden Code: eigener Task.
             self.laufzeit.spawn(async move { f(m) });
         }
     }
 
     pub(crate) fn dienste_geaendert(&self, ports: Vec<u16>) {
-        let f = self.dienste_beobachter.lock().unwrap_or_else(|e| e.into_inner()).clone();
+        let f = self
+            .dienste_beobachter
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone();
         if let Some(f) = f {
             self.laufzeit.spawn(async move { f(ports) });
         }

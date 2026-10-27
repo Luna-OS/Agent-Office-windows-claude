@@ -14,7 +14,7 @@ Beim ersten Mal dauert das ein paar Minuten:
 
 1. Installiert git, die GitHub CLI und **Claude Code**. Als root legt es einen Benutzer `agentoffice` an und lässt das Office unter ihm laufen, damit Arbeiter nie als root laufen. Node.js braucht es nicht mehr: Server und Client sind Rust.
 2. Holt die fertige Binärdatei `open-agentic-office` samt Browser-Client (`dist/`) und dem Werkzeug `office-agenten` aus dem neuesten GitHub-Release nach `/opt/open-agentic-office`. Gibt es für die Maschine kein Release, baut es alles mit `cargo build --release -p server` und `trunk build --release` aus dem Quelltext (das dauert ein paar Minuten länger). Das Office läuft unter systemd: `Restart=always` holt es nach einem Absturz oder Neustart zurück, `KillMode=process` lässt die Arbeiter bei einem Neustart weiterlaufen. Es lauscht nur auf `127.0.0.1:4600`. Seine Daten liegen in `~/open-agentic-office`, Projekte werden nach `~/workspace/<owner>/<repo>` geklont.
-3. Richtet **👥 Mitspieler einladen** ein. Die SSH-Schlüssel der Mitspieler melden sich als eigener Benutzer `office` an, der nur zum Office-Port weiterleiten darf: keine Shell, keine anderen Ports.
+3. Richtet **👥 Team** ein. Die SSH-Schlüssel der Mitspieler melden sich als eigener Benutzer `office` an, der nur zum Office-Port weiterleiten darf: keine Shell, keine anderen Ports.
 4. Bietet an, die GitHub CLI anzumelden, wenn es in einem Terminal läuft.
 5. Zeigt, wie du hineinkommst:
 
@@ -27,7 +27,7 @@ Beim ersten Mal dauert das ein paar Minuten:
   Dort steht das Office-Passwort einmalig: schreib es dir auf.
 ```
 
-Alles läuft über SSH, also gibt es keine Zertifikate zu verwalten, und `localhost` gilt als sicherer Ursprung, sodass Sprachchat und Bildschirm teilen funktionieren. Claude meldet sich im Office an: Der erste Arbeiter bittet dich, `/login` in seinem Terminal einzugeben. Ist GitHub noch nicht angemeldet, führe `gh auth login` in einer Shell an einem beliebigen Schreibtisch aus (**B**). Mach beides, solange du mit dem Office-Passwort drin bist: Das sind die eigenen Anmeldungen der Maschine. Mitspieler, denen du [Konten](../README.md#nutzer-hinzufügen) gibst, melden sich unter **☰ → 🔐 Deine Anmeldungen** bei ihrem eigenen Claude und GitHub an, und ihre Arbeiter laufen auf ihrem eigenen Abo. Zum Aktualisieren führe dieselbe Zeile noch einmal aus oder nimm **⬆️ Office aktualisieren** im **☰**-Menü. Optionen stehen hinter `bash -s --`: `--project owner/repo` klont eine erste Etage, `--help` listet den Rest.
+Alles läuft über SSH, also gibt es keine Zertifikate zu verwalten, und `localhost` gilt als sicherer Ursprung, sodass Sprachchat und Bildschirm teilen funktionieren. Claude meldet sich im Office an: Der erste Arbeiter bittet dich, `/login` in seinem Terminal einzugeben. Ist GitHub noch nicht angemeldet, führe `gh auth login` in einer Shell an einem beliebigen Schreibtisch aus (**B**). Mach beides, solange du mit dem Office-Passwort drin bist: Das sind die eigenen Anmeldungen der Maschine. Mitspieler, denen du [Konten](../README.md#nutzer-hinzufügen) gibst, melden sich unter **☰ → 🔑 Anmeldungen** bei ihrem eigenen Claude und GitHub an, und ihre Arbeiter laufen auf ihrem eigenen Abo. Zum Aktualisieren führe dieselbe Zeile noch einmal aus oder nimm **⬆️ Office aktualisieren** im **☰**-Menü. Optionen stehen hinter `bash -s --`: `--project owner/repo` klont eine erste Etage, `--help` listet den Rest.
 
 **Auf einer eigenen Domain.** Lass einen DNS-Eintrag auf den Server zeigen, öffne die Ports 80 und 443 und hänge `--domain` an:
 
@@ -35,7 +35,7 @@ Alles läuft über SSH, also gibt es keine Zertifikate zu verwalten, und `localh
 curl -fsSL https://raw.githubusercontent.com/Luna-OS/OpenAgenticOffice/main/deploy/provision.sh | bash -s -- --domain office.example.com
 ```
 
-Das installiert [Caddy](https://caddyserver.com), der sich selbst ein Zertifikat von Let's Encrypt holt und das Office unter https://office.example.com ausliefert. Der Link zum Beanspruchen ist dann `https://office.example.com/beanspruchen?t=…`. Gib jedem Mitspieler unter **🔑 Konten** einen eigenen Einladungslink.
+Das installiert [Caddy](https://caddyserver.com), der sich selbst ein Zertifikat von Let's Encrypt holt und das Office unter https://office.example.com ausliefert. Der Link zum Beanspruchen ist dann `https://office.example.com/beanspruchen?t=…`. Gib jedem Mitspieler unter **👥 Team** einen eigenen Einladungslink.
 
 **In deinem Tailscale-Netz.** Keine Domain und keine offenen Ports: Hänge `--tailscale` an, dann tritt der Server deinem Tailnet bei und bietet das Office unter `https://open-agentic-office.<dein-tailnet>.ts.net` mit [Tailscale Serve](https://tailscale.com/kb/1312/serve) an, das sein eigenes Zertifikat mitbringt:
 

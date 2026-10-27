@@ -31,7 +31,10 @@ pub struct Wirkung {
 
 impl Default for Wirkung {
     fn default() -> Self {
-        Self { tempo: 1.0, sprung: 1.0 }
+        Self {
+            tempo: 1.0,
+            sprung: 1.0,
+        }
     }
 }
 
@@ -55,7 +58,11 @@ pub struct Spieler {
 impl Spieler {
     pub fn neu(x: f32, y: f32, z: f32, blick: f32, strasse: f32) -> Self {
         Self {
-            koerper: Koerper { pos: [x, y, z], am_boden: true, stufen_versatz: 0.0 },
+            koerper: Koerper {
+                pos: [x, y, z],
+                am_boden: true,
+                stufen_versatz: 0.0,
+            },
             vy: 0.0,
             gier: blick + PI,
             neigung: 0.0,
@@ -143,7 +150,11 @@ impl Spieler {
     /// Wohin man schaut (Einheitsvektor).
     pub fn blickrichtung(&self) -> [f32; 3] {
         let c = self.neigung.cos();
-        [-self.gier.sin() * c, self.neigung.sin(), -self.gier.cos() * c]
+        [
+            -self.gier.sin() * c,
+            self.neigung.sin(),
+            -self.gier.cos() * c,
+        ]
     }
 }
 
@@ -165,7 +176,15 @@ mod tests {
         let mut s = Spieler::neu(0.0, 0.0, 0.0, PI, -10.0); // Blick nach -z
         let vor = s.blickrichtung();
         for _ in 0..30 {
-            s.schritt(Steuerung { vor: 1.0, ..Default::default() }, Wirkung::default(), &boden(), 1.0 / 30.0);
+            s.schritt(
+                Steuerung {
+                    vor: 1.0,
+                    ..Default::default()
+                },
+                Wirkung::default(),
+                &boden(),
+                1.0 / 30.0,
+            );
         }
         let p = s.pos();
         assert!(p[2] < -4.0, "{p:?}");
@@ -177,7 +196,15 @@ mod tests {
     #[test]
     fn springen_und_landen() {
         let mut s = Spieler::neu(0.0, 0.0, 0.0, 0.0, -10.0);
-        s.schritt(Steuerung { springen: true, ..Default::default() }, Wirkung::default(), &boden(), 0.05);
+        s.schritt(
+            Steuerung {
+                springen: true,
+                ..Default::default()
+            },
+            Wirkung::default(),
+            &boden(),
+            0.05,
+        );
         assert!(s.pos()[1] > 0.0 && !s.koerper.am_boden);
         for _ in 0..100 {
             s.schritt(Steuerung::default(), Wirkung::default(), &boden(), 0.02);

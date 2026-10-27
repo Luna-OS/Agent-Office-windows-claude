@@ -20,9 +20,16 @@ use crate::{Agenten, hooks};
 /// ihrer Umgebung), sonst ein freier. Merkt sich den Port in `<daten>/hook-port`.
 pub async fn lauschen(daten: &Path, wunsch: u16) -> anyhow::Result<(TcpListener, u16)> {
     let datei = daten.join("hook-port");
-    let env_port = std::env::var("OFFICE_HOOK_PORT").ok().and_then(|p| p.parse::<u16>().ok());
-    let letzter = std::fs::read_to_string(&datei).ok().and_then(|p| p.trim().parse::<u16>().ok());
-    let mut kandidaten: Vec<u16> = [Some(wunsch).filter(|p| *p != 0), env_port, letzter].into_iter().flatten().collect();
+    let env_port = std::env::var("OFFICE_HOOK_PORT")
+        .ok()
+        .and_then(|p| p.parse::<u16>().ok());
+    let letzter = std::fs::read_to_string(&datei)
+        .ok()
+        .and_then(|p| p.trim().parse::<u16>().ok());
+    let mut kandidaten: Vec<u16> = [Some(wunsch).filter(|p| *p != 0), env_port, letzter]
+        .into_iter()
+        .flatten()
+        .collect();
     kandidaten.push(0);
     let mut letzter_fehler = None;
     for port in kandidaten {
@@ -35,7 +42,10 @@ pub async fn lauschen(daten: &Path, wunsch: u16) -> anyhow::Result<(TcpListener,
             Err(e) => letzter_fehler = Some(e),
         }
     }
-    Err(anyhow::anyhow!("Hook-Server konnte nicht starten: {:?}", letzter_fehler))
+    Err(anyhow::anyhow!(
+        "Hook-Server konnte nicht starten: {:?}",
+        letzter_fehler
+    ))
 }
 
 pub fn hook_server_starten(ag: Agenten, listener: TcpListener) {
@@ -43,7 +53,10 @@ pub fn hook_server_starten(ag: Agenten, listener: TcpListener) {
     let innen = ag.innen.clone();
     tokio::spawn(async move {
         let ende = async move { innen.beenden.notified().await };
-        if let Err(e) = axum::serve(listener, router).with_graceful_shutdown(ende).await {
+        if let Err(e) = axum::serve(listener, router)
+            .with_graceful_shutdown(ende)
+            .await
+        {
             tracing::warn!("Hook-Server beendet: {e}");
         }
     });
@@ -57,9 +70,18 @@ pub fn hook_router(ag: Agenten) -> Router {
         .route("/office/posteingang", get(crate::cli_api::posteingang))
         .route("/office/verlauf", get(crate::cli_api::verlauf))
         .route("/office/status", post(crate::cli_api::status))
-        .route("/office/aufgaben", get(crate::cli_api::aufgaben).post(crate::cli_api::aufgabe_neu))
-        .route("/office/aufgaben/{id}", post(crate::cli_api::aufgabe_aendern))
-        .route("/office/aufgaben/{id}/weg", post(crate::cli_api::aufgabe_weg))
+        .route(
+            "/office/aufgaben",
+            get(crate::cli_api::aufgaben).post(crate::cli_api::aufgabe_neu),
+        )
+        .route(
+            "/office/aufgaben/{id}",
+            post(crate::cli_api::aufgabe_aendern),
+        )
+        .route(
+            "/office/aufgaben/{id}/weg",
+            post(crate::cli_api::aufgabe_weg),
+        )
         .route("/office/anlegen", post(crate::cli_api::anlegen))
         .with_state(ag)
 }
@@ -70,9 +92,21 @@ pub fn fehler(code: StatusCode, text: impl Into<String>) -> Response {
 
 /// Liest Arbeiter-ID und Token aus den Kopfzeilen.
 pub fn ausweis(kopf: &HeaderMap) -> (String, String) {
-    let id = kopf.get("x-office-arbeiter").and_then(|v| v.to_str().ok()).unwrap_or("").to_string();
-    let auth = kopf.get("authorization").and_then(|v| v.to_str().ok()).unwrap_or("");
-    let token = auth.strip_prefix("Bearer ").or_else(|| auth.strip_prefix("bearer ")).unwrap_or("").trim().to_string();
+    let id = kopf
+        .get("x-office-arbeiter")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("")
+        .to_string();
+    let auth = kopf
+        .get("authorization")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+    let token = auth
+        .strip_prefix("Bearer ")
+        .or_else(|| auth.strip_prefix("bearer "))
+        .unwrap_or("")
+        .trim()
+        .to_string();
     (id, token)
 }
 
@@ -82,10 +116,20 @@ struct HookAnfrage {
     ereignis: String,
 }
 
-async fn hook(State(ag): State<Agenten>, Pfad(provider): Pfad<String>, Query(q): Query<HookAnfrage>, kopf: HeaderMap, body: Bytes) -> Response {
+async fn hook(
+    State(ag): State<Agenten>,
+    Pfad(provider): Pfad<String>,
+    Query(q): Query<HookAnfrage>,
+    kopf: HeaderMap,
+    body: Bytes,
+) -> Response {
     let (id, token) = ausweis(&kopf);
     // Eine kaputte Nutzlast zählt trotzdem als das Ereignis.
     let nutzlast: Value = serde_json::from_slice(&body).unwrap_or(Value::Null);
     let ok = hooks::verarbeiten(&ag, &provider, &id, &token, &q.ereignis, &nutzlast);
-    if ok { StatusCode::OK.into_response() } else { StatusCode::UNAUTHORIZED.into_response() }
+    if ok {
+        StatusCode::OK.into_response()
+    } else {
+        StatusCode::UNAUTHORIZED.into_response()
+    }
 }

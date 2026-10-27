@@ -40,9 +40,17 @@ pub struct Gebaut {
 
 /// Baut das Office aus der Konfiguration (lädt alles aus dem Datenordner, bindet agenten und medien an).
 pub async fn bauen(konfig: Konfig) -> Result<Gebaut> {
-    std::fs::create_dir_all(&konfig.daten).with_context(|| format!("Datenordner {} lässt sich nicht anlegen", konfig.daten.display()))?;
+    std::fs::create_dir_all(&konfig.daten).with_context(|| {
+        format!(
+            "Datenordner {} lässt sich nicht anlegen",
+            konfig.daten.display()
+        )
+    })?;
     let (zugang, neues_passwort) = anmeldung::Zugang::starten(&konfig);
-    let projekte = konfig.projekte.clone().unwrap_or_else(|| konfig.daten.join("projekte"));
+    let projekte = konfig
+        .projekte
+        .clone()
+        .unwrap_or_else(|| konfig.daten.join("projekte"));
     let einstellungen = einstellungen::Einstellungen::laden(&konfig);
     einstellungen.karten_neu_lesen(&konfig.daten);
     let mut angebunden = anbindung::starten(&konfig).await?;
@@ -72,7 +80,11 @@ pub async fn bauen(konfig: Konfig) -> Result<Gebaut> {
         office.etage_angemeldet(&e);
     }
     let router = http::router(office.clone(), routen);
-    Ok(Gebaut { office, router, neues_passwort })
+    Ok(Gebaut {
+        office,
+        router,
+        neues_passwort,
+    })
 }
 
 /// Die Hintergrund-Aufgaben: Hund, Rechner, Wetter.
@@ -133,7 +145,12 @@ async fn wetter(o: OfficeRef) {
             o.einstellungen.himmel.wandern(chrono::Local::now().month());
         }
         ws::einstellungen::himmel_an_alle(&o);
-        tokio::time::sleep(if echt { einstellungen::vorhersage::ABSTAND } else { Duration::from_secs(12 * 60) }).await;
+        tokio::time::sleep(if echt {
+            einstellungen::vorhersage::ABSTAND
+        } else {
+            Duration::from_secs(12 * 60)
+        })
+        .await;
     }
 }
 
@@ -148,14 +165,20 @@ pub async fn starten(konfig: Konfig) -> Result<()> {
     } else {
         einrichtung::beim_start(&g.office).await;
     }
-    let lauscher = tokio::net::TcpListener::bind(adresse).await.with_context(|| format!("Port {} ist belegt oder nicht erlaubt", adresse.port()))?;
+    let lauscher = tokio::net::TcpListener::bind(adresse)
+        .await
+        .with_context(|| format!("Port {} ist belegt oder nicht erlaubt", adresse.port()))?;
     let echt = lauscher.local_addr()?;
     hintergrund(&g.office);
     tailnet::starten(&g.office);
     let o = g.office.clone();
     tokio::spawn(async move { einrichtung::projekt_beim_start(&o).await });
 
-    let host = if echt.ip().is_unspecified() { "localhost".to_string() } else { echt.ip().to_string() };
+    let host = if echt.ip().is_unspecified() {
+        "localhost".to_string()
+    } else {
+        echt.ip().to_string()
+    };
     let url = format!("http://{host}:{}", echt.port());
     println!();
     println!("  OpenAgenticOffice läuft auf {url}");
@@ -163,7 +186,14 @@ pub async fn starten(konfig: Konfig) -> Result<()> {
     if let Some(pw) = &g.neues_passwort {
         println!("  Office-Passwort: {pw}   (bitte notieren – es wird nicht noch einmal gezeigt)");
     }
-    let link = if g.office.zugang.offen() { url.clone() } else { format!("{url}/anmelden#schluessel={}", g.office.zugang.sitzungen.link_schluessel(None)) };
+    let link = if g.office.zugang.offen() {
+        url.clone()
+    } else {
+        format!(
+            "{url}/anmelden#schluessel={}",
+            g.office.zugang.sitzungen.link_schluessel(None)
+        )
+    };
     if !g.office.zugang.offen() {
         println!("  Einmal-Anmeldelink: {link}");
     }

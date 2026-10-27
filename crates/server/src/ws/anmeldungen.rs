@@ -13,7 +13,9 @@ pub struct AnmeldungenDomaene;
 /// Darf das Konto die Anmeldungen des Office-Rechners nutzen? (Claude, GitHub)
 pub fn darf_office(o: &OfficeRef, konto: &str) -> (bool, bool) {
     let k = o.zugang.konten.lock().unwrap();
-    let admin = k.get(konto).is_some_and(|k| k.rolle == protokoll::konten::Rolle::Admin);
+    let admin = k
+        .get(konto)
+        .is_some_and(|k| k.rolle == protokoll::konten::Rolle::Admin);
     (admin || k.claude_teilen(), admin)
 }
 
@@ -26,7 +28,9 @@ pub fn umgebung(o: &OfficeRef, konto: &str, nur: Option<AnmeldeArt>) -> Vec<(Str
 /// Der Stand an alle Verbindungen des Kontos.
 pub fn stand_senden(o: &OfficeRef, konto: &str) {
     let (c, g) = darf_office(o, konto);
-    let n = ServerNachricht::Konten(Server::Anmeldungen { stand: o.anmeldungen.stand(konto, c, g) });
+    let n = ServerNachricht::Konten(Server::Anmeldungen {
+        stand: o.anmeldungen.stand(konto, c, g),
+    });
     o.an_wen(&n, None, |v| v.sitzung.konto.as_deref() == Some(konto));
 }
 
@@ -53,22 +57,41 @@ impl Domaene for AnmeldungenDomaene {
     }
 
     fn zustaendig(&self, n: &ClientNachricht) -> bool {
-        matches!(n, ClientNachricht::Konten(
-            Client::AnmeldungenHolen | Client::AnmeldungStarten { .. } | Client::AnmeldungCode { .. } |
-            Client::AnmeldungAbbrechen { .. } | Client::AnmeldungToken { .. } | Client::AnmeldungOffice { .. } | Client::Abmelden { .. }))
+        matches!(
+            n,
+            ClientNachricht::Konten(
+                Client::AnmeldungenHolen
+                    | Client::AnmeldungStarten { .. }
+                    | Client::AnmeldungCode { .. }
+                    | Client::AnmeldungAbbrechen { .. }
+                    | Client::AnmeldungToken { .. }
+                    | Client::AnmeldungOffice { .. }
+                    | Client::Abmelden { .. }
+            )
+        )
     }
 
     fn begruessung(&self, o: &OfficeRef, von: &str) -> Vec<ServerNachricht> {
-        let Some(konto) = o.sitzung_von(von).and_then(|s| s.konto) else { return Vec::new() };
+        let Some(konto) = o.sitzung_von(von).and_then(|s| s.konto) else {
+            return Vec::new();
+        };
         let _ = o.anmeldungen.geaendert.send(format!("nachsehen:{konto}"));
         let (c, g) = darf_office(o, &konto);
-        vec![ServerNachricht::Konten(Server::Anmeldungen { stand: o.anmeldungen.stand(&konto, c, g) })]
+        vec![ServerNachricht::Konten(Server::Anmeldungen {
+            stand: o.anmeldungen.stand(&konto, c, g),
+        })]
     }
 
     fn nachricht<'a>(&'a self, o: &'a OfficeRef, von: &'a str, n: ClientNachricht) -> Zukunft<'a> {
-        let ClientNachricht::Konten(c) = n else { return fertig() };
+        let ClientNachricht::Konten(c) = n else {
+            return fertig();
+        };
         let Some(konto) = o.sitzung_von(von).and_then(|s| s.konto) else {
-            o.hinweis(von, "Eigene Anmeldungen gibt es nur mit eigenem Konto", Stufe::Info);
+            o.hinweis(
+                von,
+                "Eigene Anmeldungen gibt es nur mit eigenem Konto",
+                Stufe::Info,
+            );
             return fertig();
         };
         let a = o.anmeldungen.clone();
@@ -79,14 +102,22 @@ impl Domaene for AnmeldungenDomaene {
                     ablauf::nachsehen(&a, &konto, env).await;
                     Ok(())
                 }
-                Client::AnmeldungStarten { art: AnmeldeArt::Claude } => ablauf::claude_starten(&a, &konto, env),
-                Client::AnmeldungStarten { art: AnmeldeArt::Github } => ablauf::github_starten(&a, &konto, env),
-                Client::AnmeldungCode { code } => ablauf::claude_code(&a, &konto, &code),
+                Client::AnmeldungStarten {
+                    art: AnmeldeArt::Claude,
+                } => crate::anmeldungen::claude::claude_starten(&a, &konto, env),
+                Client::AnmeldungStarten {
+                    art: AnmeldeArt::Github,
+                } => ablauf::github_starten(&a, &konto, env),
+                Client::AnmeldungCode { code } => {
+                    crate::anmeldungen::claude::claude_code(&a, &konto, &code)
+                }
                 Client::AnmeldungAbbrechen { art } => {
                     ablauf::abbrechen(&a, &konto, art);
                     Ok(())
                 }
-                Client::AnmeldungToken { art, token } => ablauf::token(&a, &konto, art, &token, env).await,
+                Client::AnmeldungToken { art, token } => {
+                    ablauf::token(&a, &konto, art, &token, env).await
+                }
                 Client::AnmeldungOffice { art } => {
                     let (c, g) = darf_office(o, &konto);
                     if (art == AnmeldeArt::Claude && c) || (art == AnmeldeArt::Github && g) {

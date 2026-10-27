@@ -19,7 +19,18 @@ pub const MAX_BESTE: usize = 10;
 
 /// Die Autos auf ihren Parkplätzen (aus `welt`, Index = Auto-Nummer).
 pub fn autos_geparkt() -> Vec<Auto> {
-    welt::grundriss::draussen::AUTOS.iter().map(|p| Auto { x: p.x, z: p.z, rot_y: p.rot_y, tempo: 0.0, lenkung: 0.0, fahrer: None, beifahrer: None }).collect()
+    welt::grundriss::draussen::AUTOS
+        .iter()
+        .map(|p| Auto {
+            x: p.x,
+            z: p.z,
+            rot_y: p.rot_y,
+            tempo: 0.0,
+            lenkung: 0.0,
+            fahrer: None,
+            beifahrer: None,
+        })
+        .collect()
 }
 
 /// Was von einer Etage gespeichert wird.
@@ -58,12 +69,19 @@ pub fn schluessel(etage: Option<&str>) -> String {
 
 impl Spielzeug {
     pub fn laden(daten: &std::path::Path) -> Self {
-        Self { daten: daten.to_path_buf(), etagen: Mutex::default(), bestenliste: Mutex::new(laden(&daten.join("bestenliste.json"))) }
+        Self {
+            daten: daten.to_path_buf(),
+            etagen: Mutex::default(),
+            bestenliste: Mutex::new(laden(&daten.join("bestenliste.json"))),
+        }
     }
 
     fn datei(&self, etage: &str) -> PathBuf {
         let name = if etage.is_empty() { "_ohne" } else { etage };
-        self.daten.join("etagen").join(name.replace(['/', '\\', '.'], "_")).join("spielzeug.json")
+        self.daten
+            .join("etagen")
+            .join(name.replace(['/', '\\', '.'], "_"))
+            .join("spielzeug.json")
     }
 
     /// Arbeitet mit dem Spielzeug einer Etage (lädt es beim ersten Mal).
@@ -104,7 +122,11 @@ impl Spielzeug {
             hund: Some(e.hund.zustand(jetzt_ms)),
             ball: ball::jetzt(&e.ball, e.ball_seit, jetzt_ms),
             autos: e.autos.clone(),
-            arcade: Arcade { spieler: e.arcade_spieler.clone(), bestenliste: beste, bild: e.arcade_bild.clone() },
+            arcade: Arcade {
+                spieler: e.arcade_spieler.clone(),
+                bestenliste: beste,
+                bild: e.arcade_bild.clone(),
+            },
             whiteboard: e.g.whiteboard.clone(),
             whiteboard_leute: e.wb_leute.clone(),
         })
@@ -180,7 +202,15 @@ mod tests {
     use super::*;
 
     fn eintrag(spiel: &str, punkte: u32) -> Bestenliste {
-        Bestenliste { spiel: spiel.into(), name: "A".into(), farbe: "#000000".into(), punkte, reihen: 0, level: 1, um: 0 }
+        Bestenliste {
+            spiel: spiel.into(),
+            name: "A".into(),
+            farbe: "#000000".into(),
+            punkte,
+            reihen: 0,
+            level: 1,
+            um: 0,
+        }
     }
 
     #[test]

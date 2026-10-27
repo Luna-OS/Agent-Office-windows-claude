@@ -73,7 +73,10 @@ pub fn aendern(e: &mut Value) {
 
 /// Zieht ein Element beim Zeichnen von (x, y) bis zum Punkt (px, py).
 pub fn ziehen(e: &mut Value, px: f64, py: f64) {
-    let (x, y) = (e["x"].as_f64().unwrap_or(0.0), e["y"].as_f64().unwrap_or(0.0));
+    let (x, y) = (
+        e["x"].as_f64().unwrap_or(0.0),
+        e["y"].as_f64().unwrap_or(0.0),
+    );
     let (dx, dy) = (px - x, py - y);
     match e["type"].as_str().unwrap_or("") {
         "freedraw" => {
@@ -102,7 +105,10 @@ pub fn ziehen(e: &mut Value, px: f64, py: f64) {
 
 /// Rechtecke und Ellipsen mit negativer Breite/Höhe (nach links/oben gezogen) gerade rücken.
 pub fn normalisieren(e: &mut Value) {
-    let (w, h) = (e["width"].as_f64().unwrap_or(0.0), e["height"].as_f64().unwrap_or(0.0));
+    let (w, h) = (
+        e["width"].as_f64().unwrap_or(0.0),
+        e["height"].as_f64().unwrap_or(0.0),
+    );
     if w < 0.0 {
         e["x"] = json!(e["x"].as_f64().unwrap_or(0.0) + w);
         e["width"] = json!(-w);
@@ -119,8 +125,14 @@ pub fn zusammenfuehren(alle: &mut Vec<Value>, neue: &[Value]) {
         let Some(id) = n["id"].as_str() else { continue };
         match alle.iter_mut().find(|e| e["id"].as_str() == Some(id)) {
             Some(alt) => {
-                let (va, vn) = (alt["version"].as_u64().unwrap_or(0), n["version"].as_u64().unwrap_or(0));
-                let gewinnt = vn > va || (vn == va && n["versionNonce"].as_u64().unwrap_or(0) < alt["versionNonce"].as_u64().unwrap_or(0));
+                let (va, vn) = (
+                    alt["version"].as_u64().unwrap_or(0),
+                    n["version"].as_u64().unwrap_or(0),
+                );
+                let gewinnt = vn > va
+                    || (vn == va
+                        && n["versionNonce"].as_u64().unwrap_or(0)
+                            < alt["versionNonce"].as_u64().unwrap_or(0));
                 if gewinnt {
                     *alt = n.clone();
                 }
@@ -137,7 +149,10 @@ pub fn unter(alle: &[Value], px: f64, py: f64) -> Option<usize> {
             return None;
         }
         let (x, y) = (e["x"].as_f64()?, e["y"].as_f64()?);
-        let (mut w, mut h) = (e["width"].as_f64().unwrap_or(0.0), e["height"].as_f64().unwrap_or(0.0));
+        let (mut w, mut h) = (
+            e["width"].as_f64().unwrap_or(0.0),
+            e["height"].as_f64().unwrap_or(0.0),
+        );
         let (mut x0, mut y0) = (x, y);
         if let Some(p) = e["points"].as_array() {
             // Linien und Striche: Rahmen über alle Punkte.
@@ -148,7 +163,11 @@ pub fn unter(alle: &[Value], px: f64, py: f64) -> Option<usize> {
             (x0, y0, w, h) = (x + minx, y + miny, maxx - minx, maxy - miny);
         }
         let rand = 8.0;
-        (px >= x0 - rand && px <= x0 + w.max(0.0) + rand && py >= y0 - rand && py <= y0 + h.max(0.0) + rand).then_some(i)
+        (px >= x0 - rand
+            && px <= x0 + w.max(0.0) + rand
+            && py >= y0 - rand
+            && py <= y0 + h.max(0.0) + rand)
+            .then_some(i)
     })
 }
 
@@ -159,9 +178,18 @@ mod tests {
     #[test]
     fn hoehere_version_gewinnt() {
         let mut alle = vec![json!({"id": "a", "version": 2, "versionNonce": 5, "x": 1})];
-        zusammenfuehren(&mut alle, &[json!({"id": "a", "version": 1, "versionNonce": 1, "x": 9})]);
+        zusammenfuehren(
+            &mut alle,
+            &[json!({"id": "a", "version": 1, "versionNonce": 1, "x": 9})],
+        );
         assert_eq!(alle[0]["x"], 1);
-        zusammenfuehren(&mut alle, &[json!({"id": "a", "version": 3, "versionNonce": 1, "x": 7}), json!({"id": "b", "version": 1})]);
+        zusammenfuehren(
+            &mut alle,
+            &[
+                json!({"id": "a", "version": 3, "versionNonce": 1, "x": 7}),
+                json!({"id": "b", "version": 1}),
+            ],
+        );
         assert_eq!(alle[0]["x"], 7);
         assert_eq!(alle.len(), 2);
     }

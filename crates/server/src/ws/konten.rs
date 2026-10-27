@@ -18,7 +18,11 @@ fn k(s: Server) -> ServerNachricht {
 pub fn adressen(o: &OfficeRef) -> Vec<String> {
     let mut a = Vec::new();
     if let Some(h) = &o.konfig.oeffentlicher_host {
-        a.push(if h.starts_with("http") { h.clone() } else { format!("https://{h}") });
+        a.push(if h.starts_with("http") {
+            h.clone()
+        } else {
+            format!("https://{h}")
+        });
     }
     if let Some(t) = &o.konfig.tailscale_host {
         a.push(format!("https://{t}"));
@@ -31,15 +35,31 @@ pub fn adressen(o: &OfficeRef) -> Vec<String> {
 
 /// Der Konten-Stand an alle Admins (bei jeder Änderung, auch wenn jemand kommt oder geht).
 pub fn konten_an_admins(o: &OfficeRef) {
-    let stand = o.zugang.konten.lock().unwrap().stand(&o.konten_online(), adressen(o));
+    let stand = o
+        .zugang
+        .konten
+        .lock()
+        .unwrap()
+        .stand(&o.konten_online(), adressen(o));
     o.an_admins(&k(Server::Konten { stand }));
 }
 
 /// Allen ihre (vielleicht neue) Rolle schicken und Abgemeldete hinauswerfen.
 fn rollen_neu(o: &OfficeRef) {
-    let alle: Vec<(String, crate::anmeldung::Sitzung)> = o.verbindungen.lock().unwrap().iter().map(|(id, v)| (id.clone(), v.sitzung.clone())).collect();
+    let alle: Vec<(String, crate::anmeldung::Sitzung)> = o
+        .verbindungen
+        .lock()
+        .unwrap()
+        .iter()
+        .map(|(id, v)| (id.clone(), v.sitzung.clone()))
+        .collect();
     for (id, s) in alle {
-        o.an(&id, &k(Server::Ich { ich: o.zugang.ich(&s) }));
+        o.an(
+            &id,
+            &k(Server::Ich {
+                ich: o.zugang.ich(&s),
+            }),
+        );
     }
     o.ungueltige_abmelden();
 }
@@ -59,16 +79,28 @@ impl Domaene for KontenDomaene {
         if !o.ist_admin(von) {
             return Vec::new();
         }
-        let stand = o.zugang.konten.lock().unwrap().stand(&o.konten_online(), adressen(o));
+        let stand = o
+            .zugang
+            .konten
+            .lock()
+            .unwrap()
+            .stand(&o.konten_online(), adressen(o));
         vec![k(Server::Konten { stand })]
     }
 
     fn nachricht<'a>(&'a self, o: &'a OfficeRef, von: &'a str, n: ClientNachricht) -> Zukunft<'a> {
-        let ClientNachricht::Konten(c) = n else { return fertig() };
+        let ClientNachricht::Konten(c) = n else {
+            return fertig();
+        };
         if let Client::LinkErzeugen = c {
             if let Some(s) = o.sitzung_von(von) {
                 let schluessel = o.zugang.sitzungen.link_schluessel(Some(&s));
-                o.an(von, &k(Server::Link { pfad: format!("/anmelden#schluessel={schluessel}") }));
+                o.an(
+                    von,
+                    &k(Server::Link {
+                        pfad: format!("/anmelden#schluessel={schluessel}"),
+                    }),
+                );
             }
             return fertig();
         }
@@ -76,7 +108,10 @@ impl Domaene for KontenDomaene {
             o.hinweis(von, "Das dürfen nur Admins", Stufe::Warnung);
             return fertig();
         }
-        if matches!(c, Client::TeamHolen | Client::TeamEinladen { .. } | Client::TeamEntfernen { .. }) {
+        if matches!(
+            c,
+            Client::TeamHolen | Client::TeamEinladen { .. } | Client::TeamEntfernen { .. }
+        ) {
             return Box::pin(team(o, von, c));
         }
         let wer = o.person(von).map(|p| p.name).unwrap_or_default();
@@ -88,8 +123,20 @@ impl Domaene for KontenDomaene {
                     let r = konten.einladen(&wer, rolle, name.as_deref());
                     drop(konten);
                     match r {
-                        Ok(einladung) => o.an(von, &k(Server::Eingeladen { einladung: Some(einladung), fehler: None })),
-                        Err(f) => o.an(von, &k(Server::Eingeladen { einladung: None, fehler: Some(f) })),
+                        Ok(einladung) => o.an(
+                            von,
+                            &k(Server::Eingeladen {
+                                einladung: Some(einladung),
+                                fehler: None,
+                            }),
+                        ),
+                        Err(f) => o.an(
+                            von,
+                            &k(Server::Eingeladen {
+                                einladung: None,
+                                fehler: Some(f),
+                            }),
+                        ),
                     }
                     Ok(())
                 }
@@ -128,8 +175,18 @@ async fn team(o: &OfficeRef, von: &str, c: Client) {
     match c {
         Client::TeamEinladen { github } => {
             let antwort = match crate::team::einladen(&o.konfig, &github).await {
-                Ok((name, schluessel)) => Server::TeamEingeladen { github, name: Some(name), schluessel: Some(schluessel), fehler: None },
-                Err(f) => Server::TeamEingeladen { github, name: None, schluessel: None, fehler: Some(f) },
+                Ok((name, schluessel)) => Server::TeamEingeladen {
+                    github,
+                    name: Some(name),
+                    schluessel: Some(schluessel),
+                    fehler: None,
+                },
+                Err(f) => Server::TeamEingeladen {
+                    github,
+                    name: None,
+                    schluessel: None,
+                    fehler: Some(f),
+                },
             };
             o.an(von, &k(antwort));
         }

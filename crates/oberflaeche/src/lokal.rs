@@ -55,11 +55,13 @@ fn speicher() -> Option<web_sys::Storage> {
 pub fn lokal() -> RwSignal<Lokal> {
     LOKAL.with(|l| {
         *l.get_or_init(|| {
-            let geladen = speicher()
-                .and_then(|s| s.get_item(SCHLUESSEL).ok().flatten())
-                .and_then(|t| serde_json::from_str(&t).ok())
-                .unwrap_or_default();
-            RwSignal::new(geladen)
+            crate::zustand::global(|| {
+                let geladen = speicher()
+                    .and_then(|s| s.get_item(SCHLUESSEL).ok().flatten())
+                    .and_then(|t| serde_json::from_str(&t).ok())
+                    .unwrap_or_default();
+                RwSignal::new(geladen)
+            })
         })
     })
 }

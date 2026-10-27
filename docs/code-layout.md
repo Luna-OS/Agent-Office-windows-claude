@@ -10,11 +10,12 @@ Wo der Code liegt und wohin die Teile eines neuen Features gehören. Das Projekt
 | --- | --- |
 | `protokoll` | Das Drahtprotokoll: `ClientNachricht` / `ServerNachricht` in `lib.rs`, eine Datei je Domäne (`praesenz`, `etagen`, `konten`, `einstellungen`, `spielzeug`, `agenten`, `arbeiter`, `aufgaben`, `github`, `medien`, `dach`) |
 | `server` | axum + tokio: HTTP, WebSocket, Anmeldung, Etagen, Lobby, Speichern. Binär: `open-agentic-office` |
-| `agenten` | Arbeiter, PTYs, Anbieter, Worktrees, Hooks, Agent-zu-Agent-Kommunikation, GitHub. Dazu die CLI `office-agenten` |
+| `agenten` | Arbeiter, PTYs, Anbieter, Worktrees, Hooks, Agent-zu-Agent-Kommunikation, GitHub. Dazu die CLI `office-agenten` und der Terminal-Wirt `office-pty-wirt` (ein eigener Prozess, der die PTYs hält, damit sie einen Neustart des Servers überleben) |
 | `medien` | Bildschirm teilen über HTTP, YouTube-Dach, Sprache, Sound, Jukebox |
 | `welt` | 3D mit kiss3d: Gebäude, Etagen, Dach, Figuren, Bewegung, Spielsachen |
 | `oberflaeche` | Leptos-Oberfläche mit rust-ui-Komponenten, Terminal-Ansicht |
 | `client` | Einstiegspunkt im Browser (WASM), `index.html`, `Trunk.toml`; Ausgabe nach `dist/` |
+| `ende-zu-ende` | Ende-zu-Ende-Tests mit echtem Server und Chromium (`OFFICE_CHROMIUM`, `OFFICE_CHROMIUM_FLAGS` wählen den Browser) |
 | `pruefungen` | Projektweite Prüfungen (siehe unten) |
 
 Außerhalb von `crates/`: `deploy/` (Dockerfile und Skripte), `desktop/` (die Desktop-Hülle, ein eigenes Cargo-Paket), `docs/`, `install.sh`, `install.ps1`.

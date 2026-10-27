@@ -2,7 +2,7 @@
 
 Zurück zur [README](../README.md).
 
-Jeder neue Arbeiter startet auf dem **Standard-Arbeiter** des Office: ein Anbieter, Modell und Aufwand, die ein Admin in ⚙️ Einstellungen → **🤖 Arbeiter** wählt. Die Fenster zum Einstellen, Fragen, Einreihen, für Issues und Besprechungen zeigen ihn in einer Zeile; mit **✏️ Ändern** wählst du **Claude Code**, **Codex**, **OpenCode**, **Gemini**, **Grok**, **Pi** oder einen **eigenen Befehl**, dazu optional Modell und Aufwand, nur für diesen Arbeiter oder diese Aufgabe; **↺ Standard verwenden** geht zurück. Tafel-Agenten und Aufgaben, die der Warteschlangen-Agent anlegt, starten ebenfalls auf dem Standard. Bestehende Arbeiter behalten ihren Anbieter beim Fortsetzen, Aufgaben in der Warteschlange ihre Wahl bei Wiederholung und nach einem Neustart.
+Jeder neue Arbeiter startet auf dem **Standard-Arbeiter** des Office: ein Anbieter, Modell und Aufwand, die ein Admin in ⚙️ Einstellungen → **🤖 Arbeiter** wählt. Die Fenster zum Einstellen, Fragen, Einreihen, für Issues und Besprechungen zeigen ihn in einer Zeile; mit **✏️ Ändern** wählst du **Claude Code**, **Codex**, **OpenCode**, **Gemini**, **Grok**, **Pi**, **Muse**, **DeepSeek Harness** oder einen **eigenen Befehl**, dazu optional Modell und Aufwand, nur für diesen Arbeiter oder diese Aufgabe; **↺ Standard verwenden** geht zurück. Tafel-Agenten und Aufgaben, die der Warteschlangen-Agent anlegt, starten ebenfalls auf dem Standard. Bestehende Arbeiter behalten ihren Anbieter beim Fortsetzen, Aufgaben in der Warteschlange ihre Wahl bei Wiederholung und nach einem Neustart.
 
 Claude Code ist der Standard. Das Modell (`--model`) und der Aufwand (`--effort`) gelten nur für diesen Arbeiter und bleiben über ein Fortsetzen hinweg erhalten.
 
@@ -16,6 +16,8 @@ Claude Code ist der Standard. Das Modell (`--model`) und der Aufwand (`--effort`
 | Gemini | `gemini` | |
 | Grok | `grok` | Eigene Sitzungs- und Hook-Dateien pro Office, damit nichts in deinem `~/.grok` verändert wird |
 | Pi | `pi` | Eine per CLI geladene Erweiterung meldet die Ereignisse; deine Pi-Konfiguration bleibt unangetastet |
+| Muse | `muse` | Muse Code; Hooks wie bei Claude, eigene XDG-Ordner im Datenordner, die Anmeldung wird aus `~/.config/muse` übernommen |
+| DeepSeek Harness | `dsh` | Läuft über ACP, ohne echtes Terminal: Das Office zeichnet die Antworten ins Terminal. Tippen + Enter schickt einen Auftrag, Erlaubnisfragen beantwortest du per Nummer, Esc bricht ab. Profil über `OFFICE_DSH_PROFIL` (Standard `acp`) |
 | Eigener Befehl | beliebig | Läuft als reines Terminal; kein Status außer dem, was das Terminal selbst verrät |
 
 Jeder Agent muss auf dem Rechner, der das Office betreibt, installiert und angemeldet sein. Auf Servern, die mit `deploy/provision.sh` (oder dem AWS-Skript) eingerichtet wurden, ist nur Claude Code vorinstalliert; alle anderen installierst du selbst.
@@ -48,10 +50,12 @@ Die Arbeiter im Office wissen voneinander. Dafür gibt es drei Dinge, alle über
 | `office-agenten posteingang` | Ungelesene Nachrichten abholen |
 | `office-agenten status <text>` | Den eigenen Stand melden |
 | `office-agenten aufgaben` | Aufgaben der Etage auflisten |
-| `office-agenten aufgabe-neu <titel>` | Eine Aufgabe anlegen |
+| `office-agenten aufgabe-neu <titel> [notiz]` | Eine Aufgabe anlegen |
 | `office-agenten aufgabe-neu --auto <titel> <auftrag>` | Eine Aufgabe samt Auftrag anlegen, die die Warteschlange selbst an einen frischen Arbeiter vergibt (so arbeitet der Aufgaben-Agent) |
 | `office-agenten aufgabe-weg <id>` | Eine wartende Aufgabe wieder von der Warteschlange nehmen |
-| `office-agenten aufgabe <id> <todo\|doing\|done\|blocked> [notiz]` | Den Stand einer Aufgabe setzen |
+| `office-agenten aufgabe <id> <offen\|in_arbeit\|erledigt\|blockiert> [notiz]` | Den Stand einer Aufgabe setzen |
+| `office-agenten verlauf` | Die letzten Nachrichten, die dich betreffen |
+| `office-agenten anlegen [--provider <id>] <auftrag>` | Einen weiteren Arbeiter mit einem Auftrag holen |
 
 Menschen sehen den Bus, den Feed und das Board im Office. Der Hook-Server hört nur auf `127.0.0.1`; sein Port steht im Datenordner in `hook-port` (Überschreiben mit `OFFICE_HOOK_PORT`). Ein Arbeiter kann sich nicht selbst nach Hause schicken.
 

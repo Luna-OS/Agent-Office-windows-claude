@@ -21,7 +21,10 @@ pub fn video_aus_url(eingabe: &str) -> Result<YoutubeVideo, String> {
         return Err("Die Adresse ist zu lang".into());
     }
     if gueltige_id(s) {
-        return Ok(YoutubeVideo { id: s.to_string(), start_s: 0.0 });
+        return Ok(YoutubeVideo {
+            id: s.to_string(),
+            start_s: 0.0,
+        });
     }
     let ohne_schema = s
         .strip_prefix("https://")
@@ -36,10 +39,18 @@ pub fn video_aus_url(eingabe: &str) -> Result<YoutubeVideo, String> {
     let wirt = wirt.split(':').next().unwrap_or("");
     let (pfad, abfrage, anker) = zerlegen(rest);
     let parameter: Vec<(String, String)> = paare(abfrage).chain(paare(anker)).collect();
-    let param = |name: &str| parameter.iter().find(|(k, _)| k == name).map(|(_, v)| v.as_str());
+    let param = |name: &str| {
+        parameter
+            .iter()
+            .find(|(k, _)| k == name)
+            .map(|(_, v)| v.as_str())
+    };
 
     let id = if wirt == "youtu.be" || wirt == "www.youtu.be" {
-        pfad.trim_start_matches('/').split('/').next().map(str::to_string)
+        pfad.trim_start_matches('/')
+            .split('/')
+            .next()
+            .map(str::to_string)
     } else if ist_youtube(wirt) {
         let teile: Vec<&str> = pfad.split('/').filter(|t| !t.is_empty()).collect();
         match teile.as_slice() {
@@ -52,21 +63,33 @@ pub fn video_aus_url(eingabe: &str) -> Result<YoutubeVideo, String> {
     } else {
         return Err("Das ist keine YouTube-Adresse".into());
     };
-    let id = id.filter(|i| gueltige_id(i)).ok_or("In der Adresse steckt keine gültige Video-ID")?;
-    let start_s = param("t").or_else(|| param("start")).and_then(zeit_lesen).unwrap_or(0.0);
+    let id = id
+        .filter(|i| gueltige_id(i))
+        .ok_or("In der Adresse steckt keine gültige Video-ID")?;
+    let start_s = param("t")
+        .or_else(|| param("start"))
+        .and_then(zeit_lesen)
+        .unwrap_or(0.0);
     Ok(YoutubeVideo { id, start_s })
 }
 
 fn ist_youtube(wirt: &str) -> bool {
     matches!(
         wirt,
-        "youtube.com" | "www.youtube.com" | "m.youtube.com" | "music.youtube.com" | "youtube-nocookie.com" | "www.youtube-nocookie.com"
+        "youtube.com"
+            | "www.youtube.com"
+            | "m.youtube.com"
+            | "music.youtube.com"
+            | "youtube-nocookie.com"
+            | "www.youtube-nocookie.com"
     )
 }
 
 /// Eine Video-ID: genau 11 Zeichen aus `A-Z a-z 0-9 - _`.
 pub fn gueltige_id(s: &str) -> bool {
-    s.len() == 11 && s.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
+    s.len() == 11
+        && s.bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
 }
 
 /// `/pfad?abfrage#anker` in seine drei Teile.
@@ -88,12 +111,16 @@ fn prozent_dekodieren(s: &str) -> String {
     let mut aus = Vec::with_capacity(b.len());
     let mut i = 0;
     while i < b.len() {
-        if b[i] == b'%' && i + 2 < b.len() + 1
-            && let Some(x) = s.get(i + 1..i + 3).and_then(|h| u8::from_str_radix(h, 16).ok()) {
-                aus.push(x);
-                i += 3;
-                continue;
-            }
+        if b[i] == b'%'
+            && i + 2 < b.len() + 1
+            && let Some(x) = s
+                .get(i + 1..i + 3)
+                .and_then(|h| u8::from_str_radix(h, 16).ok())
+        {
+            aus.push(x);
+            i += 3;
+            continue;
+        }
         aus.push(if b[i] == b'+' { b' ' } else { b[i] });
         i += 1;
     }
@@ -175,11 +202,26 @@ mod tests {
     #[test]
     fn startzeiten() {
         assert_eq!(ok("https://youtu.be/dQw4w9WgXcQ?t=42").1, 42.0);
-        assert_eq!(ok("https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=1m30s").1, 90.0);
-        assert_eq!(ok("https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=1h2m3s").1, 3723.0);
-        assert_eq!(ok("https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=90s").1, 90.0);
-        assert_eq!(ok("https://www.youtube.com/embed/dQw4w9WgXcQ?start=15").1, 15.0);
-        assert_eq!(ok("https://www.youtube.com/watch?v=dQw4w9WgXcQ#t=2m").1, 120.0);
+        assert_eq!(
+            ok("https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=1m30s").1,
+            90.0
+        );
+        assert_eq!(
+            ok("https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=1h2m3s").1,
+            3723.0
+        );
+        assert_eq!(
+            ok("https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=90s").1,
+            90.0
+        );
+        assert_eq!(
+            ok("https://www.youtube.com/embed/dQw4w9WgXcQ?start=15").1,
+            15.0
+        );
+        assert_eq!(
+            ok("https://www.youtube.com/watch?v=dQw4w9WgXcQ#t=2m").1,
+            120.0
+        );
         assert_eq!(ok("https://youtube.com/shorts/dQw4w9WgXcQ?t=7").1, 7.0);
         assert_eq!(zeit_lesen("1:02:03"), Some(3723.0));
         assert_eq!(zeit_lesen("abc"), None);

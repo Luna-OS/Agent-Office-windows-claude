@@ -94,13 +94,25 @@ impl Figur {
         let mut lampe = wurzel.add_sphere(0.09);
         lampe.set_position(Vec3::new(0.0, 2.08, 0.0));
         lampe.set_visible(false);
-        Self { wurzel, koerper, kopf, arm_l, arm_r, bein_l, bein_r, lampe, phase: 0.0, haltung: Haltung::Stehen }
+        Self {
+            wurzel,
+            koerper,
+            kopf,
+            arm_l,
+            arm_r,
+            bein_l,
+            bein_r,
+            lampe,
+            phase: 0.0,
+            haltung: Haltung::Stehen,
+        }
     }
 
     /// Ort der Füße und Blickrichtung (0 = +z).
     pub fn setzen(&mut self, x: f32, y: f32, z: f32, rot_y: f32) {
         self.wurzel.set_position(Vec3::new(x, y, z));
-        self.wurzel.set_rotation(Quat::from_axis_angle(Vec3::Y, rot_y));
+        self.wurzel
+            .set_rotation(Quat::from_axis_angle(Vec3::Y, rot_y));
     }
 
     pub fn sichtbar(&mut self, an: bool) {
@@ -134,14 +146,27 @@ impl Figur {
                 rot(&mut self.bein_r, -s);
                 rot(&mut self.arm_l, -s * 0.8);
                 rot(&mut self.arm_r, s * 0.8);
-                self.koerper.set_position(Vec3::new(0.0, 1.06 + (self.phase * 2.0).sin().abs() * 0.03, 0.0));
+                self.koerper.set_position(Vec3::new(
+                    0.0,
+                    1.06 + (self.phase * 2.0).sin().abs() * 0.03,
+                    0.0,
+                ));
             }
             Haltung::Stehen => {
                 self.phase += dt;
-                for n in [&mut self.bein_l, &mut self.bein_r, &mut self.arm_l, &mut self.arm_r] {
+                for n in [
+                    &mut self.bein_l,
+                    &mut self.bein_r,
+                    &mut self.arm_l,
+                    &mut self.arm_r,
+                ] {
                     rot(n, 0.0);
                 }
-                self.koerper.set_position(Vec3::new(0.0, 1.06 + (self.phase * 1.5).sin() * 0.008, 0.0));
+                self.koerper.set_position(Vec3::new(
+                    0.0,
+                    1.06 + (self.phase * 1.5).sin() * 0.008,
+                    0.0,
+                ));
             }
             Haltung::Sitzen(_) | Haltung::Tippen => {
                 self.phase += dt * 14.0;
@@ -157,8 +182,13 @@ impl Figur {
                 self.koerper.set_position(Vec3::new(0.0, 1.06, 0.0));
             }
         }
-        let wippen = if self.haltung == Haltung::Tippen { (self.phase * 0.3).sin() * 0.05 } else { 0.0 };
-        self.kopf.set_rotation(Quat::from_axis_angle(Vec3::X, wippen));
+        let wippen = if self.haltung == Haltung::Tippen {
+            (self.phase * 0.3).sin() * 0.05
+        } else {
+            0.0
+        };
+        self.kopf
+            .set_rotation(Quat::from_axis_angle(Vec3::X, wippen));
     }
 
     /// Wie weit die Füße beim Sitzen absinken: die Figur ist so gebaut, dass die Hüfte bei 0.78 liegt.
@@ -186,28 +216,73 @@ fn frisur(kopf: &mut SceneNode3d, art: u8, c: Color) {
     };
     match art % 7 {
         // Kurz: eine Kappe.
-        0 => teil(kopf, 0.23, Vec3::new(0.0, 0.06, -0.02), Vec3::new(1.0, 0.7, 1.0)),
+        0 => teil(
+            kopf,
+            0.23,
+            Vec3::new(0.0, 0.06, -0.02),
+            Vec3::new(1.0, 0.7, 1.0),
+        ),
         // Pony.
         1 => {
-            teil(kopf, 0.23, Vec3::new(0.0, 0.07, -0.03), Vec3::new(1.02, 0.72, 1.0));
-            teil(kopf, 0.12, Vec3::new(0.06, 0.13, 0.15), Vec3::new(1.4, 0.5, 0.6));
+            teil(
+                kopf,
+                0.23,
+                Vec3::new(0.0, 0.07, -0.03),
+                Vec3::new(1.02, 0.72, 1.0),
+            );
+            teil(
+                kopf,
+                0.12,
+                Vec3::new(0.06, 0.13, 0.15),
+                Vec3::new(1.4, 0.5, 0.6),
+            );
         }
         // Lang, bis auf die Schultern.
         2 => {
-            teil(kopf, 0.235, Vec3::new(0.0, 0.05, -0.04), Vec3::new(1.05, 0.75, 1.0));
-            teil(kopf, 0.2, Vec3::new(0.0, -0.18, -0.1), Vec3::new(1.1, 1.2, 0.6));
+            teil(
+                kopf,
+                0.235,
+                Vec3::new(0.0, 0.05, -0.04),
+                Vec3::new(1.05, 0.75, 1.0),
+            );
+            teil(
+                kopf,
+                0.2,
+                Vec3::new(0.0, -0.18, -0.1),
+                Vec3::new(1.1, 1.2, 0.6),
+            );
         }
         // Dutt.
         3 => {
-            teil(kopf, 0.23, Vec3::new(0.0, 0.06, -0.02), Vec3::new(1.0, 0.7, 1.0));
+            teil(
+                kopf,
+                0.23,
+                Vec3::new(0.0, 0.06, -0.02),
+                Vec3::new(1.0, 0.7, 1.0),
+            );
             teil(kopf, 0.1, Vec3::new(0.0, 0.25, -0.12), Vec3::ONE);
         }
         // Afro.
-        4 => teil(kopf, 0.3, Vec3::new(0.0, 0.1, -0.03), Vec3::new(1.0, 0.85, 1.0)),
+        4 => teil(
+            kopf,
+            0.3,
+            Vec3::new(0.0, 0.1, -0.03),
+            Vec3::new(1.0, 0.85, 1.0),
+        ),
         // Irokese.
-        5 => teil(kopf, 0.16, Vec3::new(0.0, 0.2, -0.02), Vec3::new(0.35, 0.8, 1.3)),
+        5 => teil(
+            kopf,
+            0.16,
+            Vec3::new(0.0, 0.2, -0.02),
+            Vec3::new(0.35, 0.8, 1.3),
+        ),
         // Glatze mit Haarkranz.
-        _ => teil(kopf, 0.225, Vec3::new(0.0, -0.02, -0.04), Vec3::new(1.02, 0.5, 1.0)),
+        _ => teil(
+            kopf,
+            0.225,
+            Vec3::new(0.0, -0.02, -0.04),
+            Vec3::new(1.02, 0.5, 1.0),
+        ),
     }
 }
 

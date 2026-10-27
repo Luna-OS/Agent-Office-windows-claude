@@ -108,7 +108,11 @@ impl Sitzungen {
 
     /// Ein neuer Cookie-Wert.
     pub fn ausstellen(&self, konto: Option<&str>) -> String {
-        let inhalt = Inhalt { exp: jetzt_ms() + SITZUNG_DAUER_MS, n: geheimnis(8), u: konto.map(String::from) };
+        let inhalt = Inhalt {
+            exp: jetzt_ms() + SITZUNG_DAUER_MS,
+            n: geheimnis(8),
+            u: konto.map(String::from),
+        };
         let inhalt = B64.encode(serde_json::to_vec(&inhalt).expect("serialisierbar"));
         let sig = self.signieren(&inhalt, konto.is_some());
         format!("{inhalt}.{sig}")
@@ -154,8 +158,14 @@ impl Sitzungen {
             links.remove(0);
         }
         let link = match uebergabe {
-            Some(u) => Link { konto: u.konto.clone(), bis: Some(jetzt_ms() + UEBERGABE_DAUER_MS) },
-            None => Link { konto: None, bis: None },
+            Some(u) => Link {
+                konto: u.konto.clone(),
+                bis: Some(jetzt_ms() + UEBERGABE_DAUER_MS),
+            },
+            None => Link {
+                konto: None,
+                bis: None,
+            },
         };
         links.push((sha(&s), link));
         s
@@ -168,7 +178,9 @@ impl Sitzungen {
         }
         let h = sha(schluessel);
         let mut links = self.links.lock().unwrap();
-        let i = links.iter().position(|(k, _)| gleich(k.as_bytes(), h.as_bytes()))?;
+        let i = links
+            .iter()
+            .position(|(k, _)| gleich(k.as_bytes(), h.as_bytes()))?;
         let (_, link) = links.remove(i);
         if link.bis.is_some_and(|b| b < jetzt_ms()) {
             return None;
@@ -179,7 +191,11 @@ impl Sitzungen {
 
 /// Der Cookie-Name je Port: Cookies kennen keine Ports, zwei Offices auf einem Host bekommen je ihren.
 pub fn cookie_name(host: Option<&str>) -> String {
-    match host.and_then(|h| h.rsplit_once(':')).map(|(_, p)| p).filter(|p| !p.is_empty() && p.bytes().all(|b| b.is_ascii_digit())) {
+    match host
+        .and_then(|h| h.rsplit_once(':'))
+        .map(|(_, p)| p)
+        .filter(|p| !p.is_empty() && p.bytes().all(|b| b.is_ascii_digit()))
+    {
         Some(port) => format!("{COOKIE}_{port}"),
         None => COOKIE.to_string(),
     }
@@ -187,12 +203,20 @@ pub fn cookie_name(host: Option<&str>) -> String {
 
 /// Liest ein Cookie aus dem Cookie-Header.
 pub fn cookie_lesen<'a>(header: &'a str, name: &str) -> Option<&'a str> {
-    header.split(';').filter_map(|t| t.trim().split_once('=')).find(|(k, _)| *k == name).map(|(_, v)| v.trim())
+    header
+        .split(';')
+        .filter_map(|t| t.trim().split_once('='))
+        .find(|(k, _)| *k == name)
+        .map(|(_, v)| v.trim())
 }
 
 /// Set-Cookie-Wert für eine Sitzung.
 pub fn cookie_setzen(name: &str, wert: &str, sicher: bool) -> String {
-    format!("{name}={wert}; Path=/; HttpOnly; SameSite=Lax; Max-Age={}{}", SITZUNG_DAUER_MS / 1000, if sicher { "; Secure" } else { "" })
+    format!(
+        "{name}={wert}; Path=/; HttpOnly; SameSite=Lax; Max-Age={}{}",
+        SITZUNG_DAUER_MS / 1000,
+        if sicher { "; Secure" } else { "" }
+    )
 }
 
 pub fn cookie_loeschen(name: &str) -> String {
@@ -221,7 +245,9 @@ mod tests {
     fn links_nur_einmal() {
         let dir = tempfile::tempdir().unwrap();
         let s = Sitzungen::laden(dir.path(), "");
-        let l = s.link_schluessel(Some(&Sitzung { konto: Some("k".into()) }));
+        let l = s.link_schluessel(Some(&Sitzung {
+            konto: Some("k".into()),
+        }));
         assert_eq!(s.link_einloesen(&l).unwrap().konto.as_deref(), Some("k"));
         assert!(s.link_einloesen(&l).is_none());
     }
@@ -243,6 +269,9 @@ mod tests {
     fn cookies() {
         assert_eq!(cookie_name(Some("localhost:4600")), "oao_sitzung_4600");
         assert_eq!(cookie_name(Some("office.example")), "oao_sitzung");
-        assert_eq!(cookie_lesen("a=1; oao_sitzung_4600=xyz", "oao_sitzung_4600"), Some("xyz"));
+        assert_eq!(
+            cookie_lesen("a=1; oao_sitzung_4600=xyz", "oao_sitzung_4600"),
+            Some("xyz")
+        );
     }
 }

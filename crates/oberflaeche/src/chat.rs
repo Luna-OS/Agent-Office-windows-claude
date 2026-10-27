@@ -31,21 +31,30 @@ pub fn Chat() -> impl IntoView {
         }
     });
 
+    // Nach Enter oder Esc gibt das Feld den Fokus ab, sonst hielten die Tastenkürzel es für Tippen.
+    let weg = move || {
+        if let Some(f) = feld.get_untracked() {
+            let _ = f.blur();
+        }
+        zu();
+    };
     let taste = move |e: web_sys::KeyboardEvent| match e.key().as_str() {
         "Enter" => {
             e.prevent_default();
             let t = text.get_untracked();
             if !t.trim().is_empty() {
-                crate::bruecke::senden(ClientNachricht::Praesenz(praesenz::Client::Chat { text: t.trim().to_string() }));
+                crate::bruecke::senden(ClientNachricht::Praesenz(praesenz::Client::Chat {
+                    text: t.trim().to_string(),
+                }));
             }
             text.set(String::new());
-            zu();
+            weg();
         }
         "Escape" => {
             e.prevent_default();
             e.stop_propagation();
             text.set(String::new());
-            zu();
+            weg();
         }
         _ => {}
     };

@@ -25,9 +25,27 @@ pub struct Station {
 }
 
 pub const STATIONEN: &[Station] = &[
-    Station { art: "issues", tisch: "station-issues", name: "Issue-Agent", farbe: "#ef476f", vorlage: "station_issues" },
-    Station { art: "pulls", tisch: "station-pulls", name: "PR-Agent", farbe: "#118ab2", vorlage: "station_pulls" },
-    Station { art: "aufgaben", tisch: "station-queue", name: "Aufgaben-Agent", farbe: "#06d6a0", vorlage: "station_aufgaben" },
+    Station {
+        art: "issues",
+        tisch: "station-issues",
+        name: "Issue-Agent",
+        farbe: "#ef476f",
+        vorlage: "station_issues",
+    },
+    Station {
+        art: "pulls",
+        tisch: "station-pulls",
+        name: "PR-Agent",
+        farbe: "#118ab2",
+        vorlage: "station_pulls",
+    },
+    Station {
+        art: "aufgaben",
+        tisch: "station-queue",
+        name: "Aufgaben-Agent",
+        farbe: "#06d6a0",
+        vorlage: "station_aufgaben",
+    },
 ];
 
 pub fn zu_tisch(tisch: &str) -> Option<&'static Station> {
@@ -35,7 +53,14 @@ pub fn zu_tisch(tisch: &str) -> Option<&'static Station> {
 }
 
 /// Eine Bitte an den Agenten am Pult `tisch`: getippt, geweckt oder – ist keiner da – angelegt.
-pub async fn auftrag(ag: &Agenten, etage: &str, von: &str, konto: Option<String>, tisch: &str, text: &str) -> Result<(), String> {
+pub async fn auftrag(
+    ag: &Agenten,
+    etage: &str,
+    von: &str,
+    konto: Option<String>,
+    tisch: &str,
+    text: &str,
+) -> Result<(), String> {
     let s = zu_tisch(tisch).ok_or("An diesem Platz steht kein Board-Agent")?;
     let text = text.trim();
     if text.is_empty() {
@@ -43,8 +68,14 @@ pub async fn auftrag(ag: &Agenten, etage: &str, von: &str, konto: Option<String>
     }
     let da = {
         let z = ag.innen.zustand();
-        let e = z.etagen.get(etage).ok_or("Diese Etage gibt es nicht (mehr)")?;
-        e.arbeiter.values().find(|a| a.info.tisch == tisch).map(|a| (a.info.id.clone(), a.info.status))
+        let e = z
+            .etagen
+            .get(etage)
+            .ok_or("Diese Etage gibt es nicht (mehr)")?;
+        e.arbeiter
+            .values()
+            .find(|a| a.info.tisch == tisch)
+            .map(|a| (a.info.id.clone(), a.info.status))
     };
     if let Some((id, status)) = da {
         if status == ArbeiterStatus::Wartet {
@@ -52,10 +83,15 @@ pub async fn auftrag(ag: &Agenten, etage: &str, von: &str, konto: Option<String>
         }
         return steuerung::prompt(ag, etage, &id, text, von);
     }
-    let einweisung = format!("{}\n\n{BOARD_CLI}", crate::prompts::text(&ag.innen.zustand().prompts, s.vorlage, &[]));
+    let einweisung = format!(
+        "{}\n\n{BOARD_CLI}",
+        crate::prompts::text(&ag.innen.zustand().prompts, s.vorlage, &[])
+    );
     let wunsch = start::Wunsch {
         tisch: Some(tisch.to_string()),
-        prompt: Some(format!("{einweisung}\n\nDie erste Bitte, von {von}:\n{text}")),
+        prompt: Some(format!(
+            "{einweisung}\n\nDie erste Bitte, von {von}:\n{text}"
+        )),
         worktree: Some(false),
         art: ArbeiterArt::Agent,
         konto,

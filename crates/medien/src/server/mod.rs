@@ -91,7 +91,11 @@ pub struct Medien(Arc<Innen>);
 impl Medien {
     pub fn neu(e: MedienEinstellungen) -> Self {
         let speicher = speicher::Speicher::neu(e.datenordner.join("medien"));
-        let ice = if e.ice.is_empty() { ice_aus_umgebung() } else { e.ice };
+        let ice = if e.ice.is_empty() {
+            ice_aus_umgebung()
+        } else {
+            e.ice
+        };
         let leinwand = Mutex::new(speicher.leinwand_laden());
         Self(Arc::new(Innen {
             bildschirme: Bildschirme::default(),
@@ -139,12 +143,17 @@ impl Medien {
 
     fn bildschirme_melden(&self, etage: &str) {
         let liste = self.0.bildschirme.liste(Some(etage));
-        self.senden(Ziel::Etage(etage.into()), ServerNachricht::Medien(MedienServer::Bildschirme { liste }));
+        self.senden(
+            Ziel::Etage(etage.into()),
+            ServerNachricht::Medien(MedienServer::Bildschirme { liste }),
+        );
     }
 
     /// Nach der Anmeldung: ICE-Server.
     pub fn begruessung(&self, _von: &Absender) -> Vec<ServerNachricht> {
-        vec![ServerNachricht::Medien(MedienServer::IceServer { server: self.0.ice.clone() })]
+        vec![ServerNachricht::Medien(MedienServer::IceServer {
+            server: self.0.ice.clone(),
+        })]
     }
 
     /// Beim Betreten einer Etage (oder des Dachs): wer teilt, was die Jukebox spielt, die Leinwand.
@@ -172,17 +181,26 @@ impl Medien {
     pub fn nachricht_medien(&self, von: &Absender, n: MedienClient) -> Result<(), String> {
         match n {
             MedienClient::Rtc { an, daten } => {
-                let n = MedienServer::Rtc { von: von.verbindung.clone(), daten };
+                let n = MedienServer::Rtc {
+                    von: von.verbindung.clone(),
+                    daten,
+                };
                 self.senden(Ziel::Verbindung(an), ServerNachricht::Medien(n));
             }
             MedienClient::Sprache { aktiv, stumm } => {
-                let n = ServerNachricht::Medien(MedienServer::Sprache { spieler: von.verbindung.clone(), aktiv, stumm });
+                let n = ServerNachricht::Medien(MedienServer::Sprache {
+                    spieler: von.verbindung.clone(),
+                    aktiv,
+                    stumm,
+                });
                 self.senden(von.etage.clone().map_or(Ziel::Alle, Ziel::Etage), n);
             }
             MedienClient::JukeboxSpielen { stueck, url } => {
                 let etage = etage_von(von)?;
                 let jetzt = jetzt_ms();
-                let geaendert = self.mit_jukebox(&etage, |j| j.spielen(stueck.as_deref(), url.as_deref(), &von.name, jetzt))?;
+                let geaendert = self.mit_jukebox(&etage, |j| {
+                    j.spielen(stueck.as_deref(), url.as_deref(), &von.name, jetzt)
+                })?;
                 if geaendert {
                     self.jukebox_geaendert(&etage);
                 }
@@ -215,7 +233,10 @@ impl Medien {
             l.zustand().clone()
         };
         self.0.speicher.leinwand_speichern(&zustand);
-        self.senden(Ziel::Dach, ServerNachricht::Dach(DachServer::Leinwand { zustand }));
+        self.senden(
+            Ziel::Dach,
+            ServerNachricht::Dach(DachServer::Leinwand { zustand }),
+        );
         Ok(())
     }
 
@@ -226,24 +247,33 @@ impl Medien {
 
     fn mit_jukebox<T>(&self, etage: &str, f: impl FnOnce(&mut Jukebox) -> T) -> T {
         let mut alle = self.0.jukeboxen.lock().unwrap();
-        let j = alle.entry(etage.to_string()).or_insert_with(|| self.0.speicher.jukebox_laden(etage));
+        let j = alle
+            .entry(etage.to_string())
+            .or_insert_with(|| self.0.speicher.jukebox_laden(etage));
         f(j)
     }
 
     fn jukebox_geaendert(&self, etage: &str) {
         let (zustand, json) = self.mit_jukebox(etage, |j| (j.zustand(jetzt_ms()), j.als_json()));
         self.0.speicher.jukebox_speichern(etage, &json);
-        self.senden(Ziel::Etage(etage.into()), ServerNachricht::Medien(MedienServer::Jukebox { zustand }));
+        self.senden(
+            Ziel::Etage(etage.into()),
+            ServerNachricht::Medien(MedienServer::Jukebox { zustand }),
+        );
     }
 }
 
 fn etage_von(von: &Absender) -> Result<String, String> {
-    von.etage.clone().ok_or_else(|| "Bitte zuerst eine Etage betreten".into())
+    von.etage
+        .clone()
+        .ok_or_else(|| "Bitte zuerst eine Etage betreten".into())
 }
 
 /// Server-Uhr in Unix-ms.
 pub fn jetzt_ms() -> u64 {
-    SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_millis() as u64)
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |d| d.as_millis() as u64)
 }
 
 /// Standard-STUN plus TURN-Server aus `OFFICE_TURN` (kommagetrennt, `turn:nutzer:pass@host:3478`).
@@ -254,7 +284,10 @@ pub fn ice_aus_umgebung() -> Vec<IceServer> {
 /// Wie [`ice_aus_umgebung`], aber mit der TURN-Liste als Text.
 pub fn ice_server(turn: &str) -> Vec<IceServer> {
     let mut l = vec![IceServer {
-        urls: vec!["stun:stun.l.google.com:19302".into(), "stun:stun1.l.google.com:19302".into()],
+        urls: vec![
+            "stun:stun.l.google.com:19302".into(),
+            "stun:stun1.l.google.com:19302".into(),
+        ],
         username: None,
         credential: None,
     }];
@@ -264,7 +297,9 @@ pub fn ice_server(turn: &str) -> Vec<IceServer> {
             Some((z, w)) => (Some(z), w),
             None => (None, rest),
         };
-        let (nutzer, pass) = zugang.and_then(|z| z.split_once(':')).map_or((None, None), |(n, p)| (Some(n), Some(p)));
+        let (nutzer, pass) = zugang
+            .and_then(|z| z.split_once(':'))
+            .map_or((None, None), |(n, p)| (Some(n), Some(p)));
         l.push(IceServer {
             urls: vec![format!("{schema}:{wirt}")],
             username: nutzer.map(Into::into),

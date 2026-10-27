@@ -21,7 +21,10 @@ impl BildschirmEmpfang {
     /// Öffnet den Stream (`stream_url` aus `medien::Server::Bildschirme`).
     pub fn neu(stream_url: &str) -> Result<Self, String> {
         let doc = dokument();
-        let bild: HtmlImageElement = doc.create_element("img").map_err(|_| "Kein <img> möglich")?.unchecked_into();
+        let bild: HtmlImageElement = doc
+            .create_element("img")
+            .map_err(|_| "Kein <img> möglich")?
+            .unchecked_into();
         // Unsichtbar im Dokument, damit der Browser den Stream sicher weiter dekodiert.
         let _ = bild.set_attribute(
             "style",
@@ -32,14 +35,22 @@ impl BildschirmEmpfang {
         if let Some(body) = doc.body() {
             let _ = body.append_child(&bild);
         }
-        let leinwand: HtmlCanvasElement = doc.create_element("canvas").map_err(|_| "Kein <canvas> möglich")?.unchecked_into();
+        let leinwand: HtmlCanvasElement = doc
+            .create_element("canvas")
+            .map_err(|_| "Kein <canvas> möglich")?
+            .unchecked_into();
         let ctx: CanvasRenderingContext2d = leinwand
             .get_context("2d")
             .ok()
             .flatten()
             .ok_or("Kein 2D-Kontext")?
             .unchecked_into();
-        Ok(Self { url: stream_url.into(), bild, leinwand, ctx })
+        Ok(Self {
+            url: stream_url.into(),
+            bild,
+            leinwand,
+            ctx,
+        })
     }
 
     pub fn url(&self) -> &str {
@@ -58,14 +69,26 @@ impl BildschirmEmpfang {
         if b == 0 || h == 0 || max_breite == 0 || max_hoehe == 0 {
             return None;
         }
-        let mass = (max_breite as f64 / b as f64).min(max_hoehe as f64 / h as f64).min(1.0);
-        let (zb, zh) = (((b as f64 * mass) as u32).max(1), ((h as f64 * mass) as u32).max(1));
+        let mass = (max_breite as f64 / b as f64)
+            .min(max_hoehe as f64 / h as f64)
+            .min(1.0);
+        let (zb, zh) = (
+            ((b as f64 * mass) as u32).max(1),
+            ((h as f64 * mass) as u32).max(1),
+        );
         if self.leinwand.width() != zb || self.leinwand.height() != zh {
             self.leinwand.set_width(zb);
             self.leinwand.set_height(zh);
         }
-        self.ctx.draw_image_with_html_image_element_and_dw_and_dh(&self.bild, 0.0, 0.0, zb as f64, zh as f64).ok()?;
-        let daten = self.ctx.get_image_data(0.0, 0.0, zb as f64, zh as f64).ok()?;
+        self.ctx
+            .draw_image_with_html_image_element_and_dw_and_dh(
+                &self.bild, 0.0, 0.0, zb as f64, zh as f64,
+            )
+            .ok()?;
+        let daten = self
+            .ctx
+            .get_image_data(0.0, 0.0, zb as f64, zh as f64)
+            .ok()?;
         Some((zb, zh, daten.data().0))
     }
 

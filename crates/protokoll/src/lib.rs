@@ -51,5 +51,7 @@ pub enum ServerNachricht {
     Praesenz(praesenz::Server),
     Spielzeug(spielzeug::Server),
     /// Eine Fehlermeldung für den Menschen, auf Deutsch.
-    Fehler { text: String },
+    Fehler {
+        text: String,
+    },
 }

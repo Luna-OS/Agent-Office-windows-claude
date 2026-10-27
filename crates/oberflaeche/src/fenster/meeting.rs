@@ -3,7 +3,9 @@
 
 use leptos::prelude::*;
 use protokoll::ClientNachricht;
-use protokoll::agenten::{Besprechung, BesprechungStatus, BesprechungWunsch, Client as G, Muster, ZugZustand};
+use protokoll::agenten::{
+    Besprechung, BesprechungStatus, BesprechungWunsch, Client as G, Muster, ZugZustand,
+};
 
 use crate::bruecke::senden;
 use crate::modal::{Fenster, Rahmen};
@@ -16,11 +18,31 @@ fn schicken(g: G) {
 }
 
 const MUSTER: [(Muster, &str, &str); 5] = [
-    (Muster::Debatte, "🗣 Debatte", "Jeder schlägt vor, dann kritisieren sie einander; der Vorsitz schreibt die Entscheidung."),
-    (Muster::Leitung, "🧭 Leitung", "Die Leitung teilt die Aufgabe auf, das Team erledigt je einen Teil, die Leitung führt zusammen."),
-    (Muster::MapReduce, "🗂 Map-Reduce", "Dieselbe Aufgabe über viele Teile parallel; der Kopf des Tisches fasst zusammen."),
-    (Muster::RotBlau, "🟥🟦 Rot gegen Blau", "Rot greift an, Blau behebt, Runde um Runde."),
-    (Muster::Review, "🔍 Review", "Prüfer lesen einen Pull Request je aus ihrem Blickwinkel; das Ergebnis kommt als Kommentar an den PR."),
+    (
+        Muster::Debatte,
+        "🗣 Debatte",
+        "Jeder schlägt vor, dann kritisieren sie einander; der Vorsitz schreibt die Entscheidung.",
+    ),
+    (
+        Muster::Leitung,
+        "🧭 Leitung",
+        "Die Leitung teilt die Aufgabe auf, das Team erledigt je einen Teil, die Leitung führt zusammen.",
+    ),
+    (
+        Muster::MapReduce,
+        "🗂 Map-Reduce",
+        "Dieselbe Aufgabe über viele Teile parallel; der Kopf des Tisches fasst zusammen.",
+    ),
+    (
+        Muster::RotBlau,
+        "🟥🟦 Rot gegen Blau",
+        "Rot greift an, Blau behebt, Runde um Runde.",
+    ),
+    (
+        Muster::Review,
+        "🔍 Review",
+        "Prüfer lesen einen Pull Request je aus ihrem Blickwinkel; das Ergebnis kommt als Kommentar an den PR.",
+    ),
 ];
 
 fn muster_name(m: Muster) -> &'static str {
@@ -39,7 +61,11 @@ fn zug_symbol(z: ZugZustand) -> &'static str {
 #[component]
 fn Laufend(b: Besprechung) -> impl IntoView {
     let laeuft = b.status == BesprechungStatus::Laeuft;
-    let anteil = if b.budget > 0 { (b.tokens as f64 * 100.0 / b.budget as f64).min(100.0) } else { 0.0 };
+    let anteil = if b.budget > 0 {
+        (b.tokens as f64 * 100.0 / b.budget as f64).min(100.0)
+    } else {
+        0.0
+    };
     view! {
         <div class="flex flex-col gap-3">
             <div class="flex flex-wrap items-baseline gap-2">
@@ -94,9 +120,17 @@ fn Einberufen() -> impl IntoView {
     let budget = RwSignal::new(String::new());
     let provider = RwSignal::new(String::new());
     if z.provider.with_untracked(|p| p.0.is_empty()) {
-        senden(ClientNachricht::Arbeiter(protokoll::arbeiter::Client::ProviderAbfragen));
+        senden(ClientNachricht::Arbeiter(
+            protokoll::arbeiter::Client::ProviderAbfragen,
+        ));
     }
-    let zeilen = |s: String| s.lines().map(str::trim).filter(|l| !l.is_empty()).map(str::to_string).collect::<Vec<_>>();
+    let zeilen = |s: String| {
+        s.lines()
+            .map(str::trim)
+            .filter(|l| !l.is_empty())
+            .map(str::to_string)
+            .collect::<Vec<_>>()
+    };
     let absenden = move |e: leptos::ev::SubmitEvent| {
         e.prevent_default();
         let a = auftrag.get_untracked().trim().to_string();
@@ -112,7 +146,12 @@ fn Einberufen() -> impl IntoView {
             ausgabe: None,
             rollen: zeilen(rollen.get_untracked()),
             teile: zeilen(teile.get_untracked()),
-            pr: pr.get_untracked().trim().trim_start_matches('#').parse().ok(),
+            pr: pr
+                .get_untracked()
+                .trim()
+                .trim_start_matches('#')
+                .parse()
+                .ok(),
             issue: None,
             runden: runden.get_untracked().parse().ok(),
             budget: budget.get_untracked().parse::<u64>().ok().map(|k| k * 1000),
@@ -120,7 +159,9 @@ fn Einberufen() -> impl IntoView {
             modell: None,
             aufwand: None,
         };
-        schicken(G::BesprechungStarten { wunsch: Box::new(wunsch) });
+        schicken(G::BesprechungStarten {
+            wunsch: Box::new(wunsch),
+        });
     };
     view! {
         <form class="flex flex-col gap-3" on:submit=absenden>

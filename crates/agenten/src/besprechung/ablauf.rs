@@ -21,13 +21,20 @@ pub fn starten(ag: &Agenten) {
     ag.innen.laufzeit.spawn(async move {
         loop {
             tokio::time::sleep(TAKT).await;
-            let Some(innen) = schwach.upgrade() else { return };
+            let Some(innen) = schwach.upgrade() else {
+                return;
+            };
             let ag = Agenten { innen };
             let laufend: Vec<String> = {
                 let z = ag.innen.zustand();
                 z.etagen
                     .values()
-                    .filter(|e| e.besprechung.aktuell.as_ref().is_some_and(|b| b.status == BesprechungStatus::Laeuft))
+                    .filter(|e| {
+                        e.besprechung
+                            .aktuell
+                            .as_ref()
+                            .is_some_and(|b| b.status == BesprechungStatus::Laeuft)
+                    })
                     .map(|e| e.id.clone())
                     .collect()
             };
@@ -63,32 +70,61 @@ fn pumpen(ag: &Agenten, etage: &str) -> Option<PathBuf> {
         let e = z.etagen.get_mut(etage)?;
         let projekt = e.verzeichnis.clone();
         let arbeiter = &e.arbeiter;
-        let b = e.besprechung.aktuell.as_mut().filter(|b| b.status == BesprechungStatus::Laeuft)?;
+        let b = e
+            .besprechung
+            .aktuell
+            .as_mut()
+            .filter(|b| b.status == BesprechungStatus::Laeuft)?;
         let dir = worktree::absolut(&projekt, &b.worktree.as_ref()?.pfad);
         // Verbrauch: die Summe aller Plätze.
         for p in b.plaetze.iter_mut() {
-            if let Some(v) = p.arbeiter.as_ref().and_then(|id| arbeiter.get(id)).and_then(|a| a.info.verbrauch.as_ref()) {
+            if let Some(v) = p
+                .arbeiter
+                .as_ref()
+                .and_then(|id| arbeiter.get(id))
+                .and_then(|a| a.info.verbrauch.as_ref())
+            {
                 p.tokens = v.tokens_ein + v.tokens_aus;
             }
         }
         b.tokens = b.plaetze.iter().map(|p| p.tokens).sum();
         if b.tokens > b.budget {
-            tun.push(Tun::Anhalten(format!("Das Token-Budget ({}k) ist aufgebraucht", b.budget / 1000)));
+            tun.push(Tun::Anhalten(format!(
+                "Das Token-Budget ({}k) ist aufgebraucht",
+                b.budget / 1000
+            )));
         }
         let jetzt = jetzt_ms();
-        let aktuelle = muster::teile(b, b.runde, b.schritt, &|d| lesen(&dir, d)).unwrap_or_default();
-        for zug in b.zuege.iter_mut().filter(|z| z.zustand != ZugZustand::Fertig) {
+        let aktuelle =
+            muster::teile(b, b.runde, b.schritt, &|d| lesen(&dir, d)).unwrap_or_default();
+        for zug in b
+            .zuege
+            .iter_mut()
+            .filter(|z| z.zustand != ZugZustand::Fertig)
+        {
             let platz = &b.plaetze[zug.platz];
             let Some(a) = platz.arbeiter.as_ref().and_then(|id| arbeiter.get(id)) else {
                 // Beim Hinsetzen ist er vielleicht noch nicht eingetragen.
-                if zug.zustand != ZugZustand::Gesendet || jetzt - zug.gesendet_um.unwrap_or(jetzt) > START_GNADE_MS {
-                    tun.push(Tun::Anhalten(format!("{} ist nicht mehr am Tisch", platz.rolle)));
+                if zug.zustand != ZugZustand::Gesendet
+                    || jetzt - zug.gesendet_um.unwrap_or(jetzt) > START_GNADE_MS
+                {
+                    tun.push(Tun::Anhalten(format!(
+                        "{} ist nicht mehr am Tisch",
+                        platz.rolle
+                    )));
                 }
                 continue;
             };
-            let bereit = a.laeuft() && matches!(a.info.status, ArbeiterStatus::Bereit | ArbeiterStatus::Fertig);
+            let bereit = a.laeuft()
+                && matches!(
+                    a.info.status,
+                    ArbeiterStatus::Bereit | ArbeiterStatus::Fertig
+                );
             if !a.laeuft() && a.info.status != ArbeiterStatus::Startet {
-                tun.push(Tun::Anhalten(format!("{} ({}) läuft nicht mehr", a.info.name, platz.rolle)));
+                tun.push(Tun::Anhalten(format!(
+                    "{} ({}) läuft nicht mehr",
+                    a.info.name, platz.rolle
+                )));
                 continue;
             }
             match zug.zustand {
@@ -103,16 +139,27 @@ fn pumpen(ag: &Agenten, etage: &str) -> Option<PathBuf> {
                         zug.gesendet_um = Some(jetzt);
                     }
                 }
-                ZugZustand::Gesendet | ZugZustand::Arbeitet if a.info.status == ArbeiterStatus::Arbeitet => zug.zustand = ZugZustand::Arbeitet,
+                ZugZustand::Gesendet | ZugZustand::Arbeitet
+                    if a.info.status == ArbeiterStatus::Arbeitet =>
+                {
+                    zug.zustand = ZugZustand::Arbeitet
+                }
                 ZugZustand::Gesendet | ZugZustand::Arbeitet if bereit => {
-                    let lange = jetzt.saturating_sub(zug.gesendet_um.unwrap_or(jetzt)) > START_GNADE_MS;
+                    let lange =
+                        jetzt.saturating_sub(zug.gesendet_um.unwrap_or(jetzt)) > START_GNADE_MS;
                     if geschrieben(&dir, &zug.datei) {
                         zug.zustand = ZugZustand::Fertig;
                     } else if zug.zustand == ZugZustand::Arbeitet || lange {
                         if zug.erinnert {
-                            tun.push(Tun::Anhalten(format!("{} hat {} nicht geschrieben", platz.rolle, zug.datei)));
+                            tun.push(Tun::Anhalten(format!(
+                                "{} hat {} nicht geschrieben",
+                                platz.rolle, zug.datei
+                            )));
                         } else {
-                            let text = format!("Du hast deinen Zug beendet, ohne {} zu schreiben, auf die die Besprechung wartet. Schreib sie jetzt, dann beende deinen Zug.", zug.datei);
+                            let text = format!(
+                                "Du hast deinen Zug beendet, ohne {} zu schreiben, auf die die Besprechung wartet. Schreib sie jetzt, dann beende deinen Zug.",
+                                zug.datei
+                            );
                             tun.push(Tun::Tippen(a.info.id.clone(), text));
                             zug.erinnert = true;
                             zug.zustand = ZugZustand::Gesendet;
@@ -175,13 +222,23 @@ fn weiter(b: &mut Besprechung, dir: &Path) {
             b.schritt = schritt;
             b.zuege = teile
                 .into_iter()
-                .map(|t| Zug { platz: t.platz, tut: t.tut, datei: t.datei, zustand: ZugZustand::Wartet, gesendet_um: None, erinnert: false })
+                .map(|t| Zug {
+                    platz: t.platz,
+                    tut: t.tut,
+                    datei: t.datei,
+                    zustand: ZugZustand::Wartet,
+                    gesendet_um: None,
+                    erinnert: false,
+                })
                 .collect();
             return;
         }
     }
     b.status = BesprechungStatus::Gestoppt;
-    b.grund = Some(format!("Nach {} Runden ist keine Ausgabe entstanden", b.runden));
+    b.grund = Some(format!(
+        "Nach {} Runden ist keine Ausgabe entstanden",
+        b.runden
+    ));
     b.beendet_um = Some(jetzt_ms());
 }
 
@@ -189,27 +246,68 @@ fn weiter(b: &mut Besprechung, dir: &Path) {
 async fn abschliessen(ag: &Agenten, etage: &str, dir: PathBuf) {
     let (ausgabe, titel, pr, konto) = {
         let z = ag.innen.zustand();
-        let Some(b) = z.etagen.get(etage).and_then(|e| e.besprechung.aktuell.as_ref()) else { return };
-        let konto = b.plaetze.iter().filter_map(|p| p.arbeiter.as_ref()).find_map(|id| z.etagen[etage].arbeiter.get(id)?.info.konto.clone());
-        (b.ausgabe.clone(), b.titel.clone(), if b.muster == Muster::Review { b.pr } else { None }, konto)
+        let Some(b) = z
+            .etagen
+            .get(etage)
+            .and_then(|e| e.besprechung.aktuell.as_ref())
+        else {
+            return;
+        };
+        let konto = b
+            .plaetze
+            .iter()
+            .filter_map(|p| p.arbeiter.as_ref())
+            .find_map(|id| z.etagen[etage].arbeiter.get(id)?.info.konto.clone());
+        (
+            b.ausgabe.clone(),
+            b.titel.clone(),
+            if b.muster == Muster::Review {
+                b.pr
+            } else {
+                None
+            },
+            konto,
+        )
     };
     let umgebung = ag.innen.umgebung_von(konto.as_deref());
     let commit = async {
         worktree::git_mit(&dir, &["add", "--", &ausgabe], &umgebung).await?;
-        worktree::git_mit(&dir, &["commit", "-m", &format!("Besprechung: {titel}"), "--", &ausgabe], &umgebung).await?;
+        worktree::git_mit(
+            &dir,
+            &[
+                "commit",
+                "-m",
+                &format!("Besprechung: {titel}"),
+                "--",
+                &ausgabe,
+            ],
+            &umgebung,
+        )
+        .await?;
         worktree::git(&dir, &["rev-parse", "HEAD"]).await
     }
     .await;
     let review = match pr {
         Some(n) => {
             let datei = dir.join(&ausgabe).to_string_lossy().into_owned();
-            Some(crate::github::gh_mit(&dir, &["pr", "comment", &n.to_string(), "--body-file", &datei], &umgebung).await)
+            Some(
+                crate::github::gh_mit(
+                    &dir,
+                    &["pr", "comment", &n.to_string(), "--body-file", &datei],
+                    &umgebung,
+                )
+                .await,
+            )
         }
         None => None,
     };
     {
         let mut z = ag.innen.zustand();
-        if let Some(b) = z.etagen.get_mut(etage).and_then(|e| e.besprechung.aktuell.as_mut()) {
+        if let Some(b) = z
+            .etagen
+            .get_mut(etage)
+            .and_then(|e| e.besprechung.aktuell.as_mut())
+        {
             b.commit = commit.ok();
             match review {
                 Some(Ok(url)) => b.review_url = Some(url.lines().last().unwrap_or("").to_string()),

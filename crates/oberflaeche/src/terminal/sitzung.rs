@@ -14,7 +14,7 @@ const VERLAUF: usize = 5000;
 pub struct Sitzung {
     pub parser: vt100::Parser,
     /// Zählt hoch bei jeder Änderung.
-    pub stand: RwSignal<u64>,
+    pub stand: ArcRwSignal<u64>,
     /// Ein Neuzeichnen ist schon für den nächsten Frame bestellt.
     bestellt: bool,
 }
@@ -33,12 +33,17 @@ pub fn mit<R>(arbeiter: &str, f: impl FnOnce(&mut Sitzung) -> R) -> Option<R> {
 }
 
 /// Das Signal, das bei jeder Änderung hochzählt; legt die Sitzung an, wenn es sie noch nicht gibt.
-pub fn stand(arbeiter: &str) -> RwSignal<u64> {
+pub fn stand(arbeiter: &str) -> ArcRwSignal<u64> {
     SITZUNGEN.with(|s| {
         s.borrow_mut()
             .entry(arbeiter.to_string())
-            .or_insert_with(|| Sitzung { parser: vt100::Parser::new(groesse(24), groesse(80), VERLAUF), stand: RwSignal::new(0), bestellt: false })
+            .or_insert_with(|| Sitzung {
+                parser: vt100::Parser::new(groesse(24), groesse(80), VERLAUF),
+                stand: ArcRwSignal::new(0),
+                bestellt: false,
+            })
             .stand
+            .clone()
     })
 }
 
@@ -73,7 +78,7 @@ pub fn daten(arbeiter: &str, daten: &str) {
         request_animation_frame(move || {
             if let Some(stand) = mit(&id, |s| {
                 s.bestellt = false;
-                s.stand
+                s.stand.clone()
             }) {
                 stand.update(|n| *n += 1);
             }
@@ -89,7 +94,7 @@ pub fn groesse_setzen(arbeiter: &str, spalten: u16, zeilen: u16) {
             return None;
         }
         s.parser.set_size(groesse(zeilen), groesse(spalten));
-        Some(s.stand)
+        Some(s.stand.clone())
     })
     .flatten();
     if let Some(stand) = geaendert {
@@ -101,8 +106,10 @@ pub fn groesse_setzen(arbeiter: &str, spalten: u16, zeilen: u16) {
 pub fn scrollen(arbeiter: &str, zeilen: i32) {
     let stand = mit(arbeiter, |s| {
         let jetzt = s.parser.screen().scrollback() as i32;
-        s.parser.screen_mut().set_scrollback((jetzt + zeilen).max(0) as usize);
-        s.stand
+        s.parser
+            .screen_mut()
+            .set_scrollback((jetzt + zeilen).max(0) as usize);
+        s.stand.clone()
     });
     if let Some(stand) = stand {
         stand.update(|n| *n += 1);
@@ -116,7 +123,7 @@ pub fn ans_ende(arbeiter: &str) {
             return None;
         }
         s.parser.screen_mut().set_scrollback(0);
-        Some(s.stand)
+        Some(s.stand.clone())
     })
     .flatten();
     if let Some(stand) = stand {

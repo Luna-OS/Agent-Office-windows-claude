@@ -2,12 +2,19 @@
 
 /// Kürzt auf `max` Zeichen und entfernt Steuerzeichen.
 pub fn text(s: &str, max: usize) -> String {
-    s.chars().filter(|c| !c.is_control() || *c == '\n').take(max).collect()
+    s.chars()
+        .filter(|c| !c.is_control() || *c == '\n')
+        .take(max)
+        .collect()
 }
 
 /// Eine Zahl, endlich und in [-max, max]; sonst 0.
 pub fn zahl(v: f32, max: f32) -> f32 {
-    if v.is_finite() { v.clamp(-max, max) } else { 0.0 }
+    if v.is_finite() {
+        v.clamp(-max, max)
+    } else {
+        0.0
+    }
 }
 
 /// "#rrggbb"?
@@ -17,7 +24,9 @@ pub fn ist_farbe(s: &str) -> bool {
 
 /// Eine http(s)-URL von vernünftiger Länge?
 pub fn ist_url(s: &str) -> bool {
-    (s.starts_with("https://") || s.starts_with("http://")) && s.len() <= 2000 && !s.chars().any(char::is_whitespace)
+    (s.starts_with("https://") || s.starts_with("http://"))
+        && s.len() <= 2000
+        && !s.chars().any(char::is_whitespace)
 }
 
 #[cfg(test)]

@@ -18,7 +18,8 @@ impl Speicher {
     }
 
     fn jukebox_datei(&self, etage: &str) -> PathBuf {
-        self.ordner.join(format!("jukebox-{}.json", super::pfad_teil(etage)))
+        self.ordner
+            .join(format!("jukebox-{}.json", super::pfad_teil(etage)))
     }
 
     pub fn jukebox_laden(&self, etage: &str) -> Jukebox {

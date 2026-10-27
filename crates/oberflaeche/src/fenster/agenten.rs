@@ -78,7 +78,10 @@ pub fn Agenten() -> impl IntoView {
             return;
         }
         let an = an.get_untracked();
-        senden(ClientNachricht::Agenten(A::Senden { an: (!an.is_empty()).then_some(an), text: t }));
+        senden(ClientNachricht::Agenten(A::Senden {
+            an: (!an.is_empty()).then_some(an),
+            text: t,
+        }));
         text.set(String::new());
     };
 

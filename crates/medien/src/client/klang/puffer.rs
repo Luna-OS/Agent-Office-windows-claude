@@ -27,10 +27,28 @@ impl Puffer {
     pub fn neu(ctx: &BaseAudioContext) -> Option<Self> {
         Some(Self {
             tasten: (0..6)
-                .map(|_| tastenklick(ctx, zufall(190.0, 300.0), zufall(0.7, 1.0), zufall(0.06, 0.09), 95.0, 0.12))
+                .map(|_| {
+                    tastenklick(
+                        ctx,
+                        zufall(190.0, 300.0),
+                        zufall(0.7, 1.0),
+                        zufall(0.06, 0.09),
+                        95.0,
+                        0.12,
+                    )
+                })
                 .collect::<Option<_>>()?,
             leertasten: (0..2)
-                .map(|_| tastenklick(ctx, zufall(105.0, 130.0), 0.55, zufall(0.09, 0.12), 55.0, 0.2))
+                .map(|_| {
+                    tastenklick(
+                        ctx,
+                        zufall(105.0, 130.0),
+                        0.55,
+                        zufall(0.09, 0.12),
+                        55.0,
+                        0.2,
+                    )
+                })
                 .collect::<Option<_>>()?,
             maus: tastenklick(ctx, 900.0, 1.0, 0.07, 400.0, 0.1)?,
             schritte: (0..3).map(|_| schritt(ctx)).collect::<Option<_>>()?,
@@ -39,7 +57,8 @@ impl Puffer {
             knistern: knistern(ctx)?,
             raum: raum(ctx)?,
             tropfen: probe(ctx, 0.06, Some(0.9), |t| {
-                ((2.0 * PI * 2400.0 * t * (1.0 - t * 5.0)).sin() * 0.6 + zufall(-1.0, 1.0) * 0.4) * (-t * 110.0).exp()
+                ((2.0 * PI * 2400.0 * t * (1.0 - t * 5.0)).sin() * 0.6 + zufall(-1.0, 1.0) * 0.4)
+                    * (-t * 110.0).exp()
             })?,
             braun: schleifbar(ctx, 6.0, braunes_rauschen())?,
             gluckern: schleifbar(ctx, 4.0, klumpig(ctx.sample_rate() as f64, 0.03, 0.11))?,
@@ -48,7 +67,12 @@ impl Puffer {
 }
 
 /// Eine Probe aus einer Funktion der Zeit, auf `spitze` normiert (falls angegeben).
-fn probe(ctx: &BaseAudioContext, sekunden: f64, spitze: Option<f32>, mut f: impl FnMut(f64) -> f64) -> Option<AudioBuffer> {
+fn probe(
+    ctx: &BaseAudioContext,
+    sekunden: f64,
+    spitze: Option<f32>,
+    mut f: impl FnMut(f64) -> f64,
+) -> Option<AudioBuffer> {
     let sr = ctx.sample_rate();
     let n = (sr as f64 * sekunden).ceil() as u32;
     let b = ctx.create_buffer(1, n, sr).ok()?;
@@ -64,7 +88,11 @@ fn probe(ctx: &BaseAudioContext, sekunden: f64, spitze: Option<f32>, mut f: impl
 }
 
 /// Ein Puffer, dessen Ende weich in den Anfang übergeht, damit er ohne Knacken in Schleife läuft.
-fn schleifbar(ctx: &BaseAudioContext, sekunden: f64, mut naechstes: impl FnMut() -> f64) -> Option<AudioBuffer> {
+fn schleifbar(
+    ctx: &BaseAudioContext,
+    sekunden: f64,
+    mut naechstes: impl FnMut() -> f64,
+) -> Option<AudioBuffer> {
     let sr = ctx.sample_rate();
     let n = (sr as f64 * sekunden).ceil() as usize;
     let blende = (sr as f64 * 0.25) as usize;
@@ -102,14 +130,22 @@ fn klumpig(sr: f64, min: f64, max: f64) -> impl FnMut() -> f64 {
 }
 
 /// Eine Taste schlägt auf: ein heller Tick über einem kurzen, hölzernen Klopfen, dann ein leiserer Tick beim Zurückfedern.
-fn tastenklick(ctx: &BaseAudioContext, koerper: f64, hell: f64, loslassen: f64, abklingen: f64, laenge: f64) -> Option<AudioBuffer> {
+fn tastenklick(
+    ctx: &BaseAudioContext,
+    koerper: f64,
+    hell: f64,
+    loslassen: f64,
+    abklingen: f64,
+    laenge: f64,
+) -> Option<AudioBuffer> {
     let (mut vorher, mut zischen, mut tief) = (0.0, 0.0, 0.0);
     probe(ctx, laenge, Some(0.9), |t| {
         let w = zufall(-1.0, 1.0);
         zischen += (w - vorher - zischen) * 0.5;
         vorher = w;
         tief += (w - tief) * 0.15;
-        let mut v = zischen * (-t * 700.0).exp() * hell + ((2.0 * PI * koerper * t).sin() * 0.5 + tief) * (-t * abklingen).exp();
+        let mut v = zischen * (-t * 700.0).exp() * hell
+            + ((2.0 * PI * koerper * t).sin() * 0.5 + tief) * (-t * abklingen).exp();
         let r = t - loslassen;
         if r > 0.0 {
             v += zischen * (-r * 900.0).exp() * hell * 0.45;
@@ -166,7 +202,8 @@ fn knistern(ctx: &BaseAudioContext) -> Option<AudioBuffer> {
         let breite = 2.0 + (zufall(0.0, 30.0)).floor();
         for i in 0..(breite as usize * 4) {
             if let Some(v) = d.get_mut(bei + i) {
-                *v += (amp * (-(i as f64) / breite).exp() * if i % 2 == 1 { -0.6 } else { 1.0 }) as f32;
+                *v += (amp * (-(i as f64) / breite).exp() * if i % 2 == 1 { -0.6 } else { 1.0 })
+                    as f32;
             }
         }
     }

@@ -3032,6 +3032,7 @@ dependencies = [
 name = "oberflaeche"
 version = "0.1.0"
 dependencies = [
+ "futures-channel",
  "js-sys",
  "leptos",
  "medien",

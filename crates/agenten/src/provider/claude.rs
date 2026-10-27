@@ -26,7 +26,10 @@ pub fn hook_einstellungen(daten: &Path, cli: &str) -> std::io::Result<PathBuf> {
     let mut hooks = serde_json::Map::new();
     for ereignis in EREIGNISSE {
         let befehl = format!("\"{cli}\" hook claude {ereignis}");
-        hooks.insert(ereignis.to_string(), json!([{ "hooks": [{ "type": "command", "command": befehl, "timeout": 10 }] }]));
+        hooks.insert(
+            ereignis.to_string(),
+            json!([{ "hooks": [{ "type": "command", "command": befehl, "timeout": 10 }] }]),
+        );
     }
     // Die eigene CLI darf ein Arbeiter ohne Nachfrage aufrufen: so redet er mit den anderen.
     let inhalt = json!({ "hooks": Value::Object(hooks), "permissions": { "allow": ["Bash(office-agenten:*)"] } });
@@ -59,7 +62,14 @@ impl Provider for Claude {
         true
     }
     fn entfernen(&self) -> &'static [&'static str] {
-        &["CLAUDECODE", "CLAUDE_CODE_ENTRYPOINT", "CLAUDE_CODE_SSE_PORT", "CLAUDE_CODE_EXECPATH", "CLAUDE_PID", "CLAUDE_EFFORT"]
+        &[
+            "CLAUDECODE",
+            "CLAUDE_CODE_ENTRYPOINT",
+            "CLAUDE_CODE_SSE_PORT",
+            "CLAUDE_CODE_EXECPATH",
+            "CLAUDE_PID",
+            "CLAUDE_EFFORT",
+        ]
     }
 
     fn starten(&self, e: &StartEingabe) -> StartPlan {
@@ -80,7 +90,12 @@ impl Provider for Claude {
         }
         // Der Aufgaben-Agent legt nur Aufgaben an: ohne diese Werkzeuge kann er keine Dateien ändern.
         if e.info.station.as_deref() == Some("aufgaben") {
-            a.extend(["--disallowedTools".into(), "Edit".into(), "Write".into(), "NotebookEdit".into()]);
+            a.extend([
+                "--disallowedTools".into(),
+                "Edit".into(),
+                "Write".into(),
+                "NotebookEdit".into(),
+            ]);
         }
         if let Some(s) = e.fortsetzen.filter(|s| wert_gueltig(s)) {
             a.extend(["--resume".into(), s.into()]);
@@ -102,12 +117,23 @@ impl Provider for Claude {
 
     fn blockiert(&self, text: &str, frueh: bool) -> Option<String> {
         let t = text.to_lowercase();
-        if t.contains("not logged in") || t.contains("invalid api key") || t.contains("please run /login") {
+        if t.contains("not logged in")
+            || t.contains("invalid api key")
+            || t.contains("please run /login")
+        {
             return Some("Claude ist auf diesem Rechner nicht angemeldet – Terminal öffnen und /login eingeben".into());
         }
-        let einrichtung = ["trust this folder", "do you trust the files", "select login method", "choose the text style", "press enter to continue"];
+        let einrichtung = [
+            "trust this folder",
+            "do you trust the files",
+            "select login method",
+            "choose the text style",
+            "press enter to continue",
+        ];
         if frueh && einrichtung.iter().any(|s| t.contains(s)) {
-            return Some("Wartet auf eine Einrichtungsfrage (Vertrauen/Login) – Terminal öffnen".into());
+            return Some(
+                "Wartet auf eine Einrichtungsfrage (Vertrauen/Login) – Terminal öffnen".into(),
+            );
         }
         None
     }
@@ -149,6 +175,7 @@ pub(crate) mod tests {
             aufgabe: None,
             verbrauch: None,
             letzte_eingabe: None,
+            repos: Vec::new(),
             station: None,
             besprechung: None,
             gearbeitet_ms: 0,
@@ -162,7 +189,15 @@ pub(crate) mod tests {
     fn startplan() {
         let dir = tempfile::tempdir().unwrap();
         let i = info();
-        let e = StartEingabe { info: &i, prompt: Some("- fix"), fortsetzen: None, anleitung: "ANLEITUNG", daten: dir.path(), cli: "C:/x/office-agenten.exe", skript: false };
+        let e = StartEingabe {
+            info: &i,
+            prompt: Some("- fix"),
+            fortsetzen: None,
+            anleitung: "ANLEITUNG",
+            daten: dir.path(),
+            cli: "C:/x/office-agenten.exe",
+            skript: false,
+        };
         let plan = Claude.starten(&e);
         let a = plan.argumente.join(" ");
         assert!(a.contains("--settings"));

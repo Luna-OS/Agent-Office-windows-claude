@@ -4,7 +4,10 @@ use server::konfig::{self, Befehl};
 
 fn main() {
     tracing_subscriber::fmt()
-        .with_env_filter(tracing_subscriber::EnvFilter::try_from_env("OFFICE_LOG").unwrap_or_else(|_| "info".into()))
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_env("OFFICE_LOG")
+                .unwrap_or_else(|_| "info".into()),
+        )
         .with_target(false)
         .init();
     let befehl = match konfig::lesen(std::env::args().skip(1)) {
@@ -24,7 +27,11 @@ fn main() {
             Ok(())
         }
         Befehl::Konten { daten, argumente } => server::konten_cli::ausfuehren(&daten, &argumente),
-        Befehl::Starten(k) => tokio::runtime::Builder::new_multi_thread().enable_all().build().map_err(anyhow::Error::from).and_then(|rt| rt.block_on(server::starten(*k))),
+        Befehl::Starten(k) => tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .map_err(anyhow::Error::from)
+            .and_then(|rt| rt.block_on(server::starten(*k))),
     };
     if let Err(e) = ergebnis {
         eprintln!("Fehler: {e:#}");

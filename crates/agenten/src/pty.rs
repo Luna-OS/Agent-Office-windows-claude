@@ -56,6 +56,7 @@ pub struct Pty {
 enum Art {
     Lokal(Lokal),
     Wirt(crate::wirt::WirtPty),
+    Acp(crate::acp::AcpPty),
 }
 
 struct Lokal {
@@ -70,11 +71,15 @@ impl Pty {
         Pty { art: Art::Wirt(w) }
     }
 
+    pub(crate) fn acp(a: crate::acp::AcpPty) -> Pty {
+        Pty { art: Art::Acp(a) }
+    }
+
     /// Die Sitzung im PTY-Wirt, wenn das Terminal dort läuft.
     pub fn wirt_sitzung(&self) -> Option<&str> {
         match &self.art {
             Art::Wirt(w) => Some(&w.id),
-            Art::Lokal(_) => None,
+            Art::Lokal(_) | Art::Acp(_) => None,
         }
     }
 
@@ -88,7 +93,12 @@ impl Pty {
     ) -> Result<Pty> {
         let system = native_pty_system();
         let paar = system
-            .openpty(PtySize { rows: zeilen, cols: spalten, pixel_width: 0, pixel_height: 0 })
+            .openpty(PtySize {
+                rows: zeilen,
+                cols: spalten,
+                pixel_width: 0,
+                pixel_height: 0,
+            })
             .context("Terminal konnte nicht geöffnet werden")?;
         let mut cmd = CommandBuilder::new(befehl.programm.as_os_str());
         cmd.args(befehl.argumente.iter());
@@ -101,30 +111,50 @@ impl Pty {
         }
         cmd.env("TERM", "xterm-256color");
         cmd.env("COLORTERM", "truecolor");
-        let mut kind = paar
-            .slave
-            .spawn_command(cmd)
-            .with_context(|| format!("{} konnte nicht gestartet werden", befehl.programm.display()))?;
+        let mut kind = paar.slave.spawn_command(cmd).with_context(|| {
+            format!(
+                "{} konnte nicht gestartet werden",
+                befehl.programm.display()
+            )
+        })?;
         drop(paar.slave);
         let killer = kind.clone_killer();
         let pid = kind.process_id();
-        let mut leser = paar.master.try_clone_reader().context("Terminal-Ausgabe nicht lesbar")?;
-        let schreiber = Antworter(Arc::new(Mutex::new(paar.master.take_writer().context("Terminal-Eingabe nicht beschreibbar")?)));
+        let mut leser = paar
+            .master
+            .try_clone_reader()
+            .context("Terminal-Ausgabe nicht lesbar")?;
+        let schreiber = Antworter(Arc::new(Mutex::new(
+            paar.master
+                .take_writer()
+                .context("Terminal-Eingabe nicht beschreibbar")?,
+        )));
         let antworter = schreiber.clone();
-        std::thread::Builder::new().name("pty-lesen".into()).spawn(move || {
-            let mut puffer = [0u8; 16 * 1024];
-            loop {
-                match leser.read(&mut puffer) {
-                    Ok(0) | Err(_) => break,
-                    Ok(n) => bei_daten(&puffer[..n], &antworter),
+        std::thread::Builder::new()
+            .name("pty-lesen".into())
+            .spawn(move || {
+                let mut puffer = [0u8; 16 * 1024];
+                loop {
+                    match leser.read(&mut puffer) {
+                        Ok(0) | Err(_) => break,
+                        Ok(n) => bei_daten(&puffer[..n], &antworter),
+                    }
                 }
-            }
-        })?;
-        std::thread::Builder::new().name("pty-warten".into()).spawn(move || {
-            let code = kind.wait().ok().map(|s| s.exit_code() as i32);
-            bei_ende(code);
-        })?;
-        Ok(Pty { art: Art::Lokal(Lokal { pid, master: paar.master, schreiber, killer }) })
+            })?;
+        std::thread::Builder::new()
+            .name("pty-warten".into())
+            .spawn(move || {
+                let code = kind.wait().ok().map(|s| s.exit_code() as i32);
+                bei_ende(code);
+            })?;
+        Ok(Pty {
+            art: Art::Lokal(Lokal {
+                pid,
+                master: paar.master,
+                schreiber,
+                killer,
+            }),
+        })
     }
 
     /// Die Prozess-ID des Programms im Terminal.
@@ -132,6 +162,7 @@ impl Pty {
         match &self.art {
             Art::Lokal(l) => l.pid,
             Art::Wirt(w) => w.pid(),
+            Art::Acp(a) => a.pid(),
         }
     }
 
@@ -139,14 +170,21 @@ impl Pty {
         match &self.art {
             Art::Lokal(l) => l.schreiber.schreiben(daten)?,
             Art::Wirt(w) => w.schreiben(daten),
+            Art::Acp(a) => a.schreiben(daten),
         }
         Ok(())
     }
 
     pub fn groesse(&self, spalten: u16, zeilen: u16) -> Result<()> {
         match &self.art {
-            Art::Lokal(l) => l.master.resize(PtySize { rows: zeilen, cols: spalten, pixel_width: 0, pixel_height: 0 })?,
+            Art::Lokal(l) => l.master.resize(PtySize {
+                rows: zeilen,
+                cols: spalten,
+                pixel_width: 0,
+                pixel_height: 0,
+            })?,
             Art::Wirt(w) => w.groesse(spalten, zeilen),
+            Art::Acp(_) => {}
         }
         Ok(())
     }
@@ -158,6 +196,7 @@ impl Pty {
                 let _ = l.killer.kill();
             }
             Art::Wirt(w) => w.beenden(),
+            Art::Acp(a) => a.beenden(),
         }
     }
 }
@@ -177,7 +216,11 @@ pub fn programm_finden(name: &str) -> Option<PathBuf> {
     let suchpfad = std::env::var_os("PATH")?;
     let endungen: Vec<OsString> = if cfg!(windows) {
         let pathext = std::env::var("PATHEXT").unwrap_or_else(|_| ".COM;.EXE;.BAT;.CMD".into());
-        pathext.split(';').filter(|e| !e.is_empty()).map(|e| e.to_ascii_lowercase().into()).collect()
+        pathext
+            .split(';')
+            .filter(|e| !e.is_empty())
+            .map(|e| e.to_ascii_lowercase().into())
+            .collect()
     } else {
         Vec::new()
     };
@@ -218,9 +261,13 @@ pub fn ist_skript(programm: &Path) -> bool {
 /// Die Login-Shell dieses Rechners, für Arbeiter der Art Shell.
 pub fn standard_shell() -> PathBuf {
     if cfg!(windows) {
-        programm_finden("pwsh").or_else(|| programm_finden("powershell")).unwrap_or_else(|| PathBuf::from("cmd.exe"))
+        programm_finden("pwsh")
+            .or_else(|| programm_finden("powershell"))
+            .unwrap_or_else(|| PathBuf::from("cmd.exe"))
     } else {
-        std::env::var_os("SHELL").map(PathBuf::from).unwrap_or_else(|| PathBuf::from("/bin/sh"))
+        std::env::var_os("SHELL")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| PathBuf::from("/bin/sh"))
     }
 }
 
@@ -234,11 +281,29 @@ mod tests {
     #[test]
     fn echte_shell() {
         let (programm, argumente) = if cfg!(windows) {
-            (PathBuf::from("cmd.exe"), vec!["/Q".to_string(), "/K".to_string(), "echo bereit".to_string()])
+            (
+                PathBuf::from("cmd.exe"),
+                vec![
+                    "/Q".to_string(),
+                    "/K".to_string(),
+                    "echo bereit".to_string(),
+                ],
+            )
         } else {
-            (PathBuf::from("/bin/sh"), vec!["-c".to_string(), "echo bereit; read x; echo antwort-$x".to_string()])
+            (
+                PathBuf::from("/bin/sh"),
+                vec![
+                    "-c".to_string(),
+                    "echo bereit; read x; echo antwort-$x".to_string(),
+                ],
+            )
         };
-        let befehl = Befehl { programm, argumente, verzeichnis: std::env::temp_dir(), ..Default::default() };
+        let befehl = Befehl {
+            programm,
+            argumente,
+            verzeichnis: std::env::temp_dir(),
+            ..Default::default()
+        };
         let ausgabe = Arc::new(Mutex::new(Vec::<u8>::new()));
         let (ende_tx, ende_rx) = mpsc::channel();
         let a = ausgabe.clone();
@@ -271,7 +336,9 @@ mod tests {
         if cfg!(windows) {
             pty.schreiben(b"exit\r\n").unwrap();
         }
-        let code = ende_rx.recv_timeout(Duration::from_secs(10)).expect("Prozess endet");
+        let code = ende_rx
+            .recv_timeout(Duration::from_secs(10))
+            .expect("Prozess endet");
         assert_eq!(code, Some(0));
     }
 

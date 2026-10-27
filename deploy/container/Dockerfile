@@ -18,7 +18,7 @@ RUN rustup target add wasm32-unknown-unknown \
 WORKDIR /quelle
 COPY . .
 # Dokploy entpackt den Upload von deploy/dokploy.sh ohne Dateirechte, die Skripte bekommen sie hier zurück.
-RUN chmod 755 deploy/container/*.sh   && cargo build --release --workspace --exclude client --bins   && (cd crates/client && trunk build --release)   && mkdir /ausgabe   && cp target/release/open-agentic-office /ausgabe/   && cp -r dist /ausgabe/dist   && if [ -f target/release/office-agenten ]; then cp target/release/office-agenten /ausgabe/; fi
+RUN chmod 755 deploy/container/*.sh   && cargo build --release --workspace --exclude client --bins   && (cd crates/client && trunk build --release)   && mkdir /ausgabe   && cp target/release/open-agentic-office /ausgabe/   && cp -r dist /ausgabe/dist   && for b in office-agenten office-pty-wirt; do if [ -f target/release/$b ]; then cp target/release/$b /ausgabe/; fi; done
 
 # Stufe 2: schlankes Debian zum Laufen.
 FROM debian:bookworm-slim

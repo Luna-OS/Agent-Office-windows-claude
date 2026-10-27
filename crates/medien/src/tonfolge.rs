@@ -37,7 +37,12 @@ pub fn tonart(id: &str) -> &'static Tonart {
 static REGEN: Tonart = Tonart {
     bpm: 74.0,
     swing: 0.16,
-    akkorde: &[&[41, 57, 60, 64, 67], &[40, 55, 59, 62, 64], &[38, 53, 57, 60, 64], &[36, 55, 58, 62, 64]],
+    akkorde: &[
+        &[41, 57, 60, 64, 67],
+        &[40, 55, 59, 62, 64],
+        &[38, 53, 57, 60, 64],
+        &[36, 55, 58, 62, 64],
+    ],
     kick: "x.........x.....",
     snare: "....x.......x...",
     hat: "x.o.x.o.x.o.x.oo",
@@ -48,7 +53,12 @@ static REGEN: Tonart = Tonart {
 static KAFFEEPAUSE: Tonart = Tonart {
     bpm: 88.0,
     swing: 0.22,
-    akkorde: &[&[38, 53, 57, 60, 64], &[43, 53, 59, 64, 69], &[36, 52, 55, 59, 62], &[45, 55, 61, 65]],
+    akkorde: &[
+        &[38, 53, 57, 60, 64],
+        &[43, 53, 59, 64, 69],
+        &[36, 52, 55, 59, 62],
+        &[45, 55, 61, 65],
+    ],
     kick: "x......x..x.....",
     snare: "....x.......x..o",
     hat: "x.oxx.o.x.oxx.o.",
@@ -59,7 +69,12 @@ static KAFFEEPAUSE: Tonart = Tonart {
 static SPAETER_COMMIT: Tonart = Tonart {
     bpm: 70.0,
     swing: 0.12,
-    akkorde: &[&[45, 60, 64, 67, 71], &[41, 57, 59, 64], &[38, 53, 57, 60, 64], &[40, 56, 59, 62, 65]],
+    akkorde: &[
+        &[45, 60, 64, 67, 71],
+        &[41, 57, 59, 64],
+        &[38, 53, 57, 60, 64],
+        &[40, 56, 59, 62, 65],
+    ],
     kick: "x......ox.x.....",
     snare: "....x.......x...",
     hat: "x.o.x.o.x.o.x.o.",
@@ -70,7 +85,12 @@ static SPAETER_COMMIT: Tonart = Tonart {
 static GRUENER_BUILD: Tonart = Tonart {
     bpm: 94.0,
     swing: 0.1,
-    akkorde: &[&[43, 59, 62, 66, 69], &[42, 57, 61, 64], &[40, 55, 59, 62, 66], &[45, 55, 61, 66]],
+    akkorde: &[
+        &[43, 59, 62, 66, 69],
+        &[42, 57, 61, 64],
+        &[40, 55, 59, 62, 66],
+        &[45, 55, 61, 66],
+    ],
     kick: "x.....x...x.....",
     snare: "....x.......x...",
     hat: "x.xox.xox.xox.xo",
@@ -104,7 +124,8 @@ pub fn mulberry32(saat: u32) -> impl FnMut() -> f64 {
 
 /// Dieselbe Zahl 0..1 für dieselben Zahlen, auf jedem Rechner.
 pub fn streuung(a: u32, b: u32) -> f64 {
-    let mut h = (a ^ 0x9e37_79b9).wrapping_mul(0x85eb_ca6b) ^ b.wrapping_add(0x632b_e5ab).wrapping_mul(0xc2b2_ae35);
+    let mut h = (a ^ 0x9e37_79b9).wrapping_mul(0x85eb_ca6b)
+        ^ b.wrapping_add(0x632b_e5ab).wrapping_mul(0xc2b2_ae35);
     h ^= h >> 15;
     h = h.wrapping_mul(0x2c1b_3c6d);
     h ^= h >> 12;
@@ -122,8 +143,9 @@ pub fn melodie(t: &Tonart) -> Vec<Vec<(u8, u8, u8)>> {
     let mut takte = Vec::with_capacity(8);
     for b in 0..8 {
         let akkord = t.akkorde[b % t.akkorde.len()];
-        let toene: Vec<i32> =
-            (67..=83).filter(|m: &i32| akkord.iter().any(|&c| (c as i32 - m) % 12 == 0)).collect();
+        let toene: Vec<i32> = (67..=83)
+            .filter(|m: &i32| akkord.iter().any(|&c| (c as i32 - m) % 12 == 0))
+            .collect();
         let zellen: &[&[(u8, u8)]] = if b % 4 == 3 { &ENDEN } else { &ZELLEN };
         let zelle = zellen[(zufall() * zellen.len() as f64) as usize];
         let mut takt = Vec::new();
@@ -158,13 +180,30 @@ pub fn abschnitt(takt: u64) -> (bool, bool, bool) {
 /// Eine Note, die zu einer Sechzehntel gespielt wird. Längen in Sekunden.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Note {
-    Kick { staerke: f64 },
-    Snare { staerke: f64 },
-    Hat { staerke: f64 },
-    Bass { midi: u8, laenge: f64 },
+    Kick {
+        staerke: f64,
+    },
+    Snare {
+        staerke: f64,
+    },
+    Hat {
+        staerke: f64,
+    },
+    Bass {
+        midi: u8,
+        laenge: f64,
+    },
     /// Ein E-Piano-Ton; `versatz` streut den Anschlag ein paar Millisekunden.
-    Taste { midi: u8, laenge: f64, staerke: f64, versatz: f64 },
-    Melodie { midi: u8, laenge: f64 },
+    Taste {
+        midi: u8,
+        laenge: f64,
+        staerke: f64,
+        versatz: f64,
+    },
+    Melodie {
+        midi: u8,
+        laenge: f64,
+    },
 }
 
 /// Ein Stück mit vorberechneter Melodie.
@@ -178,7 +217,11 @@ pub struct Partitur {
 impl Partitur {
     pub fn neu(stueck_id: &str) -> Self {
         let tonart = tonart(stueck_id);
-        Self { tonart, melodie: melodie(tonart), sechzehntel: 60.0 / tonart.bpm / 4.0 }
+        Self {
+            tonart,
+            melodie: melodie(tonart),
+            sechzehntel: 60.0 / tonart.bpm / 4.0,
+        }
     }
 
     /// Wann Sechzehntel `k` erklingt (Sekunden ab Stückbeginn, mit Swing).
@@ -190,7 +233,11 @@ impl Partitur {
     pub fn puls(&self, sekunden: f64) -> f64 {
         let schlaege = sekunden / (self.sechzehntel * 4.0);
         let p = (1.0 - schlaege.fract()).powi(2);
-        if abschnitt((schlaege / 4.0) as u64).0 { p } else { p * 0.35 }
+        if abschnitt((schlaege / 4.0) as u64).0 {
+            p
+        } else {
+            p * 0.35
+        }
     }
 
     /// Alle Noten der Sechzehntel `k`.
@@ -209,19 +256,28 @@ impl Partitur {
                 _ => 0.0,
             };
             if schlag(t.kick) > 0.0 {
-                aus.push(Note::Kick { staerke: schlag(t.kick) });
+                aus.push(Note::Kick {
+                    staerke: schlag(t.kick),
+                });
             }
             if schlag(t.snare) > 0.0 {
-                aus.push(Note::Snare { staerke: schlag(t.snare) });
+                aus.push(Note::Snare {
+                    staerke: schlag(t.snare),
+                });
             }
             if schlag(t.hat) > 0.0 {
-                aus.push(Note::Hat { staerke: schlag(t.hat) * (0.7 + 0.3 * streuung(k as u32, t.saat)) });
+                aus.push(Note::Hat {
+                    staerke: schlag(t.hat) * (0.7 + 0.3 * streuung(k as u32, t.saat)),
+                });
             }
         }
         if bass {
             for &(bei, n, hoch) in t.bass {
                 if bei as usize == s {
-                    aus.push(Note::Bass { midi: akkord[0] + hoch, laenge: laenge(n) });
+                    aus.push(Note::Bass {
+                        midi: akkord[0] + hoch,
+                        laenge: laenge(n),
+                    });
                 }
             }
         }
@@ -229,14 +285,22 @@ impl Partitur {
             if bei as usize == s {
                 for &m in &akkord[1..] {
                     let versatz = streuung(k as u32, m as u32) * 0.012;
-                    aus.push(Note::Taste { midi: m, laenge: laenge(n), staerke, versatz });
+                    aus.push(Note::Taste {
+                        midi: m,
+                        laenge: laenge(n),
+                        staerke,
+                        versatz,
+                    });
                 }
             }
         }
         if melodie {
             for &(bei, n, m) in &self.melodie[takt as usize % 8] {
                 if bei as usize == s {
-                    aus.push(Note::Melodie { midi: m, laenge: laenge(n) });
+                    aus.push(Note::Melodie {
+                        midi: m,
+                        laenge: laenge(n),
+                    });
                 }
             }
         }
@@ -265,9 +329,17 @@ mod tests {
         assert!(p.noten(0).iter().all(|n| matches!(n, Note::Taste { .. })));
         assert!(!p.noten(0).is_empty());
         // Takt 4: Kick auf der Eins.
-        assert!(p.noten(4 * 16).iter().any(|n| matches!(n, Note::Kick { .. })));
+        assert!(
+            p.noten(4 * 16)
+                .iter()
+                .any(|n| matches!(n, Note::Kick { .. }))
+        );
         // Breakdown in Takt 24: keine Drums.
-        assert!(!p.noten(24 * 16).iter().any(|n| matches!(n, Note::Kick { .. })));
+        assert!(
+            !p.noten(24 * 16)
+                .iter()
+                .any(|n| matches!(n, Note::Kick { .. }))
+        );
     }
 
     #[test]
@@ -280,7 +352,10 @@ mod tests {
                 let akkord = t.akkorde[b % 4];
                 for &(_, _, ton) in takt {
                     assert!((67..=83).contains(&ton));
-                    assert!(akkord.iter().any(|&c| (c as i32 - ton as i32) % 12 == 0), "{id} Takt {b}");
+                    assert!(
+                        akkord.iter().any(|&c| (c as i32 - ton as i32) % 12 == 0),
+                        "{id} Takt {b}"
+                    );
                 }
             }
         }

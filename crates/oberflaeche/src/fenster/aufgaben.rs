@@ -139,7 +139,9 @@ pub fn Aufgaben() -> impl IntoView {
     let limit = RwSignal::new(String::new());
     Effect::new(move |_| limit.set(z.board.with(|b| b.max_arbeiter.to_string())));
     if z.provider.with_untracked(|p| p.0.is_empty()) {
-        senden(ClientNachricht::Arbeiter(protokoll::arbeiter::Client::ProviderAbfragen));
+        senden(ClientNachricht::Arbeiter(
+            protokoll::arbeiter::Client::ProviderAbfragen,
+        ));
     }
     let kopf = view! {
         <label class="text-muted-foreground flex items-center gap-1 text-xs font-semibold" title="Wie viele Arbeiter die 🤖-Aufgaben gleichzeitig beschäftigen dürfen; 0 hält die Warteschlange an">

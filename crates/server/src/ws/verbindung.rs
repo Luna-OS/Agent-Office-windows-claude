@@ -21,16 +21,27 @@ use crate::office::{Ausgang, DACH, EmoteEimer, OfficeRef, Verbindung};
 use crate::speicher::zufalls_id;
 
 /// Wo man im Aufzug ankommt (Mitte der Kabine, aus `welt`).
-pub const AUFZUG: Ort = Ort { x: welt::grundriss::AUFZUG_ANKUNFT.0, y: 0.0, z: welt::grundriss::AUFZUG_ANKUNFT.1, rot_y: 0.0 };
+pub const AUFZUG: Ort = Ort {
+    x: welt::grundriss::AUFZUG_ANKUNFT.0,
+    y: 0.0,
+    z: welt::grundriss::AUFZUG_ANKUNFT.1,
+    rot_y: 0.0,
+};
 const MAX_FRAME: usize = 256 * 1024;
 
-pub async fn upgrade(State(o): State<OfficeRef>, headers: HeaderMap, Query(q): Query<HashMap<String, String>>, ws: WebSocketUpgrade) -> Response {
+pub async fn upgrade(
+    State(o): State<OfficeRef>,
+    headers: HeaderMap,
+    Query(q): Query<HashMap<String, String>>,
+    ws: WebSocketUpgrade,
+) -> Response {
     let cookies = headers.get(header::COOKIE).and_then(|v| v.to_str().ok());
     let host = headers.get(header::HOST).and_then(|v| v.to_str().ok());
     let Some(sitzung) = o.zugang.aus_cookies(cookies, host) else {
         return (StatusCode::UNAUTHORIZED, "Bitte zuerst anmelden").into_response();
     };
-    ws.max_message_size(MAX_FRAME).on_upgrade(move |socket| verbunden(o, socket, sitzung, q))
+    ws.max_message_size(MAX_FRAME)
+        .on_upgrade(move |socket| verbunden(o, socket, sitzung, q))
 }
 
 /// Die Ankunfts-Etage: die gewünschte, wenn es sie gibt, sonst die erste.
@@ -44,25 +55,46 @@ fn ankunft(o: &OfficeRef, gewuenscht: Option<&str>) -> (Option<String>, bool) {
 
 fn neue_person(o: &OfficeRef, id: &str, sitzung: &Sitzung, q: &HashMap<String, String>) -> Person {
     let (etage, zurueck) = ankunft(o, q.get("etage").map(String::as_str));
-    let f = |k: &str| q.get(k).and_then(|v| v.parse::<f32>().ok()).filter(|v| v.is_finite());
+    let f = |k: &str| {
+        q.get(k)
+            .and_then(|v| v.parse::<f32>().ok())
+            .filter(|v| v.is_finite())
+    };
     let ort = match (zurueck, f("x"), f("z")) {
-        (true, Some(x), Some(z)) => Ort { x: eingabe::zahl(x, 200.0), y: eingabe::zahl(f("y").unwrap_or(0.0), 100.0), z: eingabe::zahl(z, 200.0), rot_y: f("rot_y").unwrap_or(0.0) },
+        (true, Some(x), Some(z)) => Ort {
+            x: eingabe::zahl(x, 200.0),
+            y: eingabe::zahl(f("y").unwrap_or(0.0), 100.0),
+            z: eingabe::zahl(z, 200.0),
+            rot_y: f("rot_y").unwrap_or(0.0),
+        },
         _ => AUFZUG,
     };
     let konto_name = o.zugang.konto_name(sitzung);
     let name = konto_name.clone().unwrap_or_else(|| {
-        let n = crate::anmeldung::konten::name_saeubern(q.get("name").map(String::as_str).unwrap_or(""));
-        if n.is_empty() { format!("Gast {}", &id[..3]) } else { n }
+        let n = crate::anmeldung::konten::name_saeubern(
+            q.get("name").map(String::as_str).unwrap_or(""),
+        );
+        if n.is_empty() {
+            format!("Gast {}", &id[..3])
+        } else {
+            n
+        }
     });
     let u = |k: &str| q.get(k).and_then(|v| v.parse::<u8>().ok());
-    let saat = id.bytes().fold(0u32, |h, b| h.wrapping_mul(16777619) ^ b as u32);
+    let saat = id
+        .bytes()
+        .fold(0u32, |h, b| h.wrapping_mul(16777619) ^ b as u32);
     let aussehen = Aussehen {
         haut: u("haut").unwrap_or((saat % 8) as u8),
         haare: u("haare").unwrap_or(((saat >> 8) % 10) as u8),
         frisur: u("frisur").unwrap_or(((saat >> 16) % 7) as u8),
     }
     .bereinigt();
-    let farbe = q.get("farbe").filter(|f| eingabe::ist_farbe(f)).cloned().unwrap_or_else(|| "#4f86f7".into());
+    let farbe = q
+        .get("farbe")
+        .filter(|f| eingabe::ist_farbe(f))
+        .cloned()
+        .unwrap_or_else(|| "#4f86f7".into());
     Person {
         id: id.into(),
         name,
@@ -96,12 +128,25 @@ async fn verbunden(o: OfficeRef, socket: WebSocket, sitzung: Sitzung, q: HashMap
     if let Some(k) = &sitzung.konto {
         o.zugang.konten.lock().unwrap().gesehen(k);
     }
-    o.verbindungen.lock().unwrap().insert(id.clone(), Verbindung { tx: tx.clone(), person: person.clone(), sitzung, emotes: EmoteEimer::default() });
+    o.verbindungen.lock().unwrap().insert(
+        id.clone(),
+        Verbindung {
+            tx: tx.clone(),
+            person: person.clone(),
+            sitzung,
+            emotes: EmoteEimer::default(),
+        },
+    );
     tracing::info!("{} ist hereingekommen ({id})", person.name);
 
     o.register.begruessen(&o, &id);
     o.register.etage_betreten(&o, &id);
-    o.an_alle(&ServerNachricht::Praesenz(praesenz::Server::PersonDa { person: person.clone() }), Some(&id));
+    o.an_alle(
+        &ServerNachricht::Praesenz(praesenz::Server::PersonDa {
+            person: person.clone(),
+        }),
+        Some(&id),
+    );
     super::etagen::liste_an_alle(&o);
     super::konten::konten_an_admins(&o);
 
@@ -149,7 +194,10 @@ async fn verbunden(o: OfficeRef, socket: WebSocket, sitzung: Sitzung, q: HashMap
     schreiber.abort();
     let etage = weg.as_ref().and_then(|v| v.person.etage.clone());
     o.register.weg(&o, &id, etage.as_deref());
-    o.an_alle(&ServerNachricht::Praesenz(praesenz::Server::PersonWeg { id: id.clone() }), None);
+    o.an_alle(
+        &ServerNachricht::Praesenz(praesenz::Server::PersonWeg { id: id.clone() }),
+        None,
+    );
     super::etagen::liste_an_alle(&o);
     super::konten::konten_an_admins(&o);
     if let Some(v) = weg {

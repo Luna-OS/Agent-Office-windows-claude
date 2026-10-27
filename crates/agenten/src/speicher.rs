@@ -22,20 +22,37 @@ struct ArbeiterDatei {
     /// Arbeiter-ID → letzter Bildschirm (Escape-Sequenzen).
     #[serde(default)]
     puffer: HashMap<String, String>,
+    /// Arbeiter-ID → sein Terminal im PTY-Wirt, zum Übernehmen nach einem Neustart.
+    #[serde(default)]
+    wirt: HashMap<String, crate::uebernahme::WirtStand>,
 }
 
 pub struct Geladen {
     pub arbeiter: Vec<ArbeiterInfo>,
     pub notizen: HashMap<String, String>,
     pub puffer: HashMap<String, String>,
+    pub wirt: HashMap<String, crate::uebernahme::WirtStand>,
     pub bus: Bus,
     pub board: Aufgabenboard,
 }
 
 /// Der Ordner einer Etage; die Etagen-ID wird für den Dateinamen entschärft.
 pub fn ordner(daten: &Path, etage: &str) -> PathBuf {
-    let sicher: String = etage.chars().map(|c| if c.is_ascii_alphanumeric() || c == '-' || c == '_' { c } else { '_' }).collect();
-    daten.join("etagen").join(if sicher.is_empty() { "_".into() } else { sicher })
+    let sicher: String = etage
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '-' || c == '_' {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect();
+    daten.join("etagen").join(if sicher.is_empty() {
+        "_".into()
+    } else {
+        sicher
+    })
 }
 
 fn lesen<T: for<'de> Deserialize<'de>>(pfad: &Path) -> Option<T> {
@@ -70,8 +87,10 @@ pub fn laden(daten: &Path, etage: &str) -> Geladen {
         arbeiter: datei.arbeiter,
         notizen: datei.notizen,
         puffer: datei.puffer,
+        wirt: datei.wirt,
         bus: lesen(&dir.join("bus.json")).unwrap_or_default(),
-        board: lesen(&dir.join("board.json")).unwrap_or_else(|| Aufgabenboard::neu(STANDARD_MAX_ARBEITER)),
+        board: lesen(&dir.join("board.json"))
+            .unwrap_or_else(|| Aufgabenboard::neu(STANDARD_MAX_ARBEITER)),
     }
 }
 
@@ -79,8 +98,31 @@ pub fn laden(daten: &Path, etage: &str) -> Geladen {
 pub fn arbeiter_speichern(daten: &Path, e: &Etage) {
     let datei = ArbeiterDatei {
         arbeiter: e.arbeiter.values().map(|a| a.info.clone()).collect(),
-        notizen: e.arbeiter.values().filter_map(|a| a.notiz.clone().map(|n| (a.info.id.clone(), n))).collect(),
-        puffer: e.arbeiter.values().map(|a| (a.info.id.clone(), a.terminal.snapshot())).collect(),
+        notizen: e
+            .arbeiter
+            .values()
+            .filter_map(|a| a.notiz.clone().map(|n| (a.info.id.clone(), n)))
+            .collect(),
+        puffer: e
+            .arbeiter
+            .values()
+            .map(|a| (a.info.id.clone(), a.terminal.snapshot()))
+            .collect(),
+        wirt: e
+            .arbeiter
+            .values()
+            .filter_map(|a| {
+                let sitzung = a.pty.as_ref()?.wirt_sitzung()?.to_string();
+                Some((
+                    a.info.id.clone(),
+                    crate::uebernahme::WirtStand {
+                        sitzung,
+                        token: a.token.clone(),
+                        status: a.info.status,
+                    },
+                ))
+            })
+            .collect(),
     };
     schreiben(&ordner(daten, &e.id).join("workers.json"), &datei);
 }

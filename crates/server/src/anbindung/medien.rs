@@ -1,9 +1,9 @@
 //! Adapter für `medien` (lyra): Bildschirm teilen über HTTP, Voice-Signalisierung, Jukebox, Dach-Leinwand.
 
+use ::medien::server::{Absender, Medien, MedienEinstellungen, PFAD, Ziel};
 use axum::extract::Request;
 use axum::middleware::{self, Next};
 use axum::response::Response;
-use ::medien::server::{Absender, Medien, MedienEinstellungen, PFAD, Ziel};
 use protokoll::praesenz::Stufe;
 use protokoll::{ClientNachricht, ServerNachricht};
 use tokio::sync::broadcast::error::RecvError;
@@ -14,7 +14,10 @@ use crate::office::{DACH, OfficeRef};
 use crate::ws::{self, Zukunft};
 
 pub fn starten(k: &Konfig) -> Medien {
-    Medien::neu(MedienEinstellungen { datenordner: k.daten.clone(), ice: Vec::new() })
+    Medien::neu(MedienEinstellungen {
+        datenordner: k.daten.clone(),
+        ice: Vec::new(),
+    })
 }
 
 fn absender(o: &OfficeRef, von: &str) -> Absender {
@@ -82,7 +85,9 @@ async fn absender_einsetzen(mut req: Request, next: Next) -> Response {
 }
 
 pub fn router(m: &Medien) -> axum::Router {
-    axum::Router::new().nest(PFAD, m.router()).layer(middleware::from_fn(absender_einsetzen))
+    axum::Router::new()
+        .nest(PFAD, m.router())
+        .layer(middleware::from_fn(absender_einsetzen))
 }
 
 /// Ereignisse von `medien` an die Browser verteilen.

@@ -138,7 +138,9 @@ impl Zustand {
 
     /// Der Name, unter dem man im Office ist.
     pub fn mein_name(&self) -> String {
-        self.ich_selbst.with_untracked(|p| p.as_ref().map(|p| p.name.clone())).unwrap_or_default()
+        self.ich_selbst
+            .with_untracked(|p| p.as_ref().map(|p| p.name.clone()))
+            .unwrap_or_default()
     }
 
     /// Die Etage, auf der man gerade ist (nicht reaktiv).
@@ -148,17 +150,32 @@ impl Zustand {
 
     /// Ein Arbeiter nach ID.
     pub fn arbeiter_mit(&self, id: &str) -> Option<arbeiter::ArbeiterInfo> {
-        self.arbeiter.with(|l| l.iter().find(|a| a.id == id).cloned())
+        self.arbeiter
+            .with(|l| l.iter().find(|a| a.id == id).cloned())
     }
 }
 
 thread_local! {
     static ZUSTAND: OnceCell<Zustand> = const { OnceCell::new() };
+    static WURZEL: OnceCell<Owner> = const { OnceCell::new() };
+}
+
+/// Legt den Owner für alles Globale an; muss vor dem Mounten laufen (also ohne umgebenden Owner).
+pub(crate) fn wurzel_anlegen() {
+    WURZEL.with(|w| {
+        w.get_or_init(Owner::new);
+    });
+}
+
+/// Legt etwas Reaktives an, das die ganze Seite lebt. Signale, die erst beim Öffnen eines Fensters
+/// entstehen, gehörten sonst diesem Fenster und wären nach dem Schließen weg.
+pub fn global<T>(f: impl FnOnce() -> T) -> T {
+    WURZEL.with(|w| w.get_or_init(Owner::new).with(f))
 }
 
 /// Der Zustand der Oberfläche (beim ersten Aufruf angelegt).
 pub fn zustand() -> Zustand {
-    ZUSTAND.with(|z| *z.get_or_init(Zustand::neu))
+    ZUSTAND.with(|z| *z.get_or_init(|| global(Zustand::neu)))
 }
 
 /// Zeigt eine Meldung für ein paar Sekunden.
@@ -168,12 +185,19 @@ pub fn melden(text: impl Into<String>, stufe: praesenz::Stufe) {
     let id = NAECHSTE.fetch_add(1, Ordering::Relaxed);
     let m = zustand().meldungen;
     m.update(|l| {
-        l.push(Meldung { id, text: text.into(), stufe });
+        l.push(Meldung {
+            id,
+            text: text.into(),
+            stufe,
+        });
         if l.len() > 5 {
             l.remove(0);
         }
     });
-    set_timeout(move || m.update(|l| l.retain(|x| x.id != id)), std::time::Duration::from_millis(4000));
+    set_timeout(
+        move || m.update(|l| l.retain(|x| x.id != id)),
+        std::time::Duration::from_millis(4000),
+    );
 }
 
 pub fn info(text: impl Into<String>) {

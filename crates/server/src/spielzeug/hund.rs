@@ -4,8 +4,25 @@
 use protokoll::spielzeug::{Hund as HundZustand, HundTun, Rasse};
 use rand::Rng;
 
-const NAMEN: [&str; 10] = ["Keks", "Pfannkuchen", "Erdnuss", "Pfeffer", "Krümel", "Brezel", "Ziggy", "Bagel", "Ahorn", "Scout"];
-const RASSEN: [Rasse; 5] = [Rasse::Welpe, Rasse::Corgi, Rasse::Dackel, Rasse::Mops, Rasse::Shiba];
+const NAMEN: [&str; 10] = [
+    "Keks",
+    "Pfannkuchen",
+    "Erdnuss",
+    "Pfeffer",
+    "Krümel",
+    "Brezel",
+    "Ziggy",
+    "Bagel",
+    "Ahorn",
+    "Scout",
+];
+const RASSEN: [Rasse; 5] = [
+    Rasse::Welpe,
+    Rasse::Corgi,
+    Rasse::Dackel,
+    Rasse::Mops,
+    Rasse::Shiba,
+];
 const FELLE: u32 = 6;
 const TEMPO: f32 = 1.2;
 use welt::grundriss::draussen::{HUND_KORB, HUND_PUNKTE};
@@ -28,23 +45,44 @@ pub struct Hund {
 
 /// Name, Fell und Rasse aus der Etagen-ID (immer dieselben für dieselbe Etage).
 pub fn vorgaben(etage: &str) -> (String, u32, Rasse) {
-    let h = etage.chars().fold(0u32, |h, c| h.wrapping_mul(31).wrapping_add(c as u32));
+    let h = etage
+        .chars()
+        .fold(0u32, |h, c| h.wrapping_mul(31).wrapping_add(c as u32));
     let gemischt = ((h ^ (h >> 16)).wrapping_mul(0x45d9f3b)) >> 16;
-    (NAMEN[h as usize % NAMEN.len()].into(), (h >> 8) % FELLE, RASSEN[gemischt as usize % RASSEN.len()])
+    (
+        NAMEN[h as usize % NAMEN.len()].into(),
+        (h >> 8) % FELLE,
+        RASSEN[gemischt as usize % RASSEN.len()],
+    )
 }
 
 fn laenge(weg: &[[f32; 2]]) -> f32 {
-    weg.windows(2).map(|w| ((w[1][0] - w[0][0]).powi(2) + (w[1][1] - w[0][1]).powi(2)).sqrt()).sum()
+    weg.windows(2)
+        .map(|w| ((w[1][0] - w[0][0]).powi(2) + (w[1][1] - w[0][1]).powi(2)).sqrt())
+        .sum()
 }
 
 impl Hund {
     pub fn neu(etage: &str, eigener_name: Option<String>) -> Self {
         let (name, fell, rasse) = vorgaben(etage);
-        Self { standard_name: name, eigener_name, fell, rasse, weg: vec![[HUND_KORB.0, HUND_KORB.1]], tun: HundTun::Schlafen, seit: 0, bis: 0, folgt: None, gestreichelt_von: None }
+        Self {
+            standard_name: name,
+            eigener_name,
+            fell,
+            rasse,
+            weg: vec![[HUND_KORB.0, HUND_KORB.1]],
+            tun: HundTun::Schlafen,
+            seit: 0,
+            bis: 0,
+            folgt: None,
+            gestreichelt_von: None,
+        }
     }
 
     pub fn name(&self) -> String {
-        self.eigener_name.clone().unwrap_or_else(|| self.standard_name.clone())
+        self.eigener_name
+            .clone()
+            .unwrap_or_else(|| self.standard_name.clone())
     }
 
     /// Wo er gerade ist.
@@ -54,7 +92,10 @@ impl Hund {
             let l = ((w[1][0] - w[0][0]).powi(2) + (w[1][1] - w[0][1]).powi(2)).sqrt();
             if rest < l && l > 0.0 {
                 let t = rest / l;
-                return [w[0][0] + (w[1][0] - w[0][0]) * t, w[0][1] + (w[1][1] - w[0][1]) * t];
+                return [
+                    w[0][0] + (w[1][0] - w[0][0]) * t,
+                    w[0][1] + (w[1][1] - w[0][1]) * t,
+                ];
             }
             rest -= l;
         }
@@ -73,7 +114,11 @@ impl Hund {
             blick: None,
             arbeiter: None,
             folgt: self.folgt.clone(),
-            gestreichelt_von: if self.tun == HundTun::Wedeln { self.gestreichelt_von.clone() } else { None },
+            gestreichelt_von: if self.tun == HundTun::Wedeln {
+                self.gestreichelt_von.clone()
+            } else {
+                None
+            },
         }
     }
 
@@ -101,7 +146,11 @@ impl Hund {
                 Some((_, x, z)) if rng.random_bool(0.85) => {
                     let (dx, dz) = (x - hier[0], z - hier[1]);
                     let d = (dx * dx + dz * dz).sqrt();
-                    let ziel = if d > 1.2 { [x - dx / d, z - dz / d] } else { hier };
+                    let ziel = if d > 1.2 {
+                        [x - dx / d, z - dz / d]
+                    } else {
+                        hier
+                    };
                     self.neues_stueck(jetzt_ms, Some(ziel), HundTun::Stehen, 600);
                     return true;
                 }
@@ -112,7 +161,10 @@ impl Hund {
             self.folgt = Some(leute[rng.random_range(0..leute.len())].0.clone());
         }
         let (px, pz) = HUND_PUNKTE[rng.random_range(0..HUND_PUNKTE.len())];
-        let mut ziel = [px + rng.random_range(-0.8..0.8), pz + rng.random_range(-0.8..0.8)];
+        let mut ziel = [
+            px + rng.random_range(-0.8..0.8),
+            pz + rng.random_range(-0.8..0.8),
+        ];
         let (tun, pause) = match rng.random_range(0..10) {
             0..=2 => (HundTun::Schnueffeln, rng.random_range(2000..5000)),
             3..=4 => (HundTun::Sitzen, rng.random_range(4000..10_000)),
@@ -141,7 +193,12 @@ impl Hund {
 
     /// "" gibt ihm seinen ersten Namen zurück.
     pub fn umbenennen(&mut self, name: &str) {
-        let n: String = name.trim().chars().filter(|c| !c.is_control()).take(20).collect();
+        let n: String = name
+            .trim()
+            .chars()
+            .filter(|c| !c.is_control())
+            .take(20)
+            .collect();
         self.eigener_name = (!n.is_empty()).then_some(n);
     }
 

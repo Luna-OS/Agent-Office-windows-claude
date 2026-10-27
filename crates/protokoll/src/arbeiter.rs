@@ -59,6 +59,29 @@ pub struct Worktree {
     pub von: Option<String>,
 }
 
+/// Das Repository einer anderen Etage, in dem ein Arbeiter auch arbeitet: ein Worktree davon liegt
+/// in seinem Arbeitsbereich, auf demselben Branch wie sein eigener.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WeiteresRepo {
+    /// Die Etage, deren Projekt es ist.
+    pub etage: String,
+    /// Sein Ordner im Arbeitsbereich (z. B. `api`).
+    pub name: String,
+    /// `besitzer/name` auf GitHub, wenn bekannt.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub repo: Option<String>,
+    /// Der Checkout, von dem der Worktree abgezweigt wurde.
+    pub verzeichnis: String,
+    /// Der Worktree, relativ zum Projektordner der eigenen Etage (wie `Worktree::pfad`).
+    pub pfad: String,
+    pub branch: String,
+    pub basis: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub von: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pr: Option<PrVerweis>,
+}
+
 /// Ein Pull Request.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PrVerweis {
@@ -147,6 +170,10 @@ pub struct ArbeiterInfo {
     pub verbrauch: Option<Verbrauch>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub letzte_eingabe: Option<LetzteEingabe>,
+    /// Weitere Repositories (anderer Etagen), in denen er auch arbeitet. Dann startet er in einem
+    /// Arbeitsbereich mit einem Worktree je Repository; `worktree` ist der seiner eigenen Etage darin.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub repos: Vec<WeiteresRepo>,
     /// Ein Board-Agent: an welchem Board (`issues`, `pulls`, `aufgaben`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub station: Option<String>,
@@ -274,7 +301,24 @@ pub enum Client {
         #[serde(default)]
         issue: Option<u64>,
     },
-    Fortsetzen { arbeiter: String },
+    /// Einen Arbeiter anlegen, der auch in den Repositories anderer Etagen arbeitet (`repos`: deren
+    /// Etagen-IDs): ein Arbeitsbereich mit einem Worktree je Repository, alle auf einem Branch, und je
+    /// Repository ein eigener Pull Request.
+    AnlegenUeberRepos {
+        tisch: String,
+        #[serde(default)]
+        prompt: Option<String>,
+        repos: Vec<String>,
+        #[serde(default)]
+        provider: Option<String>,
+        #[serde(default)]
+        modell: Option<String>,
+        #[serde(default)]
+        aufwand: Option<String>,
+    },
+    Fortsetzen {
+        arbeiter: String,
+    },
     /// Heimschicken.
     Stoppen {
         arbeiter: String,
@@ -282,30 +326,61 @@ pub enum Client {
         aufraeumen: Aufraeumen,
     },
     /// Fragt nach dem Stand des Worktrees; Antwort `Server::WorktreeStand`.
-    WorktreeAbfragen { arbeiter: String },
+    WorktreeAbfragen {
+        arbeiter: String,
+    },
     /// Terminal öffnen: Antwort ist ein Snapshot, danach laufende Daten.
-    Anschauen { arbeiter: String },
-    Wegschauen { arbeiter: String },
+    Anschauen {
+        arbeiter: String,
+    },
+    Wegschauen {
+        arbeiter: String,
+    },
     /// Einen Auftrag in seine Sitzung tippen.
-    Prompt { arbeiter: String, text: String },
+    Prompt {
+        arbeiter: String,
+        text: String,
+    },
     /// Branch pushen und Pull Request öffnen.
-    PrOeffnen { arbeiter: String },
+    PrOeffnen {
+        arbeiter: String,
+    },
     /// Tastatureingaben ins Terminal.
-    Eingabe { arbeiter: String, daten: String },
-    Groesse { arbeiter: String, spalten: u16, zeilen: u16 },
+    Eingabe {
+        arbeiter: String,
+        daten: String,
+    },
+    Groesse {
+        arbeiter: String,
+        spalten: u16,
+        zeilen: u16,
+    },
     /// Liste der Provider anfordern; Antwort `Server::Provider`.
     ProviderAbfragen,
     /// Eine Bitte an den Board-Agenten am Pult `tisch` (`station-issues`, `station-pulls`,
     /// `station-queue`): getippt, geweckt oder – ist keiner da – dafür angelegt.
-    StationAuftrag { tisch: String, text: String },
+    StationAuftrag {
+        tisch: String,
+        text: String,
+    },
     /// Arbeiter, deren Pull Request gemergt ist, gehen von selbst heim (für das ganze Office).
-    NachMergeGehen { an: bool },
+    NachMergeGehen {
+        an: bool,
+    },
     /// Was hat er geändert? Antwort `Server::Aenderungen`.
-    AenderungenAbfragen { arbeiter: String },
+    AenderungenAbfragen {
+        arbeiter: String,
+    },
     /// Diff einer Datei; Antwort `Server::Diff`.
-    DiffAbfragen { arbeiter: String, datei: String },
+    DiffAbfragen {
+        arbeiter: String,
+        datei: String,
+    },
     /// Alles committen (`git add -A`).
-    Committen { arbeiter: String, nachricht: String },
+    Committen {
+        arbeiter: String,
+        nachricht: String,
+    },
     /// Nicht committete Änderungen verwerfen: eine Datei oder alle (nur im eigenen Worktree).
     Verwerfen {
         arbeiter: String,
@@ -319,17 +394,39 @@ pub enum Client {
 #[serde(tag = "typ", rename_all = "snake_case")]
 pub enum Server {
     /// Alle Arbeiter der Etage (beim Betreten).
-    Liste { arbeiter: Vec<ArbeiterInfo> },
+    Liste {
+        arbeiter: Vec<ArbeiterInfo>,
+    },
     /// Ein Arbeiter ist neu oder hat sich geändert.
-    Aktualisiert { arbeiter: Box<ArbeiterInfo> },
-    Entfernt { arbeiter: String },
-    WorktreeStand { arbeiter: String, stand: WorktreeStand },
+    Aktualisiert {
+        arbeiter: Box<ArbeiterInfo>,
+    },
+    Entfernt {
+        arbeiter: String,
+    },
+    WorktreeStand {
+        arbeiter: String,
+        stand: WorktreeStand,
+    },
     /// Der ganze Bildschirm (mit Escape-Sequenzen), für ein frisch geöffnetes Terminal.
-    TerminalSnapshot { arbeiter: String, daten: String, spalten: u16, zeilen: u16 },
+    TerminalSnapshot {
+        arbeiter: String,
+        daten: String,
+        spalten: u16,
+        zeilen: u16,
+    },
     /// Neue Ausgabe; geht nur an die Zuschauer.
-    TerminalDaten { arbeiter: String, daten: String },
-    Provider { provider: Vec<ProviderInfo>, standard: String },
-    Aenderungen { stand: Aenderungen },
+    TerminalDaten {
+        arbeiter: String,
+        daten: String,
+    },
+    Provider {
+        provider: Vec<ProviderInfo>,
+        standard: String,
+    },
+    Aenderungen {
+        stand: Aenderungen,
+    },
     Diff {
         arbeiter: String,
         datei: String,

@@ -35,7 +35,12 @@ impl Leinwand {
     }
 
     /// Wendet eine Nachricht an. `Ok(true)` heißt: geändert, an alle auf dem Dach schicken.
-    pub fn anwenden(&mut self, nachricht: &Client, wer: &str, jetzt_ms: u64) -> Result<bool, String> {
+    pub fn anwenden(
+        &mut self,
+        nachricht: &Client,
+        wer: &str,
+        jetzt_ms: u64,
+    ) -> Result<bool, String> {
         let jetzt = self.position(jetzt_ms);
         let neu = match nachricht {
             Client::VideoSetzen { url } => {
@@ -70,10 +75,16 @@ impl Leinwand {
                 if self.zustand.video_id.is_none() {
                     return Ok(false);
                 }
-                LeinwandZustand { stand_ms: jetzt_ms, ..Default::default() }
+                LeinwandZustand {
+                    stand_ms: jetzt_ms,
+                    ..Default::default()
+                }
             }
         };
-        self.zustand = LeinwandZustand { von: Some(kuerzen(wer, 24)), ..neu };
+        self.zustand = LeinwandZustand {
+            von: Some(kuerzen(wer, 24)),
+            ..neu
+        };
         Ok(true)
     }
 
@@ -85,8 +96,17 @@ impl Leinwand {
     }
 
     fn stelle(&self, laeuft: bool, position_s: f64, jetzt_ms: u64) -> LeinwandZustand {
-        let position_s = if position_s.is_finite() { position_s.max(0.0) } else { 0.0 };
-        LeinwandZustand { laeuft, position_s, stand_ms: jetzt_ms, ..self.zustand.clone() }
+        let position_s = if position_s.is_finite() {
+            position_s.max(0.0)
+        } else {
+            0.0
+        };
+        LeinwandZustand {
+            laeuft,
+            position_s,
+            stand_ms: jetzt_ms,
+            ..self.zustand.clone()
+        }
     }
 }
 
@@ -96,9 +116,15 @@ pub enum Abgleich {
     /// Nichts zu tun.
     Passt,
     /// Ein anderes Video laden, ab `ab_s`, abspielen oder nicht.
-    Laden { video_id: String, ab_s: f64, abspielen: bool },
+    Laden {
+        video_id: String,
+        ab_s: f64,
+        abspielen: bool,
+    },
     /// Zur Stelle springen.
-    Springen { auf_s: f64 },
+    Springen {
+        auf_s: f64,
+    },
     Abspielen,
     Pausieren,
     /// Player wegräumen.
@@ -115,18 +141,30 @@ pub fn abgleichen(
     stelle_s: f64,
 ) -> Vec<Abgleich> {
     let Some(soll_id) = soll.video_id.as_deref() else {
-        return if video.is_some() { vec![Abgleich::Leeren] } else { vec![Abgleich::Passt] };
+        return if video.is_some() {
+            vec![Abgleich::Leeren]
+        } else {
+            vec![Abgleich::Passt]
+        };
     };
     let soll_stelle = soll.position_um(jetzt_ms);
     if video != Some(soll_id) {
-        return vec![Abgleich::Laden { video_id: soll_id.to_string(), ab_s: soll_stelle, abspielen: soll.laeuft }];
+        return vec![Abgleich::Laden {
+            video_id: soll_id.to_string(),
+            ab_s: soll_stelle,
+            abspielen: soll.laeuft,
+        }];
     }
     let mut schritte = Vec::new();
     if (stelle_s - soll_stelle).abs() > ERLAUBTE_ABWEICHUNG_S {
         schritte.push(Abgleich::Springen { auf_s: soll_stelle });
     }
     if soll.laeuft != laeuft {
-        schritte.push(if soll.laeuft { Abgleich::Abspielen } else { Abgleich::Pausieren });
+        schritte.push(if soll.laeuft {
+            Abgleich::Abspielen
+        } else {
+            Abgleich::Pausieren
+        });
     }
     if schritte.is_empty() {
         schritte.push(Abgleich::Passt);
@@ -143,7 +181,10 @@ mod tests {
     use super::*;
 
     fn setzen(l: &mut Leinwand, url: &str, t: u64) {
-        assert!(l.anwenden(&Client::VideoSetzen { url: url.into() }, "Luna", t).unwrap());
+        assert!(
+            l.anwenden(&Client::VideoSetzen { url: url.into() }, "Luna", t)
+                .unwrap()
+        );
     }
 
     #[test]
@@ -162,22 +203,55 @@ mod tests {
     fn pause_und_weiter_halten_die_stelle() {
         let mut l = Leinwand::neu();
         setzen(&mut l, "dQw4w9WgXcQ", 0);
-        assert!(l.anwenden(&Client::Pausieren { position_s: None }, "a", 5_000).unwrap());
+        assert!(
+            l.anwenden(&Client::Pausieren { position_s: None }, "a", 5_000)
+                .unwrap()
+        );
         assert_eq!(l.position(60_000), 5.0);
-        assert!(!l.anwenden(&Client::Pausieren { position_s: None }, "a", 6_000).unwrap());
-        assert!(l.anwenden(&Client::Abspielen { position_s: None }, "b", 70_000).unwrap());
+        assert!(
+            !l.anwenden(&Client::Pausieren { position_s: None }, "a", 6_000)
+                .unwrap()
+        );
+        assert!(
+            l.anwenden(&Client::Abspielen { position_s: None }, "b", 70_000)
+                .unwrap()
+        );
         assert_eq!(l.position(72_000), 7.0);
-        assert!(l.anwenden(&Client::Springen { position_s: 100.0 }, "b", 80_000).unwrap());
+        assert!(
+            l.anwenden(&Client::Springen { position_s: 100.0 }, "b", 80_000)
+                .unwrap()
+        );
         assert_eq!(l.position(81_000), 101.0);
-        assert!(l.anwenden(&Client::Pausieren { position_s: Some(-3.0) }, "b", 90_000).unwrap());
+        assert!(
+            l.anwenden(
+                &Client::Pausieren {
+                    position_s: Some(-3.0)
+                },
+                "b",
+                90_000
+            )
+            .unwrap()
+        );
         assert_eq!(l.position(99_000), 0.0);
     }
 
     #[test]
     fn ohne_video_gibt_es_fehler() {
         let mut l = Leinwand::neu();
-        assert!(l.anwenden(&Client::Abspielen { position_s: None }, "a", 0).is_err());
-        assert!(l.anwenden(&Client::VideoSetzen { url: "https://vimeo.com/1".into() }, "a", 0).is_err());
+        assert!(
+            l.anwenden(&Client::Abspielen { position_s: None }, "a", 0)
+                .is_err()
+        );
+        assert!(
+            l.anwenden(
+                &Client::VideoSetzen {
+                    url: "https://vimeo.com/1".into()
+                },
+                "a",
+                0
+            )
+            .is_err()
+        );
         assert!(!l.anwenden(&Client::Leeren, "a", 0).unwrap());
         setzen(&mut l, "dQw4w9WgXcQ", 0);
         assert!(l.anwenden(&Client::Leeren, "a", 0).unwrap());
@@ -191,18 +265,44 @@ mod tests {
         let z = l.zustand().clone();
         assert_eq!(
             abgleichen(&z, 10_000, None, false, 0.0),
-            vec![Abgleich::Laden { video_id: "dQw4w9WgXcQ".into(), ab_s: 10.0, abspielen: true }]
+            vec![Abgleich::Laden {
+                video_id: "dQw4w9WgXcQ".into(),
+                ab_s: 10.0,
+                abspielen: true
+            }]
         );
-        assert_eq!(abgleichen(&z, 10_000, Some("dQw4w9WgXcQ"), true, 9.5), vec![Abgleich::Passt]);
-        assert_eq!(abgleichen(&z, 10_000, Some("dQw4w9WgXcQ"), true, 3.0), vec![Abgleich::Springen { auf_s: 10.0 }]);
-        assert_eq!(abgleichen(&z, 10_000, Some("dQw4w9WgXcQ"), false, 10.0), vec![Abgleich::Abspielen]);
-        assert_eq!(abgleichen(&LeinwandZustand::default(), 0, Some("dQw4w9WgXcQ"), true, 1.0), vec![Abgleich::Leeren]);
+        assert_eq!(
+            abgleichen(&z, 10_000, Some("dQw4w9WgXcQ"), true, 9.5),
+            vec![Abgleich::Passt]
+        );
+        assert_eq!(
+            abgleichen(&z, 10_000, Some("dQw4w9WgXcQ"), true, 3.0),
+            vec![Abgleich::Springen { auf_s: 10.0 }]
+        );
+        assert_eq!(
+            abgleichen(&z, 10_000, Some("dQw4w9WgXcQ"), false, 10.0),
+            vec![Abgleich::Abspielen]
+        );
+        assert_eq!(
+            abgleichen(
+                &LeinwandZustand::default(),
+                0,
+                Some("dQw4w9WgXcQ"),
+                true,
+                1.0
+            ),
+            vec![Abgleich::Leeren]
+        );
     }
 
     #[test]
     fn zwei_zuschauer_sehen_dieselbe_stelle() {
         let mut l = Leinwand::neu();
-        setzen(&mut l, "https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=1m", 50_000);
+        setzen(
+            &mut l,
+            "https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=1m",
+            50_000,
+        );
         // Zwei Browser mit verschiedenen Uhren, beide auf Server-Zeit umgerechnet.
         let a = l.zustand().position_um(65_000);
         let json = serde_json::to_string(l.zustand()).unwrap();

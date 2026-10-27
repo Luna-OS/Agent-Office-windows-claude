@@ -33,7 +33,10 @@ pub struct Bildschirme {
 
 impl Default for Bildschirme {
     fn default() -> Self {
-        Self { teilungen: Mutex::new(HashMap::new()), aenderungen: broadcast::channel(64).0 }
+        Self {
+            teilungen: Mutex::new(HashMap::new()),
+            aenderungen: broadcast::channel(64).0,
+        }
     }
 }
 
@@ -60,7 +63,14 @@ impl Bildschirme {
             bild_url: format!("{PFAD}/bildschirm/{id}/bild"),
             seit_ms: jetzt,
         };
-        t.insert(s.spieler.clone(), Teilung { info: info.clone(), bild: watch::channel(None).0, letztes_ms: jetzt });
+        t.insert(
+            s.spieler.clone(),
+            Teilung {
+                info: info.clone(),
+                bild: watch::channel(None).0,
+                letztes_ms: jetzt,
+            },
+        );
         drop(t);
         let _ = self.aenderungen.send(s.etage.clone());
         info
@@ -99,8 +109,11 @@ impl Bildschirme {
     /// Beendet alle, von denen zu lange kein Bild kam.
     pub fn aufraeumen(&self, jetzt: u64) -> Vec<String> {
         let mut t = self.teilungen.lock().unwrap();
-        let alt: Vec<String> =
-            t.iter().filter(|(_, v)| jetzt.saturating_sub(v.letztes_ms) > STILLE_MS).map(|(k, _)| k.clone()).collect();
+        let alt: Vec<String> = t
+            .iter()
+            .filter(|(_, v)| jetzt.saturating_sub(v.letztes_ms) > STILLE_MS)
+            .map(|(k, _)| k.clone())
+            .collect();
         let mut etagen = Vec::new();
         for k in &alt {
             if let Some(v) = t.remove(k) {
@@ -117,20 +130,31 @@ impl Bildschirme {
     /// Wer teilt (auf einer Etage oder überall), nach Startzeit sortiert.
     pub fn liste(&self, etage: Option<&str>) -> Vec<Bildschirm> {
         let t = self.teilungen.lock().unwrap();
-        let mut l: Vec<Bildschirm> =
-            t.values().filter(|v| etage.is_none_or(|e| v.info.etage == e)).map(|v| v.info.clone()).collect();
+        let mut l: Vec<Bildschirm> = t
+            .values()
+            .filter(|v| etage.is_none_or(|e| v.info.etage == e))
+            .map(|v| v.info.clone())
+            .collect();
         l.sort_by(|a, b| a.seit_ms.cmp(&b.seit_ms).then(a.spieler.cmp(&b.spieler)));
         l
     }
 
     /// Zum Zuschauen: der Kanal mit dem jeweils letzten Bild.
     pub fn zuschauen(&self, spieler: &str) -> Option<watch::Receiver<Option<Bytes>>> {
-        self.teilungen.lock().unwrap().get(spieler).map(|t| t.bild.subscribe())
+        self.teilungen
+            .lock()
+            .unwrap()
+            .get(spieler)
+            .map(|t| t.bild.subscribe())
     }
 
     /// Das letzte Bild.
     pub fn letztes_bild(&self, spieler: &str) -> Option<Bytes> {
-        self.teilungen.lock().unwrap().get(spieler).and_then(|t| t.bild.borrow().clone())
+        self.teilungen
+            .lock()
+            .unwrap()
+            .get(spieler)
+            .and_then(|t| t.bild.borrow().clone())
     }
 
     /// Meldet jede Etage, deren Liste sich geändert hat. Der Server schickt dann
@@ -145,7 +169,11 @@ mod tests {
     use super::*;
 
     fn sitzung(id: &str, etage: &str) -> Sitzung {
-        Sitzung { spieler: id.into(), name: format!("Name {id}"), etage: etage.into() }
+        Sitzung {
+            spieler: id.into(),
+            name: format!("Name {id}"),
+            etage: etage.into(),
+        }
     }
 
     #[test]
@@ -156,10 +184,20 @@ mod tests {
         assert_eq!(info.stream_url, "/medien/bildschirm/p1/stream");
         assert_eq!(aen.try_recv().unwrap(), "e1");
         let mut rx = b.zuschauen("p1").unwrap();
-        assert!(b.bild(&sitzung("p1", "e1"), Bytes::from_static(b"kein jpeg")).is_err());
-        b.bild(&sitzung("p1", "e1"), Bytes::from_static(&[0xFF, 0xD8, 1, 2])).unwrap();
+        assert!(
+            b.bild(&sitzung("p1", "e1"), Bytes::from_static(b"kein jpeg"))
+                .is_err()
+        );
+        b.bild(
+            &sitzung("p1", "e1"),
+            Bytes::from_static(&[0xFF, 0xD8, 1, 2]),
+        )
+        .unwrap();
         assert!(rx.has_changed().unwrap());
-        assert_eq!(rx.borrow_and_update().as_deref(), Some(&[0xFF, 0xD8, 1, 2][..]));
+        assert_eq!(
+            rx.borrow_and_update().as_deref(),
+            Some(&[0xFF, 0xD8, 1, 2][..])
+        );
         assert_eq!(b.liste(Some("e1")).len(), 1);
         assert!(b.liste(Some("e2")).is_empty());
         assert!(b.beenden("p1"));
@@ -172,7 +210,10 @@ mod tests {
         let b = Bildschirme::default();
         b.starten(&sitzung("p1", "e1"));
         assert!(b.aufraeumen(jetzt_ms()).is_empty());
-        assert_eq!(b.aufraeumen(jetzt_ms() + STILLE_MS + 1), vec!["p1".to_string()]);
+        assert_eq!(
+            b.aufraeumen(jetzt_ms() + STILLE_MS + 1),
+            vec!["p1".to_string()]
+        );
         assert!(b.liste(None).is_empty());
     }
 

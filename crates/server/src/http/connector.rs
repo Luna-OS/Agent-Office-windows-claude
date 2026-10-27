@@ -23,7 +23,11 @@ const GEMEINSAM: &str = "Mit dem gemeinsamen Office-Passwort laufen die Arbeiter
 pub fn routen() -> Vec<Route> {
     vec![
         route("/api/link/neu", Zugriff::Sitzung, post(link_neu)),
-        route("/api/anmeldungen", Zugriff::Sitzung, get(anmeldungen).post(anmeldung_tun)),
+        route(
+            "/api/anmeldungen",
+            Zugriff::Sitzung,
+            get(anmeldungen).post(anmeldung_tun),
+        ),
         route("/api/konten/einladen", Zugriff::Sitzung, post(einladen)),
     ]
 }
@@ -32,7 +36,11 @@ fn fehler(code: StatusCode, text: &str) -> Response {
     (code, Json(json!({ "fehler": text }))).into_response()
 }
 
-fn lesen<T: for<'a> Deserialize<'a>>(o: &OfficeRef, headers: &HeaderMap, body: &Bytes) -> Result<T, Box<Response>> {
+fn lesen<T: for<'a> Deserialize<'a>>(
+    o: &OfficeRef,
+    headers: &HeaderMap,
+    body: &Bytes,
+) -> Result<T, Box<Response>> {
     if !gleicher_ursprung(o, headers) {
         return Err(Box::new(fehler(StatusCode::FORBIDDEN, "Nicht erlaubt")));
     }
@@ -40,10 +48,16 @@ fn lesen<T: for<'a> Deserialize<'a>>(o: &OfficeRef, headers: &HeaderMap, body: &
     if body.len() > 8192 {
         return Err(Box::new(fehler(StatusCode::PAYLOAD_TOO_LARGE, "Zu groß")));
     }
-    serde_json::from_slice(body).map_err(|_| Box::new(fehler(StatusCode::BAD_REQUEST, "Ungültige Anfrage")))
+    serde_json::from_slice(body)
+        .map_err(|_| Box::new(fehler(StatusCode::BAD_REQUEST, "Ungültige Anfrage")))
 }
 
-async fn link_neu(State(o): State<OfficeRef>, Extension(s): Extension<Sitzung>, headers: HeaderMap, body: Bytes) -> Response {
+async fn link_neu(
+    State(o): State<OfficeRef>,
+    Extension(s): Extension<Sitzung>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Response {
     if let Err(r) = lesen::<serde_json::Value>(&o, &headers, &body) {
         return *r;
     }
@@ -56,7 +70,9 @@ fn stand(o: &OfficeRef, konto: &str) -> serde_json::Value {
 }
 
 async fn anmeldungen(State(o): State<OfficeRef>, Extension(s): Extension<Sitzung>) -> Response {
-    let Some(konto) = s.konto else { return fehler(StatusCode::CONFLICT, GEMEINSAM) };
+    let Some(konto) = s.konto else {
+        return fehler(StatusCode::CONFLICT, GEMEINSAM);
+    };
     let _ = o.anmeldungen.geaendert.send(format!("nachsehen:{konto}"));
     Json(stand(&o, &konto)).into_response()
 }
@@ -72,19 +88,28 @@ struct Tun {
     token: String,
 }
 
-async fn anmeldung_tun(State(o): State<OfficeRef>, Extension(s): Extension<Sitzung>, headers: HeaderMap, body: Bytes) -> Response {
+async fn anmeldung_tun(
+    State(o): State<OfficeRef>,
+    Extension(s): Extension<Sitzung>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Response {
     let t: Tun = match lesen(&o, &headers, &body) {
         Ok(t) => t,
         Err(r) => return *r,
     };
-    let Some(konto) = s.konto else { return fehler(StatusCode::CONFLICT, GEMEINSAM) };
+    let Some(konto) = s.konto else {
+        return fehler(StatusCode::CONFLICT, GEMEINSAM);
+    };
     let art = t.art.unwrap_or(AnmeldeArt::Claude);
     let env = umgebung(&o, &konto, None);
     let a = o.anmeldungen.clone();
     let ergebnis = match t.tun.as_str() {
-        "starten" if art == AnmeldeArt::Claude => ablauf::claude_starten(&a, &konto, env),
+        "starten" if art == AnmeldeArt::Claude => {
+            crate::anmeldungen::claude::claude_starten(&a, &konto, env)
+        }
         "starten" => ablauf::github_starten(&a, &konto, env),
-        "code" => ablauf::claude_code(&a, &konto, &t.code),
+        "code" => crate::anmeldungen::claude::claude_code(&a, &konto, &t.code),
         "token" => ablauf::token(&a, &konto, art, &t.token, env).await,
         "office" => {
             let (c, g) = darf_office(&o, &konto);
@@ -125,7 +150,12 @@ struct Einladen {
     von: Option<String>,
 }
 
-async fn einladen(State(o): State<OfficeRef>, Extension(s): Extension<Sitzung>, headers: HeaderMap, body: Bytes) -> Response {
+async fn einladen(
+    State(o): State<OfficeRef>,
+    Extension(s): Extension<Sitzung>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Response {
     let e: Einladen = match lesen(&o, &headers, &body) {
         Ok(e) => e,
         Err(r) => return *r,
@@ -133,12 +163,21 @@ async fn einladen(State(o): State<OfficeRef>, Extension(s): Extension<Sitzung>, 
     if !o.zugang.ich(&s).admin {
         return fehler(StatusCode::FORBIDDEN, "Nur Admins können Leute einladen");
     }
-    let von = o.zugang.konto_name(&s).or(e.von.map(|v| v.chars().take(24).collect())).unwrap_or_else(|| "die App".into());
-    let r = o.zugang.konten.lock().unwrap().einladen(&von, e.rolle.unwrap_or(Rolle::Mitglied), e.name.as_deref());
+    let von = o
+        .zugang
+        .konto_name(&s)
+        .or(e.von.map(|v| v.chars().take(24).collect()))
+        .unwrap_or_else(|| "die App".into());
+    let r = o.zugang.konten.lock().unwrap().einladen(
+        &von,
+        e.rolle.unwrap_or(Rolle::Mitglied),
+        e.name.as_deref(),
+    );
     match r {
         Ok(einladung) => {
             crate::ws::konten::konten_an_admins(&o);
-            Json(json!({ "einladung": einladung, "adressen": crate::ws::konten::adressen(&o) })).into_response()
+            Json(json!({ "einladung": einladung, "adressen": crate::ws::konten::adressen(&o) }))
+                .into_response()
         }
         Err(f) => fehler(StatusCode::BAD_REQUEST, &f),
     }

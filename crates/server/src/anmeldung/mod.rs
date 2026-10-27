@@ -44,7 +44,11 @@ impl Zugang {
         let mut d: Gespeichert = laden(&datei);
         let mut neu = None;
         if let Some(pw) = &k.passwort {
-            if !d.passwort.as_deref().is_some_and(|h| passwort::pruefen(pw, h)) {
+            if !d
+                .passwort
+                .as_deref()
+                .is_some_and(|h| passwort::pruefen(pw, h))
+            {
                 d.passwort = Some(passwort::hashen(pw));
             }
         } else if k.passwort_zuruecksetzen || (d.passwort.is_none() && !k.nur_lokal()) {
@@ -89,11 +93,15 @@ impl Zugang {
 
     /// Das erzeugte Passwort einmalig abholen (Einmal-Link /beanspruchen?t=…).
     pub fn beanspruchen(&self, token: &str) -> Result<String, &'static str> {
-        let Some(erwartet) = &self.beanspruch_token else { return Err("Dieses Office hat keinen Beanspruch-Link.") };
+        let Some(erwartet) = &self.beanspruch_token else {
+            return Err("Dieses Office hat keinen Beanspruch-Link.");
+        };
         let mut d = self.d.lock().unwrap();
         let mut erzeugt = self.erzeugt.lock().unwrap();
         if d.beansprucht || erzeugt.is_none() {
-            return Err("Dieses Office wurde schon beansprucht. Melde dich mit dem gespeicherten Passwort an.");
+            return Err(
+                "Dieses Office wurde schon beansprucht. Melde dich mit dem gespeicherten Passwort an.",
+            );
         }
         if !passwort::gleich(token.as_bytes(), erwartet.as_bytes()) {
             return Err("Dieser Beanspruch-Link ist nicht gültig.");
@@ -104,7 +112,9 @@ impl Zugang {
     }
 
     pub fn beanspruchbar(&self) -> bool {
-        self.beanspruch_token.is_some() && self.erzeugt.lock().unwrap().is_some() && !self.d.lock().unwrap().beansprucht
+        self.beanspruch_token.is_some()
+            && self.erzeugt.lock().unwrap().is_some()
+            && !self.d.lock().unwrap().beansprucht
     }
 
     /// Gilt diese Sitzung noch? Ein entzogenes Konto oder das ausgeschaltete gemeinsame Passwort wirken sofort.
@@ -119,7 +129,10 @@ impl Zugang {
     /// Die Sitzung zu einem Cookie-Header; im offenen Office auch ohne Cookie.
     pub fn aus_cookies(&self, cookies: Option<&str>, host: Option<&str>) -> Option<Sitzung> {
         let name = sitzung::cookie_name(host);
-        let aus_cookie = cookies.and_then(|c| sitzung::cookie_lesen(c, &name)).and_then(|w| self.sitzungen.pruefen(w)).filter(|s| self.gueltig(s));
+        let aus_cookie = cookies
+            .and_then(|c| sitzung::cookie_lesen(c, &name))
+            .and_then(|w| self.sitzungen.pruefen(w))
+            .filter(|s| self.gueltig(s));
         aus_cookie.or_else(|| self.offen().then_some(Sitzung { konto: None }))
     }
 
@@ -127,8 +140,17 @@ impl Zugang {
     pub fn ich(&self, s: &Sitzung) -> Ich {
         let konten = self.konten.lock().unwrap();
         match s.konto.as_deref().and_then(|id| konten.get(id)) {
-            Some(k) => Ich { konto: Some(KontoKurz { name: k.name.clone(), rolle: k.rolle }), admin: k.rolle == Rolle::Admin },
-            None => Ich { konto: None, admin: s.konto.is_none() },
+            Some(k) => Ich {
+                konto: Some(KontoKurz {
+                    name: k.name.clone(),
+                    rolle: k.rolle,
+                }),
+                admin: k.rolle == Rolle::Admin,
+            },
+            None => Ich {
+                konto: None,
+                admin: s.konto.is_none(),
+            },
         }
     }
 

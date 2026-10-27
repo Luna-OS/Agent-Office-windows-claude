@@ -44,7 +44,9 @@ pub const EMOTES: [(praesenz::Emote, &str, &str); 6] = [
 /// Ein Emote für alle auf der Etage.
 pub fn emote(i: usize) {
     if let Some((e, _, _)) = EMOTES.get(i) {
-        crate::bruecke::senden(ClientNachricht::Praesenz(praesenz::Client::Emote { emote: *e }));
+        crate::bruecke::senden(ClientNachricht::Praesenz(praesenz::Client::Emote {
+            emote: *e,
+        }));
     }
     let z = zustand();
     if z.emotes_offen.get_untracked() {
@@ -77,7 +79,10 @@ fn chat_oeffnen() {
 
 /// Ob gerade in ein Eingabefeld getippt wird.
 pub fn tippt(e: &web_sys::KeyboardEvent) -> bool {
-    let Some(ziel) = e.target().and_then(|t| t.dyn_into::<web_sys::Element>().ok()) else {
+    let Some(ziel) = e
+        .target()
+        .and_then(|t| t.dyn_into::<web_sys::Element>().ok())
+    else {
         return false;
     };
     let tag = ziel.tag_name();
@@ -106,7 +111,12 @@ pub(crate) fn anmelden() {
         }
         let key = e.key();
         // Tab schließt das Menü auch wieder.
-        if modal::offen() && !(key == "Tab" && zustand().fenster.with_untracked(|s| s.last() == Some(&Fenster::Menue))) {
+        if modal::offen()
+            && !(key == "Tab"
+                && zustand()
+                    .fenster
+                    .with_untracked(|s| s.last() == Some(&Fenster::Menue)))
+        {
             return;
         }
         if e.repeat() {

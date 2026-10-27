@@ -30,7 +30,9 @@ pub fn DachUrl() -> impl IntoView {
         let u = url.get_untracked();
         match medien::youtube::video_aus_url(&u) {
             Ok(_) => {
-                dach(dach::Client::VideoSetzen { url: u.trim().to_string() });
+                dach(dach::Client::VideoSetzen {
+                    url: u.trim().to_string(),
+                });
                 modal::schliessen(&Fenster::DachUrl);
             }
             Err(f) => fehler.set(Some(f)),
@@ -111,9 +113,15 @@ pub fn Teilen() -> impl IntoView {
 pub fn Bildschirm(spieler: String) -> impl IntoView {
     let z = zustand();
     let s = spieler.clone();
-    let b = Memo::new(move |_| z.bildschirme.with(|l| l.iter().find(|b| b.spieler == s).cloned()));
+    let b = Memo::new(move |_| {
+        z.bildschirme
+            .with(|l| l.iter().find(|b| b.spieler == s).cloned())
+    });
     let du = z.du.get_untracked().unwrap_or_default();
-    let titel = Signal::derive(move || b.with(|b| b.as_ref().map(|b| format!("🖥️ {}", b.name))).unwrap_or_else(|| "🖥️ Bildschirm".into()));
+    let titel = Signal::derive(move || {
+        b.with(|b| b.as_ref().map(|b| format!("🖥️ {}", b.name)))
+            .unwrap_or_else(|| "🖥️ Bildschirm".into())
+    });
     view! {
         <Rahmen fenster=Fenster::Bildschirm(spieler.clone()) titel=titel breite="max-w-[min(96vw,1600px)]">
             {move || match b.get() {
@@ -131,8 +139,19 @@ pub fn Bildschirm(spieler: String) -> impl IntoView {
 pub fn Jukebox() -> impl IntoView {
     let z = zustand();
     let url = RwSignal::new(String::new());
-    let spielen = |stueck: Option<String>, url: Option<String>| senden(ClientNachricht::Medien(m::Client::JukeboxSpielen { stueck, url }));
-    let laeuft = move || z.jukebox.with(|j| j.as_ref().filter(|j| j.an).map(|j| (j.stueck.clone(), j.von.clone())));
+    let spielen = |stueck: Option<String>, url: Option<String>| {
+        senden(ClientNachricht::Medien(m::Client::JukeboxSpielen {
+            stueck,
+            url,
+        }))
+    };
+    let laeuft = move || {
+        z.jukebox.with(|j| {
+            j.as_ref()
+                .filter(|j| j.an)
+                .map(|j| (j.stueck.clone(), j.von.clone()))
+        })
+    };
     view! {
         <Rahmen fenster=Fenster::Jukebox titel="🎵 Jukebox" breite="max-w-lg">
             <div class="flex flex-col gap-3">

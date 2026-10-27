@@ -10,6 +10,9 @@ async fn webgpu_adapter() -> anyhow::Result<()> {
     let s = b.seite(&t.url("/api/gesundheit")).await?;
     let v = s.js("(async () => { if (!navigator.gpu) return 'kein navigator.gpu'; const a = await navigator.gpu.requestAdapter(); if (!a) return 'kein Adapter'; const i = a.info || {}; return 'Adapter: ' + [i.vendor, i.architecture, i.description].join(' / '); })()").await?;
     eprintln!("WebGPU: {v}");
-    assert!(v.as_str().unwrap_or("").starts_with("Adapter"), "WebGPU fehlt im Test-Chromium: {v}");
+    assert!(
+        v.as_str().unwrap_or("").starts_with("Adapter"),
+        "WebGPU fehlt im Test-Chromium: {v}"
+    );
     Ok(())
 }

@@ -65,7 +65,10 @@ impl Aktivitaet<Kontext> for Halten {
     }
     fn hinweis(&self, _kx: &Kontext) -> Option<String> {
         Some(match self.ausholen {
-            Some(a) => format!("Loslassen zum Werfen · Kraft {}%", ((a / AUSHOLEN).min(1.0) * 100.0) as u32),
+            Some(a) => format!(
+                "Loslassen zum Werfen · Kraft {}%",
+                ((a / AUSHOLEN).min(1.0) * 100.0) as u32
+            ),
             None => "E halten: ausholen und werfen · Q: fallen lassen".into(),
         })
     }
@@ -78,7 +81,11 @@ fn ich_halte(kx: &Kontext) -> bool {
 fn hand(kx: &Kontext) -> [f32; 3] {
     let a = kx.spieler.auge();
     let r = kx.spieler.blickrichtung();
-    [a[0] + r[0] * 0.5, a[1] - 0.35 + r[1] * 0.5, a[2] + r[2] * 0.5]
+    [
+        a[0] + r[0] * 0.5,
+        a[1] - 0.35 + r[1] * 0.5,
+        a[2] + r[2] * 0.5,
+    ]
 }
 
 fn werfen(kx: &mut Kontext, tempo: f32) {
@@ -86,7 +93,14 @@ fn werfen(kx: &mut Kontext, tempo: f32) {
     let r = kx.spieler.blickrichtung();
     // Etwas Bogen nach oben, damit ein Wurf auf den Korb natürlich wirkt.
     let v = [r[0] * tempo, (r[1] + 0.35) * tempo, r[2] * tempo];
-    kx.senden(ClientNachricht::Spielzeug(S::BallWerfen { x: p[0], y: p[1], z: p[2], vx: v[0], vy: v[1], vz: v[2] }));
+    kx.senden(ClientNachricht::Spielzeug(S::BallWerfen {
+        x: p[0],
+        y: p[1],
+        z: p[2],
+        vx: v[0],
+        vy: v[1],
+        vz: v[2],
+    }));
     kx.alle_stoppen = true;
 }
 
@@ -114,7 +128,13 @@ pub fn installieren(reg: &mut Register<Kontext>) {
         }
         let ball = kx.zustand.spielzeug.ball.clone();
         if st.gesehen.as_ref() != Some(&ball) {
-            st.flug = ball.wurf.map(|w| Ball::nach([w.x, w.y, w.z], [w.vx, w.vy, w.vz], w.vergangen_ms as f32 / 1000.0));
+            st.flug = ball.wurf.map(|w| {
+                Ball::nach(
+                    [w.x, w.y, w.z],
+                    [w.vx, w.vy, w.vz],
+                    w.vergangen_ms as f32 / 1000.0,
+                )
+            });
             st.rest = 0.0;
             st.gesehen = Some(ball.clone());
         }
@@ -122,7 +142,11 @@ pub fn installieren(reg: &mut Register<Kontext>) {
             if Some(h) == kx.zustand.ich.as_ref() {
                 hand(kx)
             } else if let Some(p) = kx.zustand.personen.get(h) {
-                [p.x + p.rot_y.sin() * 0.4, p.y + 1.1, p.z + p.rot_y.cos() * 0.4]
+                [
+                    p.x + p.rot_y.sin() * 0.4,
+                    p.y + 1.1,
+                    p.z + p.rot_y.cos() * 0.4,
+                ]
             } else {
                 [BALL_RUHE.0, BALL_RADIUS, BALL_RUHE.1]
             }
@@ -133,7 +157,9 @@ pub fn installieren(reg: &mut Register<Kontext>) {
                 let e = f.schritt();
                 if e.korb {
                     klang(Klang::BallKorb { pos: f.p });
-                    melden(WeltAktion::Meldung { text: "🏀 Korb!".into() });
+                    melden(WeltAktion::Meldung {
+                        text: "🏀 Korb!".into(),
+                    });
                 } else if e.ring {
                     klang(Klang::BallRing { pos: f.p });
                 } else if e.aufprall {
@@ -149,7 +175,12 @@ pub fn installieren(reg: &mut Register<Kontext>) {
             k.set_position(Vec3::from(pos));
         }
         if ball.halter.is_none() {
-            kx.dinge.push(Nutzbar { art: "ball", id: "ball".into(), pos, reichweite: 1.4 });
+            kx.dinge.push(Nutzbar {
+                art: "ball",
+                id: "ball".into(),
+                pos,
+                reichweite: 1.4,
+            });
         }
         // Wer den Ball bekommt, hält ihn (Aktivität), bis er ihn wirft.
         if ich_halte(kx) && kx.aktiv != Some("ball") && kx.beginnen.is_none() {
@@ -157,7 +188,11 @@ pub fn installieren(reg: &mut Register<Kontext>) {
         }
     });
 
-    reg.interaktion("ball", |_, _| Some("E: Basketball nehmen".into()), |kx: &mut Kontext, _| {
-        kx.senden(ClientNachricht::Spielzeug(S::BallNehmen));
-    });
+    reg.interaktion(
+        "ball",
+        |_, _| Some("E: Basketball nehmen".into()),
+        |kx: &mut Kontext, _| {
+            kx.senden(ClientNachricht::Spielzeug(S::BallNehmen));
+        },
+    );
 }

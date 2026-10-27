@@ -8,7 +8,8 @@ pub mod muster;
 
 use protokoll::ServerNachricht;
 use protokoll::agenten::{
-    Besprechung, BesprechungEintrag, BesprechungStand, BesprechungStatus, BesprechungWunsch, Platz, Server as AgSrv, Zug, ZugZustand,
+    Besprechung, BesprechungEintrag, BesprechungStand, BesprechungStatus, BesprechungWunsch, Platz,
+    Server as AgSrv, Zug, ZugZustand,
 };
 use protokoll::arbeiter::{ArbeiterArt, Aufraeumen};
 
@@ -27,7 +28,10 @@ pub fn standard_stuehle() -> Vec<String> {
 }
 
 pub fn laden(ordner: &std::path::Path) -> BesprechungStand {
-    std::fs::read_to_string(ordner.join("besprechung.json")).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default()
+    std::fs::read_to_string(ordner.join("besprechung.json"))
+        .ok()
+        .and_then(|t| serde_json::from_str(&t).ok())
+        .unwrap_or_default()
 }
 
 /// Speichert den Stand und schickt ihn an die Etage.
@@ -39,7 +43,12 @@ pub fn melden(ag: &Agenten, etage: &str) {
     if let Ok(t) = serde_json::to_string_pretty(&e.besprechung) {
         let _ = std::fs::write(ordner.join("besprechung.json"), t);
     }
-    ag.innen.senden(Ziel::Etage(etage.to_string()), ServerNachricht::Agenten(AgSrv::Besprechung { stand: e.besprechung.clone() }));
+    ag.innen.senden(
+        Ziel::Etage(etage.to_string()),
+        ServerNachricht::Agenten(AgSrv::Besprechung {
+            stand: e.besprechung.clone(),
+        }),
+    );
 }
 
 /// Die Zeile an der Tür, wenn eine Besprechung vorbei ist.
@@ -47,8 +56,15 @@ pub fn zusammenfassung(b: &Besprechung) -> String {
     let name = muster::def(b.muster).name;
     let tokens = format!("{:.1}k Tokens", b.tokens as f64 / 1000.0);
     match b.status {
-        BesprechungStatus::Gestoppt => format!("{name} · Runde {} von {} · {tokens} · ⛔ {}", b.runde, b.runden, b.grund.as_deref().unwrap_or("angehalten")),
-        BesprechungStatus::Laeuft => format!("{name} · Runde {} von {} · {tokens}", b.runde, b.runden),
+        BesprechungStatus::Gestoppt => format!(
+            "{name} · Runde {} von {} · {tokens} · ⛔ {}",
+            b.runde,
+            b.runden,
+            b.grund.as_deref().unwrap_or("angehalten")
+        ),
+        BesprechungStatus::Laeuft => {
+            format!("{name} · Runde {} von {} · {tokens}", b.runde, b.runden)
+        }
         BesprechungStatus::Fertig => {
             let wo = match (&b.review_url, &b.review_fehler, &b.commit, &b.worktree) {
                 (Some(_), _, _, _) => " · am PR gepostet".to_string(),
@@ -56,7 +72,10 @@ pub fn zusammenfassung(b: &Besprechung) -> String {
                 (_, _, Some(_), Some(wt)) => format!(" auf {}", wt.branch),
                 _ => String::new(),
             };
-            format!("{name} · {} Runden · {tokens} · ✅ {}{wo}", b.runde, b.ausgabe)
+            format!(
+                "{name} · {} Runden · {tokens} · ✅ {}{wo}",
+                b.runde, b.ausgabe
+            )
         }
     }
 }
@@ -78,16 +97,31 @@ fn eintrag(b: &Besprechung) -> BesprechungEintrag {
 /// Die erste Nachricht an einen Platz: wer er ist, worum es geht, wie es läuft.
 fn einweisung(b: &Besprechung, platz: usize, verzeichnis: &str) -> String {
     let d = muster::def(b.muster);
-    let andere: Vec<String> = b.plaetze.iter().enumerate().filter(|(i, _)| *i != platz).map(|(_, p)| p.rolle.clone()).collect();
+    let andere: Vec<String> = b
+        .plaetze
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| *i != platz)
+        .map(|(_, p)| p.rolle.clone())
+        .collect();
     let mut text = format!(
         "{}\n\nDu bist {} in einer Besprechung ({}) im Besprechungsraum des OpenAgenticOffice, am Tisch mit: {}. {}\n\nWorum es geht:\n{}",
-        b.titel, b.plaetze[platz].rolle, d.name, andere.join(", "), d.wie, b.auftrag
+        b.titel,
+        b.plaetze[platz].rolle,
+        d.name,
+        andere.join(", "),
+        d.wie,
+        b.auftrag
     );
     if let Some(pr) = b.pr {
-        text.push_str(&format!("\n\nEs geht um Pull Request #{pr}: lies ihn mit gh pr view {pr} und gh pr diff {pr}."));
+        text.push_str(&format!(
+            "\n\nEs geht um Pull Request #{pr}: lies ihn mit gh pr view {pr} und gh pr diff {pr}."
+        ));
     }
     if let Some(i) = b.issue {
-        text.push_str(&format!("\n\nEs geht um GitHub-Issue #{i}: lies es mit gh issue view {i}."));
+        text.push_str(&format!(
+            "\n\nEs geht um GitHub-Issue #{i}: lies es mit gh issue view {i}."
+        ));
     }
     text.push_str(&format!(
         "\n\nSo läuft es: Das Office gibt jedem von euch seinen Teil jeder Runde in einer Nachricht wie dieser. Erledige genau diesen Teil, schreib ihn in die genannte Datei und beende deinen Zug; die nächste Runde beginnt, wenn alle Teile dieser Runde geschrieben sind. Dein Arbeitsordner ist {verzeichnis}; die Notizen liegen in {NOTIZEN}/, dort liest du, was die anderen geschrieben haben. Die Besprechung endet, wenn {} geschrieben ist, und nur der Teil, der das sagt, schreibt sie. Höchstens {} Runden und {}k Tokens für alle zusammen – halte die Notizen kurz, lieber Stichpunkte.\n\nCommitte nicht, pushe nicht und wechsle nicht den Branch: das Office committet die Ausgabe am Ende selbst.",
@@ -97,15 +131,32 @@ fn einweisung(b: &Besprechung, platz: usize, verzeichnis: &str) -> String {
 }
 
 /// Beruft eine Besprechung ein: Worktree, dann ein Agent je Stuhl mit Einweisung und erstem Teil.
-pub async fn starten(ag: &Agenten, etage: &str, von: &str, konto: Option<String>, w: BesprechungWunsch) -> Result<(), String> {
+pub async fn starten(
+    ag: &Agenten,
+    etage: &str,
+    von: &str,
+    konto: Option<String>,
+    w: BesprechungWunsch,
+) -> Result<(), String> {
     let d = muster::def(w.muster);
     let rollen: Vec<String> = if w.rollen.is_empty() {
-        d.rollen.iter().take(d.plaetze.2).map(|r| r.to_string()).collect()
+        d.rollen
+            .iter()
+            .take(d.plaetze.2)
+            .map(|r| r.to_string())
+            .collect()
     } else {
-        w.rollen.iter().map(|r| r.trim().chars().take(40).collect::<String>()).filter(|r| !r.is_empty()).collect()
+        w.rollen
+            .iter()
+            .map(|r| r.trim().chars().take(40).collect::<String>())
+            .filter(|r| !r.is_empty())
+            .collect()
     };
     if rollen.len() < d.plaetze.0 || rollen.len() > d.plaetze.1 {
-        return Err(format!("{} braucht {} bis {} Plätze", d.name, d.plaetze.0, d.plaetze.1));
+        return Err(format!(
+            "{} braucht {} bis {} Plätze",
+            d.name, d.plaetze.0, d.plaetze.1
+        ));
     }
     let auftrag = w.auftrag.trim().chars().take(20_000).collect::<String>();
     if auftrag.is_empty() {
@@ -114,26 +165,51 @@ pub async fn starten(ag: &Agenten, etage: &str, von: &str, konto: Option<String>
     if d.braucht_pr && w.pr.is_none() {
         return Err("Eine Review-Runde braucht einen Pull Request".into());
     }
-    let teile: Vec<String> = w.teile.iter().map(|t| t.trim().to_string()).filter(|t| !t.is_empty()).take(100).collect();
+    let teile: Vec<String> = w
+        .teile
+        .iter()
+        .map(|t| t.trim().to_string())
+        .filter(|t| !t.is_empty())
+        .take(100)
+        .collect();
     if d.braucht_teile && teile.is_empty() {
         return Err("Map-Reduce braucht eine Liste von Teilen (einer pro Zeile)".into());
     }
-    let titel = w.titel.clone().filter(|t| !t.trim().is_empty()).unwrap_or_else(|| crate::arbeiter::kuerzen(&auftrag, 60));
-    let slug = worktree::slug(&titel, "").trim_end_matches('-').chars().take(40).collect::<String>();
-    let ausgabe = w.ausgabe.clone().filter(|a| !a.trim().is_empty()).unwrap_or_else(|| muster::standard_ausgabe(w.muster, &slug, w.pr));
+    let titel = w
+        .titel
+        .clone()
+        .filter(|t| !t.trim().is_empty())
+        .unwrap_or_else(|| crate::arbeiter::kuerzen(&auftrag, 60));
+    let slug = worktree::slug(&titel, "")
+        .trim_end_matches('-')
+        .chars()
+        .take(40)
+        .collect::<String>();
+    let ausgabe = w
+        .ausgabe
+        .clone()
+        .filter(|a| !a.trim().is_empty())
+        .unwrap_or_else(|| muster::standard_ausgabe(w.muster, &slug, w.pr));
     if let Some(p) = muster::ausgabe_problem(&ausgabe) {
         return Err(p.into());
     }
     let id = zufall_hex(6);
     let (projekt, stuehle) = {
         let z = ag.innen.zustand();
-        let e = z.etagen.get(etage).ok_or("Diese Etage gibt es nicht (mehr)")?;
+        let e = z
+            .etagen
+            .get(etage)
+            .ok_or("Diese Etage gibt es nicht (mehr)")?;
         if let Some(b) = &e.besprechung.aktuell
             && (b.status == BesprechungStatus::Laeuft || !b.abgeraeumt)
         {
             return Err("Am Tisch sitzt noch eine Besprechung: erst anhalten und abräumen".into());
         }
-        let stuehle = if e.besprechung_stuehle.is_empty() { standard_stuehle() } else { e.besprechung_stuehle.clone() };
+        let stuehle = if e.besprechung_stuehle.is_empty() {
+            standard_stuehle()
+        } else {
+            e.besprechung_stuehle.clone()
+        };
         (e.verzeichnis.clone(), stuehle)
     };
     if stuehle.len() < rollen.len() {
@@ -142,10 +218,25 @@ pub async fn starten(ag: &Agenten, etage: &str, von: &str, konto: Option<String>
     if !worktree::ist_repo(&projekt).await {
         return Err("Besprechungen brauchen ein Git-Repository".into());
     }
-    let wt = worktree::erstellen(&projekt, &format!("besprechung-{slug}-{id}")).await.map_err(|e| e.to_string())?;
+    let wt = worktree::erstellen(&projekt, &format!("besprechung-{slug}-{id}"))
+        .await
+        .map_err(|e| e.to_string())?;
     let runden = w.runden.unwrap_or(d.runden.2).clamp(d.runden.0, d.runden.1);
-    let budget = w.budget.unwrap_or(TOKENS_JE_PLATZ * rollen.len() as u64).clamp(10_000, MAX_BUDGET);
-    let plaetze = rollen.into_iter().zip(&stuehle).map(|(rolle, tisch)| Platz { rolle, tisch: tisch.clone(), arbeiter: None, name: None, tokens: 0 }).collect();
+    let budget = w
+        .budget
+        .unwrap_or(TOKENS_JE_PLATZ * rollen.len() as u64)
+        .clamp(10_000, MAX_BUDGET);
+    let plaetze = rollen
+        .into_iter()
+        .zip(&stuehle)
+        .map(|(rolle, tisch)| Platz {
+            rolle,
+            tisch: tisch.clone(),
+            arbeiter: None,
+            name: None,
+            tokens: 0,
+        })
+        .collect();
     let mut b = Besprechung {
         id: id.clone(),
         muster: w.muster,
@@ -182,7 +273,17 @@ pub async fn starten(ag: &Agenten, etage: &str, von: &str, konto: Option<String>
     let _ = std::fs::create_dir_all(abs.join(NOTIZEN));
     let lesen = |_: &str| String::new();
     let erste = muster::teile(&b, 1, 0, &lesen).unwrap_or_default();
-    b.zuege = erste.iter().map(|t| Zug { platz: t.platz, tut: t.tut.clone(), datei: t.datei.clone(), zustand: ZugZustand::Gesendet, gesendet_um: Some(jetzt_ms()), erinnert: false }).collect();
+    b.zuege = erste
+        .iter()
+        .map(|t| Zug {
+            platz: t.platz,
+            tut: t.tut.clone(),
+            datei: t.datei.clone(),
+            zustand: ZugZustand::Gesendet,
+            gesendet_um: Some(jetzt_ms()),
+            erinnert: false,
+        })
+        .collect();
     {
         let mut z = ag.innen.zustand();
         if let Some(e) = z.etagen.get_mut(etage) {
@@ -215,13 +316,21 @@ pub async fn starten(ag: &Agenten, etage: &str, von: &str, konto: Option<String>
             Ok(aid) => {
                 let mut z = ag.innen.zustand();
                 let name = z.arbeiter_mut(etage, &aid).map(|a| a.info.name.clone());
-                if let Some(b) = z.etagen.get_mut(etage).and_then(|e| e.besprechung.aktuell.as_mut()) {
+                if let Some(b) = z
+                    .etagen
+                    .get_mut(etage)
+                    .and_then(|e| e.besprechung.aktuell.as_mut())
+                {
                     b.plaetze[i].arbeiter = Some(aid);
                     b.plaetze[i].name = name;
                 }
             }
             Err(f) => {
-                anhalten(ag, etage, &format!("{} konnte sich nicht setzen: {f}", b.plaetze[i].rolle));
+                anhalten(
+                    ag,
+                    etage,
+                    &format!("{} konnte sich nicht setzen: {f}", b.plaetze[i].rolle),
+                );
                 return Err(f);
             }
         }
@@ -234,8 +343,17 @@ pub async fn starten(ag: &Agenten, etage: &str, von: &str, konto: Option<String>
 pub fn anhalten(ag: &Agenten, etage: &str, grund: &str) {
     {
         let mut z = ag.innen.zustand();
-        let Some(e) = z.etagen.get_mut(etage) else { return };
-        let Some(b) = e.besprechung.aktuell.as_mut().filter(|b| b.status == BesprechungStatus::Laeuft) else { return };
+        let Some(e) = z.etagen.get_mut(etage) else {
+            return;
+        };
+        let Some(b) = e
+            .besprechung
+            .aktuell
+            .as_mut()
+            .filter(|b| b.status == BesprechungStatus::Laeuft)
+        else {
+            return;
+        };
         b.status = BesprechungStatus::Gestoppt;
         b.grund = Some(grund.to_string());
         b.beendet_um = Some(jetzt_ms());
@@ -247,8 +365,15 @@ pub fn anhalten(ag: &Agenten, etage: &str, grund: &str) {
 pub async fn abraeumen(ag: &Agenten, etage: &str) -> Result<(), String> {
     let (plaetze, wt, projekt) = {
         let z = ag.innen.zustand();
-        let e = z.etagen.get(etage).ok_or("Diese Etage gibt es nicht (mehr)")?;
-        let b = e.besprechung.aktuell.as_ref().ok_or("Am Tisch sitzt niemand")?;
+        let e = z
+            .etagen
+            .get(etage)
+            .ok_or("Diese Etage gibt es nicht (mehr)")?;
+        let b = e
+            .besprechung
+            .aktuell
+            .as_ref()
+            .ok_or("Am Tisch sitzt niemand")?;
         if b.status == BesprechungStatus::Laeuft {
             return Err("Die Besprechung läuft noch: erst anhalten".into());
         }

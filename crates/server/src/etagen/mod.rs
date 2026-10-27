@@ -7,7 +7,9 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
-use protokoll::etagen::{EtageInfo, FLUEGEL_MAX, Grundriss, KlonFortschritt, ProjektInfo, ProjekteOrdner, Schild};
+use protokoll::etagen::{
+    EtageInfo, FLUEGEL_MAX, Grundriss, KlonFortschritt, ProjektInfo, ProjekteOrdner, Schild,
+};
 use serde::{Deserialize, Serialize};
 use tokio::sync::oneshot;
 
@@ -66,9 +68,26 @@ pub struct Etagen {
 
 /// Eine ID aus einem Namen: klein, nur a-z0-9 und Bindestriche.
 pub fn slug(name: &str) -> String {
-    let s: String = name.chars().map(|c| if c.is_ascii_alphanumeric() { c.to_ascii_lowercase() } else { '-' }).collect();
-    let s = s.split('-').filter(|t| !t.is_empty()).collect::<Vec<_>>().join("-");
-    if s.is_empty() { "etage".into() } else { s.chars().take(48).collect() }
+    let s: String = name
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() {
+                c.to_ascii_lowercase()
+            } else {
+                '-'
+            }
+        })
+        .collect();
+    let s = s
+        .split('-')
+        .filter(|t| !t.is_empty())
+        .collect::<Vec<_>>()
+        .join("-");
+    if s.is_empty() {
+        "etage".into()
+    } else {
+        s.chars().take(48).collect()
+    }
 }
 
 /// Ein Pfad zum Anzeigen: unter dem Home-Ordner als ~/….
@@ -82,7 +101,9 @@ pub fn zum_anzeigen(p: &Path) -> String {
 
 /// Ein absoluter Pfad ohne das Windows-Präfix für lange Pfade.
 pub fn absolut(p: &Path) -> PathBuf {
-    let p = p.canonicalize().unwrap_or_else(|_| std::path::absolute(p).unwrap_or_else(|_| p.to_path_buf()));
+    let p = p
+        .canonicalize()
+        .unwrap_or_else(|_| std::path::absolute(p).unwrap_or_else(|_| p.to_path_buf()));
     match p.to_str().and_then(|s| s.strip_prefix(r"\\?\")) {
         Some(rest) if !rest.starts_with("UNC") => PathBuf::from(rest),
         _ => p,
@@ -93,7 +114,12 @@ impl Etagen {
     pub fn laden(daten: &Path, standard_projekte: PathBuf) -> Self {
         let datei = daten.join("etagen.json");
         let liste: Vec<EtageDef> = laden(&datei);
-        Self { datei, liste: Mutex::new(liste), klone: Mutex::default(), standard_projekte }
+        Self {
+            datei,
+            liste: Mutex::new(liste),
+            klone: Mutex::default(),
+            standard_projekte,
+        }
     }
 
     fn sichern(&self, liste: &[EtageDef]) {
@@ -101,7 +127,12 @@ impl Etagen {
     }
 
     pub fn get(&self, id: &str) -> Option<EtageDef> {
-        self.liste.lock().unwrap().iter().find(|e| e.id == id).cloned()
+        self.liste
+            .lock()
+            .unwrap()
+            .iter()
+            .find(|e| e.id == id)
+            .cloned()
     }
 
     pub fn gibt_es(&self, id: &str) -> bool {
@@ -117,14 +148,30 @@ impl Etagen {
     }
 
     /// Wohin neue Etagen geklont werden.
-    pub fn projekte_ordner(&self, eigen: Option<&(String, String, u64)>) -> (PathBuf, ProjekteOrdner) {
+    pub fn projekte_ordner(
+        &self,
+        eigen: Option<&(String, String, u64)>,
+    ) -> (PathBuf, ProjekteOrdner) {
         match eigen {
             Some((ordner, von, um)) => {
                 let p = PathBuf::from(ordner);
-                let a = ProjekteOrdner { ordner: zum_anzeigen(&p), eigen: true, von: Some(von.clone()), um: Some(*um) };
+                let a = ProjekteOrdner {
+                    ordner: zum_anzeigen(&p),
+                    eigen: true,
+                    von: Some(von.clone()),
+                    um: Some(*um),
+                };
                 (p, a)
             }
-            None => (self.standard_projekte.clone(), ProjekteOrdner { ordner: zum_anzeigen(&self.standard_projekte), eigen: false, von: None, um: None }),
+            None => (
+                self.standard_projekte.clone(),
+                ProjekteOrdner {
+                    ordner: zum_anzeigen(&self.standard_projekte),
+                    eigen: false,
+                    von: None,
+                    um: None,
+                },
+            ),
         }
     }
 
@@ -132,11 +179,18 @@ impl Etagen {
         let basis = slug(wunsch);
         let liste = self.liste.lock().unwrap();
         let klone = self.klone.lock().unwrap();
-        let belegt = |id: &str| liste.iter().any(|e| e.id == id) || klone.contains_key(id) || id == protokoll::etagen::DACH;
+        let belegt = |id: &str| {
+            liste.iter().any(|e| e.id == id)
+                || klone.contains_key(id)
+                || id == protokoll::etagen::DACH
+        };
         if !belegt(&basis) {
             return basis;
         }
-        (2..).map(|n| format!("{basis}-{n}")).find(|id| !belegt(id)).expect("unendlich viele Kandidaten")
+        (2..)
+            .map(|n| format!("{basis}-{n}"))
+            .find(|id| !belegt(id))
+            .expect("unendlich viele Kandidaten")
     }
 
     fn naechste_palette(&self) -> u32 {
@@ -147,14 +201,31 @@ impl Etagen {
     /// Das Projekt, in dem das Office gestartet wurde: wird (falls nicht schon da) die lokale Etage.
     pub fn lokale_sicherstellen(&self, ordner: &Path) -> EtageDef {
         let ordner = absolut(ordner);
-        if let Some(e) = self.liste.lock().unwrap().iter().find(|e| e.ordner == ordner) {
+        if let Some(e) = self
+            .liste
+            .lock()
+            .unwrap()
+            .iter()
+            .find(|e| e.ordner == ordner)
+        {
             return e.clone();
         }
-        let name = ordner.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| "Projekt".into());
+        let name = ordner
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_else(|| "Projekt".into());
         let repo = git::remote(&ordner).and_then(|r| git::repo_aus(&r));
         let def = EtageDef {
-            id: self.freie_id(repo.as_deref().and_then(|r| r.split('/').nth(1)).unwrap_or(&name)),
-            name: repo.as_deref().and_then(|r| r.split('/').nth(1)).map(String::from).unwrap_or(name),
+            id: self.freie_id(
+                repo.as_deref()
+                    .and_then(|r| r.split('/').nth(1))
+                    .unwrap_or(&name),
+            ),
+            name: repo
+                .as_deref()
+                .and_then(|r| r.split('/').nth(1))
+                .map(String::from)
+                .unwrap_or(name),
             repo,
             ordner,
             palette: self.naechste_palette(),
@@ -170,16 +241,37 @@ impl Etagen {
     }
 
     /// Bereitet einen Klon vor: die Etage steht im Aufzug, ist aber noch nicht betretbar.
-    pub fn klon_anmelden(&self, repo: &str, projekte: &Path, von: &str, verbindung: &str) -> Result<KlonStart, String> {
-        let (owner, name) = repo.split_once('/').ok_or("Ein Repository heißt owner/name")?;
-        if self.liste.lock().unwrap().iter().any(|e| e.repo.as_deref().is_some_and(|r| r.eq_ignore_ascii_case(repo))) {
+    pub fn klon_anmelden(
+        &self,
+        repo: &str,
+        projekte: &Path,
+        von: &str,
+        verbindung: &str,
+    ) -> Result<KlonStart, String> {
+        let (owner, name) = repo
+            .split_once('/')
+            .ok_or("Ein Repository heißt owner/name")?;
+        if self.liste.lock().unwrap().iter().any(|e| {
+            e.repo
+                .as_deref()
+                .is_some_and(|r| r.eq_ignore_ascii_case(repo))
+        }) {
             return Err(format!("{repo} ist schon eine Etage"));
         }
-        if self.klone.lock().unwrap().values().any(|k| k.def.repo.as_deref().is_some_and(|r| r.eq_ignore_ascii_case(repo))) {
+        if self.klone.lock().unwrap().values().any(|k| {
+            k.def
+                .repo
+                .as_deref()
+                .is_some_and(|r| r.eq_ignore_ascii_case(repo))
+        }) {
             return Err(format!("{repo} wird schon geklont"));
         }
         let ordner = projekte.join(owner).join(name);
-        if ordner.exists() && std::fs::read_dir(&ordner).map(|mut d| d.next().is_some()).unwrap_or(true) {
+        if ordner.exists()
+            && std::fs::read_dir(&ordner)
+                .map(|mut d| d.next().is_some())
+                .unwrap_or(true)
+        {
             // Schon ausgecheckt: direkt als Etage übernehmen, ohne zu klonen.
             return Ok(KlonStart::Vorhanden(ordner));
         }
@@ -197,7 +289,13 @@ impl Etagen {
         let (tx, rx) = oneshot::channel();
         self.klone.lock().unwrap().insert(
             def.id.clone(),
-            KlonLauf { def: def.clone(), fortschritt: None, verbindung: verbindung.into(), von: von.into(), abbruch: Some(tx) },
+            KlonLauf {
+                def: def.clone(),
+                fortschritt: None,
+                verbindung: verbindung.into(),
+                von: von.into(),
+                abbruch: Some(tx),
+            },
         );
         Ok(KlonStart::Klonen(def, rx))
     }
@@ -262,7 +360,11 @@ impl Etagen {
     }
 
     /// Ändert den Grundriss einer Etage.
-    pub fn grundriss_aendern(&self, id: &str, f: impl FnOnce(&mut Grundriss) -> bool) -> Option<Grundriss> {
+    pub fn grundriss_aendern(
+        &self,
+        id: &str,
+        f: impl FnOnce(&mut Grundriss) -> bool,
+    ) -> Option<Grundriss> {
         let mut liste = self.liste.lock().unwrap();
         let e = liste.iter_mut().find(|e| e.id == id)?;
         if !f(&mut e.grundriss) {
@@ -275,19 +377,36 @@ impl Etagen {
 
     pub fn projekt(&self, id: &str) -> Option<ProjektInfo> {
         let e = self.get(id)?;
-        Some(ProjektInfo { name: e.name.clone(), branch: git::branch(&e.ordner), remote: git::remote(&e.ordner), ordner: e.ordner.display().to_string() })
+        Some(ProjektInfo {
+            name: e.name.clone(),
+            branch: git::branch(&e.ordner),
+            remote: git::remote(&e.ordner),
+            ordner: e.ordner.display().to_string(),
+        })
     }
 
     /// Alle Etagen für den Aufzug, laufende Klone am Ende.
-    pub fn infos(&self, personen: &HashMap<String, u32>, zahlen: &dyn Fn(&str) -> Zahlen) -> Vec<EtageInfo> {
+    pub fn infos(
+        &self,
+        personen: &HashMap<String, u32>,
+        zahlen: &dyn Fn(&str) -> Zahlen,
+    ) -> Vec<EtageInfo> {
         let info = |e: &EtageDef, klon: Option<&KlonLauf>| {
-            let z = if klon.is_some() { Zahlen::default() } else { zahlen(&e.id) };
+            let z = if klon.is_some() {
+                Zahlen::default()
+            } else {
+                zahlen(&e.id)
+            };
             EtageInfo {
                 id: e.id.clone(),
                 name: e.name.clone(),
                 repo: e.repo.clone(),
                 ordner: zum_anzeigen(&e.ordner),
-                branch: if klon.is_some() { None } else { git::branch(&e.ordner) },
+                branch: if klon.is_some() {
+                    None
+                } else {
+                    git::branch(&e.ordner)
+                },
                 palette: e.palette,
                 klont: klon.is_some(),
                 klon: klon.and_then(|k| k.fortschritt.clone()),
@@ -301,7 +420,13 @@ impl Etagen {
                 fluegel: e.grundriss.fluegel,
             }
         };
-        let mut aus: Vec<EtageInfo> = self.liste.lock().unwrap().iter().map(|e| info(e, None)).collect();
+        let mut aus: Vec<EtageInfo> = self
+            .liste
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|e| info(e, None))
+            .collect();
         let klone = self.klone.lock().unwrap();
         let mut laufend: Vec<&KlonLauf> = klone.values().collect();
         laufend.sort_by_key(|k| k.def.hinzugefuegt_um);
@@ -311,7 +436,13 @@ impl Etagen {
 }
 
 /// Ein Schild setzen oder (leerer Text) abnehmen. `false`, wenn sich nichts ändert.
-pub fn schild_setzen(g: &mut Grundriss, tisch: &str, text: &str, farbe: Option<&str>, von: &str) -> bool {
+pub fn schild_setzen(
+    g: &mut Grundriss,
+    tisch: &str,
+    text: &str,
+    farbe: Option<&str>,
+    von: &str,
+) -> bool {
     let tisch: String = tisch.chars().take(40).collect();
     let text: String = text.trim().chars().take(32).collect();
     if welt::grundriss::tisch_nach_id(&tisch).is_none() {
@@ -320,15 +451,32 @@ pub fn schild_setzen(g: &mut Grundriss, tisch: &str, text: &str, farbe: Option<&
     if text.is_empty() {
         return g.schilder.remove(&tisch).is_some();
     }
-    let farbe = farbe.filter(|f| crate::ws::eingabe::ist_farbe(f)).unwrap_or("#f4d35e").to_string();
-    g.schilder.insert(tisch, Schild { text, farbe, von: von.into(), um: jetzt_ms() });
+    let farbe = farbe
+        .filter(|f| crate::ws::eingabe::ist_farbe(f))
+        .unwrap_or("#f4d35e")
+        .to_string();
+    g.schilder.insert(
+        tisch,
+        Schild {
+            text,
+            farbe,
+            von: von.into(),
+            um: jetzt_ms(),
+        },
+    );
     true
 }
 
 /// Die Arbeitsplätze (Schreibtische, Sitzsäcke) einer Etage mit diesem Ausbau, für `agenten`.
 pub fn arbeitsplaetze(fluegel: u32) -> Vec<String> {
     use welt::grundriss::TischArt;
-    welt::grundriss::alle_tische().into_iter().filter(|t| t.fluegel <= fluegel && matches!(t.art, TischArt::Schreibtisch | TischArt::Sitzsack)).map(|t| t.id).collect()
+    welt::grundriss::alle_tische()
+        .into_iter()
+        .filter(|t| {
+            t.fluegel <= fluegel && matches!(t.art, TischArt::Schreibtisch | TischArt::Sitzsack)
+        })
+        .map(|t| t.id)
+        .collect()
 }
 
 /// Hinterbüro um eine Reihe erweitern (`+1`) oder zurückbauen (`-1`).
@@ -347,9 +495,16 @@ mod tests {
     fn klon_ablauf() {
         let dir = tempfile::tempdir().unwrap();
         let e = Etagen::laden(dir.path(), dir.path().join("projekte"));
-        let Ok(KlonStart::Klonen(def, _rx)) = e.klon_anmelden("Luna-OS/Office", &dir.path().join("projekte"), "Luna", "v1") else { panic!() };
+        let Ok(KlonStart::Klonen(def, _rx)) =
+            e.klon_anmelden("Luna-OS/Office", &dir.path().join("projekte"), "Luna", "v1")
+        else {
+            panic!()
+        };
         assert_eq!(def.id, "office");
-        assert!(e.klon_anmelden("luna-os/office", &dir.path().join("projekte"), "Luna", "v1").is_err());
+        assert!(
+            e.klon_anmelden("luna-os/office", &dir.path().join("projekte"), "Luna", "v1")
+                .is_err()
+        );
         let infos = e.infos(&HashMap::new(), &|_| Zahlen::default());
         assert!(infos[0].klont);
         assert!(e.klon_abbrechen("office", |von| von == "Jemand").is_err());
@@ -364,8 +519,20 @@ mod tests {
     fn grundriss() {
         let mut g = Grundriss::default();
         let tisch = welt::grundriss::alle_tische()[0].id.clone();
-        assert!(schild_setzen(&mut g, &tisch, "Backend", Some("#ff0000"), "Luna"));
-        assert!(!schild_setzen(&mut g, "gibt-es-nicht", "Backend", None, "Luna"));
+        assert!(schild_setzen(
+            &mut g,
+            &tisch,
+            "Backend",
+            Some("#ff0000"),
+            "Luna"
+        ));
+        assert!(!schild_setzen(
+            &mut g,
+            "gibt-es-nicht",
+            "Backend",
+            None,
+            "Luna"
+        ));
         assert!(schild_setzen(&mut g, &tisch, "", None, "Luna"));
         assert!(fluegel_aendern(&mut g, 1));
         assert!(!fluegel_aendern(&mut g, -5) || g.fluegel == 0);

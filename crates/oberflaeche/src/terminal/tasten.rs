@@ -58,7 +58,13 @@ pub fn bytes(t: &Taste, anwendung: bool, mac: bool) -> Option<String> {
     if t.meta {
         return None;
     }
-    let alt = |s: &str| if t.alt { format!("\x1b{s}") } else { s.to_string() };
+    let alt = |s: &str| {
+        if t.alt {
+            format!("\x1b{s}")
+        } else {
+            s.to_string()
+        }
+    };
     let aus = match t.key {
         "Enter" => alt("\r"),
         "Backspace" => alt(if t.strg { "\x08" } else { "\x7f" }),
@@ -89,7 +95,9 @@ pub fn bytes(t: &Taste, anwendung: bool, mac: bool) -> Option<String> {
         "F12" => tilde(t, 24),
         k => {
             let mut zeichen = k.chars();
-            let (Some(c), None) = (zeichen.next(), zeichen.next()) else { return None };
+            let (Some(c), None) = (zeichen.next(), zeichen.next()) else {
+                return None;
+            };
             if t.strg {
                 steuerzeichen(c).map(|b| alt(&(b as char).to_string()))?
             } else {
@@ -118,7 +126,11 @@ fn steuerzeichen(c: char) -> Option<u8> {
 /// Eingefügter Text, in Klammern, wenn das Programm darum gebeten hat.
 pub fn einfuegen(text: &str, klammern: bool) -> String {
     let text = text.replace("\r\n", "\r").replace('\n', "\r");
-    if klammern { format!("\x1b[200~{text}\x1b[201~") } else { text }
+    if klammern {
+        format!("\x1b[200~{text}\x1b[201~")
+    } else {
+        text
+    }
 }
 
 #[cfg(test)]
@@ -126,14 +138,23 @@ mod tests {
     use super::*;
 
     fn t(key: &str) -> Taste<'_> {
-        Taste { key, strg: false, alt: false, shift: false, meta: false }
+        Taste {
+            key,
+            strg: false,
+            alt: false,
+            shift: false,
+            meta: false,
+        }
     }
 
     #[test]
     fn grundtasten() {
         assert_eq!(bytes(&t("a"), false, false).as_deref(), Some("a"));
         assert_eq!(bytes(&t("Enter"), false, false).as_deref(), Some("\r"));
-        assert_eq!(bytes(&t("ArrowUp"), false, false).as_deref(), Some("\x1b[A"));
+        assert_eq!(
+            bytes(&t("ArrowUp"), false, false).as_deref(),
+            Some("\x1b[A")
+        );
         assert_eq!(bytes(&t("ArrowUp"), true, false).as_deref(), Some("\x1bOA"));
         assert_eq!(bytes(&t("F5"), false, false).as_deref(), Some("\x1b[15~"));
         assert_eq!(bytes(&t("Shift"), false, false), None);
@@ -141,17 +162,38 @@ mod tests {
 
     #[test]
     fn modifikatoren() {
-        let strg_c = Taste { strg: true, ..t("c") };
+        let strg_c = Taste {
+            strg: true,
+            ..t("c")
+        };
         assert_eq!(bytes(&strg_c, false, false).as_deref(), Some("\x03"));
-        let strg_klammer = Taste { strg: true, ..t("[") };
+        let strg_klammer = Taste {
+            strg: true,
+            ..t("[")
+        };
         assert_eq!(bytes(&strg_klammer, false, false).as_deref(), Some("\x1b"));
-        let shift_enter = Taste { shift: true, ..t("Enter") };
+        let shift_enter = Taste {
+            shift: true,
+            ..t("Enter")
+        };
         assert_eq!(bytes(&shift_enter, false, false).as_deref(), Some("\n"));
-        let strg_rechts = Taste { strg: true, ..t("ArrowRight") };
-        assert_eq!(bytes(&strg_rechts, false, false).as_deref(), Some("\x1b[1;5C"));
-        let cmd_links = Taste { meta: true, ..t("ArrowLeft") };
+        let strg_rechts = Taste {
+            strg: true,
+            ..t("ArrowRight")
+        };
+        assert_eq!(
+            bytes(&strg_rechts, false, false).as_deref(),
+            Some("\x1b[1;5C")
+        );
+        let cmd_links = Taste {
+            meta: true,
+            ..t("ArrowLeft")
+        };
         assert_eq!(bytes(&cmd_links, false, true).as_deref(), Some("\x01"));
-        let alt_b = Taste { alt: true, ..t("b") };
+        let alt_b = Taste {
+            alt: true,
+            ..t("b")
+        };
         assert_eq!(bytes(&alt_b, false, false).as_deref(), Some("\x1bb"));
     }
 

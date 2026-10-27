@@ -43,13 +43,17 @@ pub struct EmoteEimer {
 
 impl Default for EmoteEimer {
     fn default() -> Self {
-        Self { marken: 3.0, zuletzt: 0 }
+        Self {
+            marken: 3.0,
+            zuletzt: 0,
+        }
     }
 }
 
 impl EmoteEimer {
     pub fn nehmen(&mut self, jetzt_ms: u64) -> bool {
-        self.marken = (self.marken + jetzt_ms.saturating_sub(self.zuletzt) as f64 / 2000.0).min(3.0);
+        self.marken =
+            (self.marken + jetzt_ms.saturating_sub(self.zuletzt) as f64 / 2000.0).min(3.0);
         self.zuletzt = jetzt_ms;
         if self.marken >= 1.0 {
             self.marken -= 1.0;
@@ -97,13 +101,20 @@ pub trait Anbindung: Send + Sync {
 
 /// Serialisiert eine Nachricht einmal für viele Empfänger.
 pub fn text(n: &ServerNachricht) -> Utf8Bytes {
-    Utf8Bytes::from(serde_json::to_string(n).unwrap_or_else(|e| format!(r#"{{"domaene":"fehler","nachricht":{{"text":"{e}"}}}}"#)))
+    Utf8Bytes::from(
+        serde_json::to_string(n)
+            .unwrap_or_else(|e| format!(r#"{{"domaene":"fehler","nachricht":{{"text":"{e}"}}}}"#)),
+    )
 }
 
 impl Office {
     /// Die Person hinter einer Verbindung (Kopie).
     pub fn person(&self, id: &str) -> Option<Person> {
-        self.verbindungen.lock().unwrap().get(id).map(|v| v.person.clone())
+        self.verbindungen
+            .lock()
+            .unwrap()
+            .get(id)
+            .map(|v| v.person.clone())
     }
 
     /// Ändert die Person hinter einer Verbindung; gibt die neue Fassung zurück.
@@ -114,21 +125,45 @@ impl Office {
         Some(p.clone())
     }
 
+    /// Die (erste) Person mit diesem Namen.
+    pub fn person_nach_name(&self, name: &str) -> Option<Person> {
+        self.verbindungen
+            .lock()
+            .unwrap()
+            .values()
+            .find(|v| v.person.name == name)
+            .map(|v| v.person.clone())
+    }
+
     pub fn etage_von(&self, id: &str) -> Option<String> {
-        self.verbindungen.lock().unwrap().get(id).and_then(|v| v.person.etage.clone())
+        self.verbindungen
+            .lock()
+            .unwrap()
+            .get(id)
+            .and_then(|v| v.person.etage.clone())
     }
 
     pub fn sitzung_von(&self, id: &str) -> Option<Sitzung> {
-        self.verbindungen.lock().unwrap().get(id).map(|v| v.sitzung.clone())
+        self.verbindungen
+            .lock()
+            .unwrap()
+            .get(id)
+            .map(|v| v.sitzung.clone())
     }
 
     pub fn ist_admin(&self, id: &str) -> bool {
-        self.sitzung_von(id).is_some_and(|s| self.zugang.ich(&s).admin)
+        self.sitzung_von(id)
+            .is_some_and(|s| self.zugang.ich(&s).admin)
     }
 
     /// Alle Menschen im Office.
     pub fn personen(&self) -> Vec<Person> {
-        self.verbindungen.lock().unwrap().values().map(|v| v.person.clone()).collect()
+        self.verbindungen
+            .lock()
+            .unwrap()
+            .values()
+            .map(|v| v.person.clone())
+            .collect()
     }
 
     /// Wie viele Menschen auf jeder Etage sind.
@@ -144,7 +179,12 @@ impl Office {
 
     /// Konten, die gerade im Office sind.
     pub fn konten_online(&self) -> HashSet<String> {
-        self.verbindungen.lock().unwrap().values().filter_map(|v| v.sitzung.konto.clone()).collect()
+        self.verbindungen
+            .lock()
+            .unwrap()
+            .values()
+            .filter_map(|v| v.sitzung.konto.clone())
+            .collect()
     }
 
     pub fn an(&self, id: &str, n: &ServerNachricht) {
@@ -168,7 +208,12 @@ impl Office {
     }
 
     /// An alle, für die `filter` gilt (außer `ausser`).
-    pub fn an_wen(&self, n: &ServerNachricht, ausser: Option<&str>, filter: impl Fn(&Verbindung) -> bool) {
+    pub fn an_wen(
+        &self,
+        n: &ServerNachricht,
+        ausser: Option<&str>,
+        filter: impl Fn(&Verbindung) -> bool,
+    ) {
         let t = text(n);
         for (id, v) in self.verbindungen.lock().unwrap().iter() {
             if Some(id.as_str()) != ausser && filter(v) {
@@ -203,7 +248,13 @@ impl Office {
 
     /// Eine Meldung an einen Browser.
     pub fn hinweis(&self, id: &str, text: impl Into<String>, stufe: protokoll::praesenz::Stufe) {
-        self.an(id, &ServerNachricht::Praesenz(protokoll::praesenz::Server::Hinweis { text: text.into(), stufe }));
+        self.an(
+            id,
+            &ServerNachricht::Praesenz(protokoll::praesenz::Server::Hinweis {
+                text: text.into(),
+                stufe,
+            }),
+        );
     }
 
     pub fn fehler(&self, id: &str, text: impl Into<String>) {
@@ -251,16 +302,25 @@ impl Office {
     }
 
     pub fn dienst_ports(&self) -> Vec<u16> {
-        self.anbindungen().iter().filter_map(|a| a.dienst_ports()).flatten().collect()
+        self.anbindungen()
+            .iter()
+            .filter_map(|a| a.dienst_ports())
+            .flatten()
+            .collect()
     }
 
     pub fn zahlen(&self, etage: &str) -> Zahlen {
-        self.anbindungen().iter().find_map(|a| a.zahlen(etage)).unwrap_or_default()
+        self.anbindungen()
+            .iter()
+            .find_map(|a| a.zahlen(etage))
+            .unwrap_or_default()
     }
 
     /// gh/git-Umgebung für die Verbindung `von`: die eigene GitHub-Anmeldung ihres Kontos, sonst die des Office.
     pub fn github_umgebung(self: &Arc<Self>, von: &str) -> Vec<(String, String)> {
-        let Some(konto) = self.sitzung_von(von).and_then(|s| s.konto) else { return Vec::new() };
+        let Some(konto) = self.sitzung_von(von).and_then(|s| s.konto) else {
+            return Vec::new();
+        };
         crate::ws::anmeldungen::umgebung(self, &konto, Some(protokoll::konten::AnmeldeArt::Github))
     }
 

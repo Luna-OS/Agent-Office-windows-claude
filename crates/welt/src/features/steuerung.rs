@@ -35,7 +35,8 @@ pub fn installieren(reg: &mut Register<Kontext>) {
         } else {
             Steuerung {
                 vor: an("KeyW", "ArrowUp") as i32 as f32 - an("KeyS", "ArrowDown") as i32 as f32,
-                seit: an("KeyD", "ArrowRight") as i32 as f32 - an("KeyA", "ArrowLeft") as i32 as f32,
+                seit: an("KeyD", "ArrowRight") as i32 as f32
+                    - an("KeyA", "ArrowLeft") as i32 as f32,
                 rennen: an("ShiftLeft", "ShiftRight"),
                 springen: g.contains("Space"),
             }
@@ -52,11 +53,21 @@ pub fn installieren(reg: &mut Register<Kontext>) {
         seit += dt;
         let p = kx.spieler.pos();
         let jetzt = [p[0], p[1], p[2], kx.spieler.blick];
-        let anders = zuletzt.is_none_or(|z| z.iter().zip(jetzt.iter()).any(|(a, b)| (a - b).abs() > 0.01));
+        let anders = zuletzt.is_none_or(|z| {
+            z.iter()
+                .zip(jetzt.iter())
+                .any(|(a, b)| (a - b).abs() > 0.01)
+        });
         if anders && seit >= SENDE_TAKT {
             seit = 0.0;
             zuletzt = Some(jetzt);
-            kx.senden(ClientNachricht::Praesenz(P::Bewegen { x: p[0], y: p[1], z: p[2], rot_y: kx.spieler.blick, laeuft: kx.spieler.laeuft }));
+            kx.senden(ClientNachricht::Praesenz(P::Bewegen {
+                x: p[0],
+                y: p[1],
+                z: p[2],
+                rot_y: kx.spieler.blick,
+                laeuft: kx.spieler.laeuft,
+            }));
         }
     });
 
@@ -69,10 +80,16 @@ pub fn installieren(reg: &mut Register<Kontext>) {
         let (kopf, richtung) = ziel.unwrap_or((auge, blick));
         match ziel {
             Some((a, b)) => kx.kamera.setzen(a, b, |_, _| f32::INFINITY),
-            None => kx.kamera.setzen(auge, blick, |von, richtung| strahl(&kaesten, von, richtung)),
+            None => kx
+                .kamera
+                .setzen(auge, blick, |von, richtung| strahl(&kaesten, von, richtung)),
         }
         let umgebung = umgebung(kx.zustand.auf_dem_dach(), kx.spieler.pos());
-        crate::api::hoerer_melden(crate::api::Hoerer { kopf, blick: richtung, umgebung });
+        crate::api::hoerer_melden(crate::api::Hoerer {
+            kopf,
+            blick: richtung,
+            umgebung,
+        });
         let _ = AUGENHOEHE;
     });
 }
@@ -85,7 +102,11 @@ pub fn umgebung(dach: bool, p: [f32; 3]) -> crate::api::Umgebung {
         return U::Dach;
     }
     if p[1] < -PLATTE - 0.5 {
-        return if GEBAEUDE.enthaelt(p[0], p[2]) { U::Garage } else { U::Draussen };
+        return if GEBAEUDE.enthaelt(p[0], p[2]) {
+            U::Garage
+        } else {
+            U::Draussen
+        };
     }
     if BODEN.enthaelt(p[0], p[2]) || im_fluegel(p[0], p[2], crate::grundriss::FLUEGEL_REIHEN) {
         U::Drinnen
@@ -99,10 +120,24 @@ fn strahl(kaesten: &[crate::kollision::Kasten], von: [f32; 3], richtung: [f32; 3
     let mut t = 0.0;
     while t < 6.0 {
         t += 0.15;
-        let p = [von[0] + richtung[0] * t, von[1] + richtung[1] * t, von[2] + richtung[2] * t];
+        let p = [
+            von[0] + richtung[0] * t,
+            von[1] + richtung[1] * t,
+            von[2] + richtung[2] * t,
+        ];
         let drin = kaesten.iter().any(|k| {
-            let unten = if k.unten.is_finite() { k.unten } else { -1000.0 };
-            !k.zaun && p[0] > k.min_x && p[0] < k.max_x && p[2] > k.min_z && p[2] < k.max_z && p[1] < k.oben && p[1] > unten
+            let unten = if k.unten.is_finite() {
+                k.unten
+            } else {
+                -1000.0
+            };
+            !k.zaun
+                && p[0] > k.min_x
+                && p[0] < k.max_x
+                && p[2] > k.min_z
+                && p[2] < k.max_z
+                && p[1] < k.oben
+                && p[1] > unten
         });
         if drin {
             return t;

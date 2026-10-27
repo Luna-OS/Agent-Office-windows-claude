@@ -21,13 +21,21 @@ pub struct Flaeche {
 
 impl Flaeche {
     pub const fn neu(min_x: f32, max_x: f32, min_z: f32, max_z: f32) -> Self {
-        Self { min_x, max_x, min_z, max_z }
+        Self {
+            min_x,
+            max_x,
+            min_z,
+            max_z,
+        }
     }
     pub fn enthaelt(&self, x: f32, z: f32) -> bool {
         x > self.min_x && x < self.max_x && z > self.min_z && z < self.max_z
     }
     pub fn mitte(&self) -> (f32, f32) {
-        ((self.min_x + self.max_x) / 2.0, (self.min_z + self.max_z) / 2.0)
+        (
+            (self.min_x + self.max_x) / 2.0,
+            (self.min_z + self.max_z) / 2.0,
+        )
     }
     pub fn breite(&self) -> f32 {
         self.max_x - self.min_x
@@ -90,7 +98,14 @@ pub const TISCH_TIEFE: f32 = 1.1;
 pub const TISCH_HOEHE: f32 = 0.78;
 
 fn tisch(id: String, x: f32, z: f32, rot_y: f32, art: TischArt, fluegel: u32) -> Tisch {
-    Tisch { id, x, z, rot_y, art, fluegel }
+    Tisch {
+        id,
+        x,
+        z,
+        rot_y,
+        art,
+        fluegel,
+    }
 }
 
 /// Die 16 Schreibtische im Großraum: zwei Inseln je Seite, Rücken an Rücken.
@@ -101,7 +116,14 @@ pub fn schreibtische() -> Vec<Tisch> {
         for cx in [-10.5f32, -1.5] {
             for (z, rot) in [(hinten, PI), (vorne, 0.0)] {
                 for dx in [-TISCH_BREITE / 2.0, TISCH_BREITE / 2.0] {
-                    v.push(tisch(format!("desk-{n}"), cx + dx, z, rot, TischArt::Schreibtisch, 0));
+                    v.push(tisch(
+                        format!("desk-{n}"),
+                        cx + dx,
+                        z,
+                        rot,
+                        TischArt::Schreibtisch,
+                        0,
+                    ));
                     n += 1;
                 }
             }
@@ -122,7 +144,11 @@ pub fn fluegel_min_z(stufe: u32) -> f32 {
 
 /// Ob (x, z) im Hinterbüro liegt.
 pub fn im_fluegel(x: f32, z: f32, stufe: u32) -> bool {
-    stufe > 0 && x > FLUEGEL_MIN_X && x < BODEN.max_x && z <= BODEN.min_z && z > fluegel_min_z(stufe)
+    stufe > 0
+        && x > FLUEGEL_MIN_X
+        && x < BODEN.max_x
+        && z <= BODEN.min_z
+        && z > fluegel_min_z(stufe)
 }
 
 fn fluegel_tische() -> Vec<Tisch> {
@@ -131,8 +157,22 @@ fn fluegel_tische() -> Vec<Tisch> {
     for i in 0..FLUEGEL_REIHEN {
         let z = BODEN.min_z - (i as f32 + 0.5) * FLUEGEL_REIHE;
         let n = 17 + 2 * i;
-        v.push(tisch(format!("desk-{n}"), x, z - TISCH_TIEFE / 2.0, PI, TischArt::Schreibtisch, i + 1));
-        v.push(tisch(format!("desk-{}", n + 1), x, z + TISCH_TIEFE / 2.0, 0.0, TischArt::Schreibtisch, i + 1));
+        v.push(tisch(
+            format!("desk-{n}"),
+            x,
+            z - TISCH_TIEFE / 2.0,
+            PI,
+            TischArt::Schreibtisch,
+            i + 1,
+        ));
+        v.push(tisch(
+            format!("desk-{}", n + 1),
+            x,
+            z + TISCH_TIEFE / 2.0,
+            0.0,
+            TischArt::Schreibtisch,
+            i + 1,
+        ));
     }
     v
 }
@@ -154,17 +194,23 @@ const SITZSAECKE: [(f32, f32, f32); 12] = [
 
 /// Die Kioske der Board-Agenten an der Nordwand, je links neben ihrer Tafel.
 pub fn kioske() -> Vec<Tisch> {
-    [("station-issues", Board::Issues, -15.6), ("station-pulls", Board::PullRequests, 0.0), ("station-queue", Board::Warteschlange, -7.8)]
-        .into_iter()
-        .map(|(id, b, x)| tisch(id.into(), x, BODEN.min_z + 1.3, PI, TischArt::Kiosk(b), 0))
-        .collect()
+    [
+        ("station-issues", Board::Issues, -15.6),
+        ("station-pulls", Board::PullRequests, 0.0),
+        ("station-queue", Board::Warteschlange, -7.8),
+    ]
+    .into_iter()
+    .map(|(id, b, x)| tisch(id.into(), x, BODEN.min_z + 1.3, PI, TischArt::Kiosk(b), 0))
+    .collect()
 }
 
 /// Alle Plätze, an denen ein Arbeiter sein kann, in der Reihenfolge des Originals.
 pub fn alle_tische() -> Vec<Tisch> {
     let mut v = schreibtische();
     v.extend(fluegel_tische());
-    v.extend(SITZSAECKE.iter().enumerate().map(|(i, &(x, z, r))| tisch(format!("beanbag-{}", i + 1), x, z, r, TischArt::Sitzsack, 0)));
+    v.extend(SITZSAECKE.iter().enumerate().map(|(i, &(x, z, r))| {
+        tisch(format!("beanbag-{}", i + 1), x, z, r, TischArt::Sitzsack, 0)
+    }));
     v.extend(kioske());
     v.extend(sitze::besprechungs_tische());
     v
@@ -194,17 +240,59 @@ pub struct Tafel {
 pub fn tafel(b: Board) -> Tafel {
     let nord = BODEN.min_z + 0.08;
     match b {
-        Board::Issues => Tafel { x: -11.7, y: 2.1, z: nord, rot_y: 0.0, breite: 6.0, hoehe: 3.0 },
-        Board::Warteschlange => Tafel { x: -3.9, y: 2.1, z: nord, rot_y: 0.0, breite: 6.0, hoehe: 3.0 },
-        Board::PullRequests => Tafel { x: 3.9, y: 2.1, z: nord, rot_y: 0.0, breite: 6.0, hoehe: 3.0 },
-        Board::Dienste => Tafel { x: BODEN.max_x - 0.08, y: 2.1, z: -8.2, rot_y: -PI / 2.0, breite: 6.0, hoehe: 3.0 },
+        Board::Issues => Tafel {
+            x: -11.7,
+            y: 2.1,
+            z: nord,
+            rot_y: 0.0,
+            breite: 6.0,
+            hoehe: 3.0,
+        },
+        Board::Warteschlange => Tafel {
+            x: -3.9,
+            y: 2.1,
+            z: nord,
+            rot_y: 0.0,
+            breite: 6.0,
+            hoehe: 3.0,
+        },
+        Board::PullRequests => Tafel {
+            x: 3.9,
+            y: 2.1,
+            z: nord,
+            rot_y: 0.0,
+            breite: 6.0,
+            hoehe: 3.0,
+        },
+        Board::Dienste => Tafel {
+            x: BODEN.max_x - 0.08,
+            y: 2.1,
+            z: -8.2,
+            rot_y: -PI / 2.0,
+            breite: 6.0,
+            hoehe: 3.0,
+        },
     }
 }
 
 /// Der große Fernseher an der Ostwand (zeigt geteilte Bildschirme).
-pub const TV: Tafel = Tafel { x: BODEN.max_x - 0.1, y: 2.2, z: 0.0, rot_y: -PI / 2.0, breite: 6.4, hoehe: 3.6 };
+pub const TV: Tafel = Tafel {
+    x: BODEN.max_x - 0.1,
+    y: 2.2,
+    z: 0.0,
+    rot_y: -PI / 2.0,
+    breite: 6.4,
+    hoehe: 3.6,
+};
 /// Der Monitor an der Westwand: wie ausgelastet der Rechner des Office ist.
-pub const RECHNER_MONITOR: Tafel = Tafel { x: BODEN.min_x + 0.05, y: 2.2, z: -6.0, rot_y: PI / 2.0, breite: 2.3, hoehe: 1.3 };
+pub const RECHNER_MONITOR: Tafel = Tafel {
+    x: BODEN.min_x + 0.05,
+    y: 2.2,
+    z: -6.0,
+    rot_y: PI / 2.0,
+    breite: 2.3,
+    hoehe: 1.3,
+};
 
 /// Möbel an festen Stellen (x, z).
 pub const JUKEBOX: (f32, f32) = (BODEN.max_x - 0.42, 5.4);
@@ -237,7 +325,9 @@ pub const PFLANZEN: [(f32, f32, f32); 8] = [
 
 /// Die Pflanzen, die bei Ausbau `stufe` stehen (die vor dem Hinterbüro wird weggeräumt).
 pub fn pflanzen(stufe: u32) -> impl Iterator<Item = (f32, f32, f32)> {
-    PFLANZEN.into_iter().filter(move |&(x, z, _)| stufe == 0 || !(x > FLUEGEL_MIN_X && z < BODEN.min_z + 1.5))
+    PFLANZEN
+        .into_iter()
+        .filter(move |&(x, z, _)| stufe == 0 || !(x > FLUEGEL_MIN_X && z < BODEN.min_z + 1.5))
 }
 
 /// Das Chefbüro auf der Empore in der Südost-Ecke.
@@ -299,21 +389,57 @@ pub enum Seite {
 }
 
 /// Glastüren zum Balkon in der Südwand.
-pub const BALKON_TUER: Oeffnung = Oeffnung { wand: Seite::Sued, u: -4.0, breite: 3.0, unten: 0.0, oben: 2.5 };
+pub const BALKON_TUER: Oeffnung = Oeffnung {
+    wand: Seite::Sued,
+    u: -4.0,
+    breite: 3.0,
+    unten: 0.0,
+    oben: 2.5,
+};
 /// Die Tür nach draußen in der Westwand (nur auf der untersten Etage), mit Treppe zur Straße.
-pub const AUSGANG: Oeffnung = Oeffnung { wand: Seite::West, u: 6.5, breite: 1.4, unten: 0.0, oben: 2.4 };
+pub const AUSGANG: Oeffnung = Oeffnung {
+    wand: Seite::West,
+    u: 6.5,
+    breite: 1.4,
+    unten: 0.0,
+    oben: 2.4,
+};
 
 /// Fenster und Türen in den Außenwänden.
 pub fn oeffnungen(unterste_etage: bool) -> Vec<Oeffnung> {
     let mut v = Vec::new();
     for u in [-14.0, -9.0, 1.0] {
-        v.push(Oeffnung { wand: Seite::Sued, u, breite: 3.0, unten: 1.1, oben: 3.3 });
+        v.push(Oeffnung {
+            wand: Seite::Sued,
+            u,
+            breite: 3.0,
+            unten: 1.1,
+            oben: 3.3,
+        });
     }
     for u in [-9.0, -3.0, 3.0] {
-        v.push(Oeffnung { wand: Seite::West, u, breite: 3.0, unten: 1.1, oben: 3.3 });
+        v.push(Oeffnung {
+            wand: Seite::West,
+            u,
+            breite: 3.0,
+            unten: 1.1,
+            oben: 3.3,
+        });
     }
-    v.push(Oeffnung { wand: Seite::Sued, u: EMPORE.min_x + 2.0, breite: 2.8, unten: EMPORE_Y + 0.9, oben: EMPORE_Y + 2.5 });
-    v.push(Oeffnung { wand: Seite::Ost, u: (EMPORE.min_z + EMPORE.max_z) / 2.0, breite: 2.8, unten: EMPORE_Y + 0.9, oben: EMPORE_Y + 2.5 });
+    v.push(Oeffnung {
+        wand: Seite::Sued,
+        u: EMPORE.min_x + 2.0,
+        breite: 2.8,
+        unten: EMPORE_Y + 0.9,
+        oben: EMPORE_Y + 2.5,
+    });
+    v.push(Oeffnung {
+        wand: Seite::Ost,
+        u: (EMPORE.min_z + EMPORE.max_z) / 2.0,
+        breite: 2.8,
+        unten: EMPORE_Y + 0.9,
+        oben: EMPORE_Y + 2.5,
+    });
     v.push(BALKON_TUER);
     if unterste_etage {
         v.push(AUSGANG);
@@ -322,7 +448,12 @@ pub fn oeffnungen(unterste_etage: bool) -> Vec<Oeffnung> {
 }
 
 /// Der Balkon über der Garageneinfahrt.
-pub const BALKON: Flaeche = Flaeche::neu(-10.5, 2.5, BODEN.max_z + WANDSTAERKE, BODEN.max_z + WANDSTAERKE + 3.4);
+pub const BALKON: Flaeche = Flaeche::neu(
+    -10.5,
+    2.5,
+    BODEN.max_z + WANDSTAERKE,
+    BODEN.max_z + WANDSTAERKE + 3.4,
+);
 /// Der Aschenbecher auf dem Balkon.
 pub const ASCHENBECHER: (f32, f32) = (-8.2, BALKON.max_z - 0.55);
 /// Der Golf-Abschlag auf dem Balkon und das Loch auf der anderen Straßenseite (auf Straßenhöhe).
@@ -376,7 +507,11 @@ mod tests {
         assert_eq!(bodenhoehe(TREPPE.min_x + 0.01, 12.0, 0.0), 0.0);
         assert!(bodenhoehe(TREPPE.max_x - 0.01, 12.0, 0.0) > EMPORE_Y * 0.9);
         assert_eq!(bodenhoehe(15.0, 10.0, EMPORE_Y), EMPORE_Y);
-        assert_eq!(bodenhoehe(15.0, 10.0, 0.0), 0.0, "unter der Empore bleibt man unten");
+        assert_eq!(
+            bodenhoehe(15.0, 10.0, 0.0),
+            0.0,
+            "unter der Empore bleibt man unten"
+        );
     }
 
     #[test]

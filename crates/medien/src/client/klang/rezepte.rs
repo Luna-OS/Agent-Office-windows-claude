@@ -52,7 +52,16 @@ impl Klang {
         };
         for (i, &f) in toene.iter().enumerate() {
             let t0 = k.jetzt() + i as f64 * 0.12;
-            ton(&k, OscillatorType::Triangle, f, t0, 0.02, 0.3, 0.25, k.hinweise.as_ref());
+            ton(
+                &k,
+                OscillatorType::Triangle,
+                f,
+                t0,
+                0.02,
+                0.3,
+                0.25,
+                k.hinweise.as_ref(),
+            );
         }
     }
 
@@ -63,7 +72,13 @@ impl Klang {
         if landen {
             k.abspielen(p, 0.0, 0.5, 0.75, k.umgebung.as_ref());
         } else {
-            k.abspielen(p, 0.0, zufall(0.16, 0.21) as f32, zufall(0.9, 1.1) as f32, k.umgebung.as_ref());
+            k.abspielen(
+                p,
+                0.0,
+                zufall(0.16, 0.21) as f32,
+                zufall(0.9, 1.1) as f32,
+                k.umgebung.as_ref(),
+            );
         }
     }
 
@@ -71,13 +86,26 @@ impl Klang {
     pub fn schritt_bei(&self, x: f32, z: f32, y: f32) {
         let Some(k) = self.kern() else { return };
         let ort = Ort { x, y: y + 0.1, z };
-        k.abspielen_bei(waehle(&k.puffer.schritte), ort, zufall(0.3, 0.38) as f32, zufall(0.9, 1.1) as f32, 1.5, 1.4);
+        k.abspielen_bei(
+            waehle(&k.puffer.schritte),
+            ort,
+            zufall(0.3, 0.38) as f32,
+            zufall(0.9, 1.1) as f32,
+            1.5,
+            1.4,
+        );
     }
 
     /// Eine Karte in der Hand: vom Board genommen oder auf einen Tisch gelegt.
     pub fn papier(&self) {
         let Some(k) = self.kern() else { return };
-        k.abspielen(&k.puffer.rascheln, 0.0, 0.5, zufall(1.1, 1.3) as f32, k.umgebung.as_ref());
+        k.abspielen(
+            &k.puffer.rascheln,
+            0.0,
+            0.5,
+            zufall(1.1, 1.3) as f32,
+            k.umgebung.as_ref(),
+        );
     }
 
     /// Eine Buchseite wird umgeblättert: ein weiches Wischen, dann ein leichtes Auflegen.
@@ -85,7 +113,9 @@ impl Klang {
         let Some(k) = self.kern() else { return };
         let t0 = k.jetzt() + 0.005;
         let len = zufall(0.24, 0.32);
-        let Ok(q) = k.ctx.create_buffer_source() else { return };
+        let Ok(q) = k.ctx.create_buffer_source() else {
+            return;
+        };
         q.set_buffer(Some(&k.puffer.weiss));
         let band = k.filter(BiquadFilterType::Bandpass, 1000.0, 0.8);
         let f = band.frequency();
@@ -104,7 +134,13 @@ impl Klang {
         let _ = g.connect_with_audio_node(&k.umgebung);
         let _ = q.start_with_when_and_grain_offset(t0, zufall(0.0, 4.5));
         let _ = web_sys::AudioScheduledSourceNode::stop_with_when(&q, t0 + len + 0.02);
-        k.abspielen(waehle(&k.puffer.schritte), t0 + len * 0.85, 0.08, zufall(2.4, 2.8) as f32, k.umgebung.as_ref());
+        k.abspielen(
+            waehle(&k.puffer.schritte),
+            t0 + len * 0.85,
+            0.08,
+            zufall(2.4, 2.8) as f32,
+            k.umgebung.as_ref(),
+        );
     }
 
     /// Der Gong am PR-Board, von dort, wo er hängt.
@@ -132,8 +168,19 @@ impl Klang {
 
 /// Ein einfacher Ton mit Hüllkurve (exponentiell rauf und wieder runter).
 #[allow(clippy::too_many_arguments)]
-fn ton(k: &Kern, art: OscillatorType, f: f32, t0: f64, an: f64, spitze: f32, aus: f64, ziel: &AudioNode) {
-    let Ok(o) = k.ctx.create_oscillator() else { return };
+fn ton(
+    k: &Kern,
+    art: OscillatorType,
+    f: f32,
+    t0: f64,
+    an: f64,
+    spitze: f32,
+    aus: f64,
+    ziel: &AudioNode,
+) {
+    let Ok(o) = k.ctx.create_oscillator() else {
+        return;
+    };
     o.set_type(art);
     o.frequency().set_value(f);
     let g = k.verstaerker(0.0);
@@ -156,13 +203,19 @@ fn gong_schlag(k: &Kern, aus: &AudioNode, t0: f64, staerke: f32) {
         let f = f0 * verh;
         let ende = t0 + abkl * lang;
         for cent in [-1.0, 1.0] {
-            let Ok(o) = k.ctx.create_oscillator() else { continue };
-            let _ = o.frequency().set_value_at_time(f * (1.0 + 0.012 * staerke), t0);
+            let Ok(o) = k.ctx.create_oscillator() else {
+                continue;
+            };
+            let _ = o
+                .frequency()
+                .set_value_at_time(f * (1.0 + 0.012 * staerke), t0);
             let _ = o.frequency().exponential_ramp_to_value_at_time(f, t0 + 1.2);
             o.detune().set_value(cent * zufall(2.0, 5.0) as f32);
             let g = k.verstaerker(0.0);
             let _ = g.gain().set_value_at_time(0.0001, t0);
-            let _ = g.gain().exponential_ramp_to_value_at_time(amp * 0.5, t0 + 0.01 + verh as f64 * 0.004);
+            let _ = g
+                .gain()
+                .exponential_ramp_to_value_at_time(amp * 0.5, t0 + 0.01 + verh as f64 * 0.004);
             let _ = g.gain().exponential_ramp_to_value_at_time(0.0001, ende);
             let _ = o.connect_with_audio_node(&g);
             let _ = g.connect_with_audio_node(&ring);
@@ -171,13 +224,21 @@ fn gong_schlag(k: &Kern, aus: &AudioNode, t0: f64, staerke: f32) {
         }
     }
     // Der Filzklöppel: ein kurzer, tiefer Stoß.
-    let Ok(o) = k.ctx.create_oscillator() else { return };
+    let Ok(o) = k.ctx.create_oscillator() else {
+        return;
+    };
     let _ = o.frequency().set_value_at_time(80.0, t0);
-    let _ = o.frequency().exponential_ramp_to_value_at_time(45.0, t0 + 0.15);
+    let _ = o
+        .frequency()
+        .exponential_ramp_to_value_at_time(45.0, t0 + 0.15);
     let g = k.verstaerker(0.0);
     let _ = g.gain().set_value_at_time(0.0001, t0);
-    let _ = g.gain().exponential_ramp_to_value_at_time(0.5 * staerke, t0 + 0.004);
-    let _ = g.gain().exponential_ramp_to_value_at_time(0.0001, t0 + 0.25);
+    let _ = g
+        .gain()
+        .exponential_ramp_to_value_at_time(0.5 * staerke, t0 + 0.004);
+    let _ = g
+        .gain()
+        .exponential_ramp_to_value_at_time(0.0001, t0 + 0.25);
     let _ = o.connect_with_audio_node(&g);
     let _ = g.connect_with_audio_node(aus);
     let _ = o.start_with_when(t0);
@@ -258,8 +319,22 @@ impl Tipper {
                 }
                 t.uebrig -= 1;
                 if t.uebrig == 0 {
-                    anschlag(k, t, wann, if zufall(0.0, 1.0) < 0.4 { Taste::Enter } else { Taste::Anschlag });
-                    t.naechster = wann + if zufall(0.0, 1.0) < 0.15 { zufall(4.0, 9.0) } else { zufall(0.6, 3.0) };
+                    anschlag(
+                        k,
+                        t,
+                        wann,
+                        if zufall(0.0, 1.0) < 0.4 {
+                            Taste::Enter
+                        } else {
+                            Taste::Anschlag
+                        },
+                    );
+                    t.naechster = wann
+                        + if zufall(0.0, 1.0) < 0.15 {
+                            zufall(4.0, 9.0)
+                        } else {
+                            zufall(0.6, 3.0)
+                        };
                 } else {
                     t.wort -= 1;
                     if t.wort <= 0 {

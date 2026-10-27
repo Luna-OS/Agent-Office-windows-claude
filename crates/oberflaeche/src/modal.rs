@@ -42,6 +42,8 @@ pub enum Fenster {
     Whiteboard,
     Arcade,
     Station(String),
+    Kerker,
+    Minen,
     Anlegen(String),
     Repos,
 }
@@ -115,7 +117,11 @@ pub(crate) fn esc_abfangen() {
             schliessen_oben();
         }
     });
-    let _ = window().add_event_listener_with_callback_and_bool("keydown", cb.as_ref().unchecked_ref(), true);
+    let _ = window().add_event_listener_with_callback_and_bool(
+        "keydown",
+        cb.as_ref().unchecked_ref(),
+        true,
+    );
     cb.forget();
 }
 
@@ -134,7 +140,11 @@ pub fn Rahmen(
 ) -> impl IntoView {
     let f_zu = fenster.clone();
     let f_hinter = fenster.clone();
-    let breite = if breite.is_empty() { "max-w-xl".to_string() } else { breite };
+    let breite = if breite.is_empty() {
+        "max-w-xl".to_string()
+    } else {
+        breite
+    };
     view! {
         <div
             class="fenster-hinter fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4"

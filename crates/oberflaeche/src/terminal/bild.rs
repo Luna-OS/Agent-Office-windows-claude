@@ -12,8 +12,8 @@ const CURSOR: &str = "#ffd166";
 
 /// Die 16 Grundfarben.
 const PALETTE: [&str; 16] = [
-    "#282a36", "#ff5c7a", "#7cf29a", "#ffd166", "#6cb6ff", "#d69cff", "#72ddf7", "#e6e6f0", "#6c7086", "#ff8fa3", "#a6f4b8",
-    "#ffe29a", "#9ccfff", "#e5c1ff", "#a5ecfb", "#ffffff",
+    "#282a36", "#ff5c7a", "#7cf29a", "#ffd166", "#6cb6ff", "#d69cff", "#72ddf7", "#e6e6f0",
+    "#6c7086", "#ff8fa3", "#a6f4b8", "#ffe29a", "#9ccfff", "#e5c1ff", "#a5ecfb", "#ffffff",
 ];
 
 /// Eine der 256 Farben als CSS.
@@ -23,7 +23,12 @@ fn idx(i: u8) -> String {
         16..232 => {
             let n = i - 16;
             let stufe = |v: u8| if v == 0 { 0 } else { 55 + v * 40 };
-            format!("#{:02x}{:02x}{:02x}", stufe(n / 36), stufe((n / 6) % 6), stufe(n % 6))
+            format!(
+                "#{:02x}{:02x}{:02x}",
+                stufe(n / 36),
+                stufe((n / 6) % 6),
+                stufe(n % 6)
+            )
         }
         _ => {
             let g = 8 + (i - 232) * 10;
@@ -123,18 +128,27 @@ pub fn html(screen: &Screen, fokus: bool) -> String {
         let mut stil = Stil::default();
         let mut text = String::new();
         for s in 0..spalten {
-            let Some(zelle) = screen.cell(z, s) else { continue };
+            let Some(zelle) = screen.cell(z, s) else {
+                continue;
+            };
             if zelle.is_wide_continuation() {
                 continue;
             }
             let fett = zelle.bold();
             let (mut v, mut h) = (farbe(zelle.fgcolor(), fett), farbe(zelle.bgcolor(), false));
             if zelle.inverse() {
-                (v, h) = (Some(h.unwrap_or_else(|| HINTERGRUND.into())), Some(v.unwrap_or_else(|| SCHRIFT.into())));
+                (v, h) = (
+                    Some(h.unwrap_or_else(|| HINTERGRUND.into())),
+                    Some(v.unwrap_or_else(|| SCHRIFT.into())),
+                );
             }
             let ist_cursor = cursor_zeigen && z == cz && s == cs;
             if ist_cursor {
-                h = Some(if fokus { CURSOR.into() } else { "#6c7086".into() });
+                h = Some(if fokus {
+                    CURSOR.into()
+                } else {
+                    "#6c7086".into()
+                });
                 v = Some(HINTERGRUND.into());
             }
             let neu = Stil {
@@ -174,10 +188,14 @@ mod tests {
 
     #[test]
     fn farben_und_escape() {
-        let mut p = vt100::Parser::new(NonZeroU16::new(2).unwrap(), NonZeroU16::new(10).unwrap(), 0);
+        let mut p =
+            vt100::Parser::new(NonZeroU16::new(2).unwrap(), NonZeroU16::new(10).unwrap(), 0);
         p.process(b"\x1b[31mrot\x1b[0m <a>\x1b[?25l");
         let h = super::html(p.screen(), false);
-        assert!(h.starts_with("<pre><span style=\"color:#ff5c7a;\">rot</span> &lt;a&gt;</pre>"), "{h}");
+        assert!(
+            h.starts_with("<pre><span style=\"color:#ff5c7a;\">rot</span> &lt;a&gt;</pre>"),
+            "{h}"
+        );
         assert_eq!(h.matches("<pre>").count(), 2);
     }
 }

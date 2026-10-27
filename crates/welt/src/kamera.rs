@@ -21,11 +21,22 @@ pub struct Kamera {
 
 impl Kamera {
     pub fn neu() -> Self {
-        Self { innen: Self::innen(70.0), fov: 70.0, abstand: 0.0, groesse: Vec2::new(16.0, 9.0) }
+        Self {
+            innen: Self::innen(70.0),
+            fov: 70.0,
+            abstand: 0.0,
+            groesse: Vec2::new(16.0, 9.0),
+        }
     }
 
     fn innen(fov: f32) -> FirstPersonCamera3d {
-        let mut innen = FirstPersonCamera3d::new_with_frustum(fov.to_radians(), 0.05, 900.0, Vec3::new(0.0, 1.6, 5.0), Vec3::ZERO);
+        let mut innen = FirstPersonCamera3d::new_with_frustum(
+            fov.to_radians(),
+            0.05,
+            900.0,
+            Vec3::new(0.0, 1.6, 5.0),
+            Vec3::ZERO,
+        );
         innen.rebind_rotate_button(None);
         innen.rebind_drag_button(None);
         innen.unbind_movement_keys();
@@ -55,7 +66,12 @@ impl Kamera {
     }
 
     /// Setzt Auge und Blick. `begrenzen` sagt, wie weit hinter dem Kopf frei ist (vor Wänden kürzen).
-    pub fn setzen(&mut self, auge: [f32; 3], blick: [f32; 3], begrenzen: impl Fn([f32; 3], [f32; 3]) -> f32) {
+    pub fn setzen(
+        &mut self,
+        auge: [f32; 3],
+        blick: [f32; 3],
+        begrenzen: impl Fn([f32; 3], [f32; 3]) -> f32,
+    ) {
         let a = Vec3::from(auge);
         let b = Vec3::from(blick).normalize_or(Vec3::NEG_Z);
         let eye = if self.abstand > 0.0 {

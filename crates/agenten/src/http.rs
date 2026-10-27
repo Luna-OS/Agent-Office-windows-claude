@@ -26,9 +26,15 @@ const TREFFER_JE_ARBEITER: usize = 25;
 
 pub fn router(ag: Agenten) -> Router {
     Router::new()
-        .route("/api/agenten/provider", get(|| async { Json(provider::uebersicht()) }))
+        .route(
+            "/api/agenten/provider",
+            get(|| async { Json(provider::uebersicht()) }),
+        )
         .route("/api/agenten/etagen/{etage}/board", get(board))
-        .route("/api/agenten/arbeiter/{id}/ablegen", post(ablegen).layer(DefaultBodyLimit::max(MAX_ABLAGE)))
+        .route(
+            "/api/agenten/arbeiter/{id}/ablegen",
+            post(ablegen).layer(DefaultBodyLimit::max(MAX_ABLAGE)),
+        )
         .route("/api/agenten/arbeiter/{id}/datei", get(datei))
         .route("/api/agenten/suche", get(suche))
         .route("/api/agenten/modelle/{provider}", get(modelle))
@@ -36,7 +42,9 @@ pub fn router(ag: Agenten) -> Router {
 }
 
 fn etage(von: &Option<Extension<Absender>>) -> String {
-    von.as_ref().and_then(|v| v.etage.clone()).unwrap_or_else(|| STANDARD_ETAGE.to_string())
+    von.as_ref()
+        .and_then(|v| v.etage.clone())
+        .unwrap_or_else(|| STANDARD_ETAGE.to_string())
 }
 
 async fn board(State(ag): State<Agenten>, Path(etage): Path<String>) -> Response {
@@ -52,10 +60,20 @@ async fn board(State(ag): State<Agenten>, Path(etage): Path<String>) -> Response
 pub fn pfad_zum_tippen(p: &str) -> String {
     let windows = p.len() > 2 && p.as_bytes()[1] == b':' && matches!(p.as_bytes()[2], b'\\' | b'/');
     if windows {
-        return if p.contains(char::is_whitespace) { format!("\"{p}\"") } else { p.to_string() };
+        return if p.contains(char::is_whitespace) {
+            format!("\"{p}\"")
+        } else {
+            p.to_string()
+        };
     }
     p.chars()
-        .flat_map(|c| if c.is_alphanumeric() || "_@%+=:,./-".contains(c) { vec![c] } else { vec!['\\', c] })
+        .flat_map(|c| {
+            if c.is_alphanumeric() || "_@%+=:,./-".contains(c) {
+                vec![c]
+            } else {
+                vec!['\\', c]
+            }
+        })
         .collect()
 }
 
@@ -65,16 +83,45 @@ struct Ablage {
     name: String,
 }
 
-async fn ablegen(State(ag): State<Agenten>, von: Option<Extension<Absender>>, Path(id): Path<String>, Query(q): Query<Ablage>, body: Bytes) -> Response {
+async fn ablegen(
+    State(ag): State<Agenten>,
+    von: Option<Extension<Absender>>,
+    Path(id): Path<String>,
+    Query(q): Query<Ablage>,
+    body: Bytes,
+) -> Response {
     let etage = etage(&von);
-    if ag.innen.zustand().etagen.get(&etage).and_then(|e| e.arbeiter.get(&id)).is_none() {
-        return fehler(StatusCode::NOT_FOUND, "Diesen Arbeiter gibt es auf dieser Etage nicht");
+    if ag
+        .innen
+        .zustand()
+        .etagen
+        .get(&etage)
+        .and_then(|e| e.arbeiter.get(&id))
+        .is_none()
+    {
+        return fehler(
+            StatusCode::NOT_FOUND,
+            "Diesen Arbeiter gibt es auf dieser Etage nicht",
+        );
     }
     if body.is_empty() {
         return fehler(StatusCode::BAD_REQUEST, "Die Datei ist leer");
     }
-    let sicher: String = q.name.chars().filter(|c| c.is_alphanumeric() || "._-".contains(*c)).take(80).collect();
-    let name = format!("{}-{}", zufall_hex(6), if sicher.trim_matches('.').is_empty() { "datei".to_string() } else { sicher });
+    let sicher: String = q
+        .name
+        .chars()
+        .filter(|c| c.is_alphanumeric() || "._-".contains(*c))
+        .take(80)
+        .collect();
+    let name = format!(
+        "{}-{}",
+        zufall_hex(6),
+        if sicher.trim_matches('.').is_empty() {
+            "datei".to_string()
+        } else {
+            sicher
+        }
+    );
     let ordner = ag.innen.daten.join("ablage").join(&id);
     let pfad = ordner.join(name);
     let ergebnis = async {
@@ -87,7 +134,10 @@ async fn ablegen(State(ag): State<Agenten>, von: Option<Extension<Absender>>, Pa
             let p = pfad.to_string_lossy().into_owned();
             Json(json!({ "pfad": p, "eingabe": pfad_zum_tippen(&p) })).into_response()
         }
-        Err(_) => fehler(StatusCode::INTERNAL_SERVER_ERROR, "Das Office konnte die Datei nicht ablegen"),
+        Err(_) => fehler(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Das Office konnte die Datei nicht ablegen",
+        ),
     }
 }
 
@@ -112,17 +162,42 @@ struct DateiAnfrage {
     pfad: String,
 }
 
-async fn datei(State(ag): State<Agenten>, von: Option<Extension<Absender>>, Path(id): Path<String>, Query(q): Query<DateiAnfrage>) -> Response {
-    let Some(typ) = bildtyp(&q.pfad) else { return fehler(StatusCode::BAD_REQUEST, "Nur Bilder lassen sich so anzeigen") };
-    if q.pfad.split(['/', '\\']).any(|t| t == ".." || t.is_empty()) || std::path::Path::new(&q.pfad).is_absolute() {
+async fn datei(
+    State(ag): State<Agenten>,
+    von: Option<Extension<Absender>>,
+    Path(id): Path<String>,
+    Query(q): Query<DateiAnfrage>,
+) -> Response {
+    let Some(typ) = bildtyp(&q.pfad) else {
+        return fehler(
+            StatusCode::BAD_REQUEST,
+            "Nur Bilder lassen sich so anzeigen",
+        );
+    };
+    if q.pfad.split(['/', '\\']).any(|t| t == ".." || t.is_empty())
+        || std::path::Path::new(&q.pfad).is_absolute()
+    {
         return fehler(StatusCode::BAD_REQUEST, "Ungültiger Dateipfad");
     }
     let Ok((dir, _, _, _)) = crate::aenderungen::ort(&ag, &etage(&von), &id) else {
-        return fehler(StatusCode::NOT_FOUND, "Diesen Arbeiter gibt es auf dieser Etage nicht");
+        return fehler(
+            StatusCode::NOT_FOUND,
+            "Diesen Arbeiter gibt es auf dieser Etage nicht",
+        );
     };
     match tokio::fs::read(dir.join(&q.pfad)).await {
         // SVG kann Skripte enthalten: nie im Kontext des Office ausführen.
-        Ok(inhalt) => ([(header::CONTENT_TYPE, typ), (header::CONTENT_SECURITY_POLICY, "default-src 'none'; style-src 'unsafe-inline'; sandbox")], inhalt).into_response(),
+        Ok(inhalt) => (
+            [
+                (header::CONTENT_TYPE, typ),
+                (
+                    header::CONTENT_SECURITY_POLICY,
+                    "default-src 'none'; style-src 'unsafe-inline'; sandbox",
+                ),
+            ],
+            inhalt,
+        )
+            .into_response(),
         Err(_) => fehler(StatusCode::NOT_FOUND, "Die Datei gibt es nicht"),
     }
 }
@@ -133,28 +208,44 @@ struct SuchAnfrage {
     q: String,
 }
 
-async fn suche(State(ag): State<Agenten>, von: Option<Extension<Absender>>, Query(q): Query<SuchAnfrage>) -> Response {
+async fn suche(
+    State(ag): State<Agenten>,
+    von: Option<Extension<Absender>>,
+    Query(q): Query<SuchAnfrage>,
+) -> Response {
     let nadel = q.q.trim().to_lowercase();
     if nadel.chars().count() < 2 {
         return Json(json!({ "treffer": [], "mehr": false })).into_response();
     }
     let mut z = ag.innen.zustand();
-    let Some(e) = z.etagen.get_mut(&etage(&von)) else { return Json(json!({ "treffer": [], "mehr": false })).into_response() };
+    let Some(e) = z.etagen.get_mut(&etage(&von)) else {
+        return Json(json!({ "treffer": [], "mehr": false })).into_response();
+    };
     let mut treffer = Vec::new();
     let mut mehr = false;
     for a in e.arbeiter.values_mut() {
-        let gefunden: Vec<(usize, String)> = a.terminal.alle_zeilen().into_iter().enumerate().filter(|(_, z)| z.to_lowercase().contains(&nadel)).collect();
+        let gefunden: Vec<(usize, String)> = a
+            .terminal
+            .alle_zeilen()
+            .into_iter()
+            .enumerate()
+            .filter(|(_, z)| z.to_lowercase().contains(&nadel))
+            .collect();
         mehr |= gefunden.len() > TREFFER_JE_ARBEITER;
         let start = gefunden.len().saturating_sub(TREFFER_JE_ARBEITER);
         for (zeile, text) in &gefunden[start..] {
-            treffer.push(json!({ "arbeiter": a.info.id, "name": a.info.name, "zeile": zeile, "text": text }));
+            treffer.push(
+                json!({ "arbeiter": a.info.id, "name": a.info.name, "zeile": zeile, "text": text }),
+            );
         }
     }
     Json(json!({ "treffer": treffer, "mehr": mehr })).into_response()
 }
 
 async fn modelle(Path(id): Path<String>) -> Response {
-    let Some(p) = provider::finden(&id) else { return fehler(StatusCode::NOT_FOUND, "Unbekannter Provider") };
+    let Some(p) = provider::finden(&id) else {
+        return fehler(StatusCode::NOT_FOUND, "Unbekannter Provider");
+    };
     let mut liste: Vec<String> = p.modelle().iter().map(|m| m.to_string()).collect();
     // OpenCode und Grok nennen ihre Modelle selbst.
     if (id == "opencode" || id == "grok")
@@ -164,7 +255,8 @@ async fn modelle(Path(id): Path<String>) -> Response {
         cmd.arg("models").kill_on_drop(true);
         #[cfg(windows)]
         cmd.creation_flags(0x0800_0000);
-        if let Ok(Ok(aus)) = tokio::time::timeout(std::time::Duration::from_secs(20), cmd.output()).await
+        if let Ok(Ok(aus)) =
+            tokio::time::timeout(std::time::Duration::from_secs(20), cmd.output()).await
             && aus.status.success()
         {
             liste = String::from_utf8_lossy(&aus.stdout)

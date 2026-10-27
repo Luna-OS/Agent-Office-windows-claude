@@ -9,11 +9,19 @@ use std::time::Duration;
 use crate::office::OfficeRef;
 
 fn helfer() -> PathBuf {
-    std::env::var_os("OFFICE_SERVE_HELFER").map(PathBuf::from).unwrap_or_else(|| PathBuf::from("/usr/local/bin/open-agentic-office-serve"))
+    std::env::var_os("OFFICE_SERVE_HELFER")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("/usr/local/bin/open-agentic-office-serve"))
 }
 
 async fn sync(ports: &[u16]) -> Result<(), String> {
-    let aus = tokio::process::Command::new(helfer()).arg("sync").args(ports.iter().map(u16::to_string)).kill_on_drop(true).output().await.map_err(|e| e.to_string())?;
+    let aus = tokio::process::Command::new(helfer())
+        .arg("sync")
+        .args(ports.iter().map(u16::to_string))
+        .kill_on_drop(true)
+        .output()
+        .await
+        .map_err(|e| e.to_string())?;
     if aus.status.success() {
         Ok(())
     } else {
@@ -44,7 +52,9 @@ pub fn starten(o: &OfficeRef) {
                     }
                     Err(f) => {
                         if f != letzter_fehler {
-                            tracing::warn!("Die Dienste der Arbeiter ließen sich nicht im Tailnet freigeben: {f}");
+                            tracing::warn!(
+                                "Die Dienste der Arbeiter ließen sich nicht im Tailnet freigeben: {f}"
+                            );
                         }
                         letzter_fehler = f;
                     }

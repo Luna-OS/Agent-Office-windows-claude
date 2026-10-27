@@ -3,8 +3,9 @@
 
 use wasm_bindgen::JsCast;
 use web_sys::{
-    AudioBuffer, AudioBufferSourceNode, AudioContext, AudioNode, AudioParam, AudioScheduledSourceNode, BiquadFilterNode,
-    BiquadFilterType, DistanceModelType, GainNode, OscillatorNode, OscillatorType, PannerNode, PanningModelType,
+    AudioBuffer, AudioBufferSourceNode, AudioContext, AudioNode, AudioParam,
+    AudioScheduledSourceNode, BiquadFilterNode, BiquadFilterType, DistanceModelType, GainNode,
+    OscillatorNode, OscillatorType, PannerNode, PanningModelType,
 };
 
 use super::Ort;
@@ -48,7 +49,15 @@ impl Kern {
         draussen.gain().set_value(0.0);
         draussen.connect_with_audio_node(&umgebung).ok()?;
         let _ = ctx.resume();
-        Some(Self { ctx, master, umgebung, hinweise, drinnen, draussen, puffer })
+        Some(Self {
+            ctx,
+            master,
+            umgebung,
+            hinweise,
+            drinnen,
+            draussen,
+            puffer,
+        })
     }
 
     pub fn jetzt(&self) -> f64 {
@@ -87,7 +96,13 @@ impl Kern {
     }
 
     /// Ausgang eines Rezepts: von `ort` her (Panner) oder, ohne Ort, direkt; hängt an `bus`.
-    pub fn ausgang(&self, ort: Option<Ort>, referenz: f64, abfall: f64, bus: &AudioNode) -> AudioNode {
+    pub fn ausgang(
+        &self,
+        ort: Option<Ort>,
+        referenz: f64,
+        abfall: f64,
+        bus: &AudioNode,
+    ) -> AudioNode {
         let n: AudioNode = match ort {
             Some(o) => self.panner(o, referenz, abfall).unchecked_into(),
             None => self.verstaerker(1.0).unchecked_into(),
@@ -97,17 +112,36 @@ impl Kern {
     }
 
     /// Spielt eine Probe ab: `wann` auf der Audio-Uhr (0 = sofort), Lautstärke, Tempo, Ziel.
-    pub fn abspielen(&self, puffer: &AudioBuffer, wann: f64, lautstaerke: f32, tempo: f32, ziel: &AudioNode) {
-        let Ok(q) = self.ctx.create_buffer_source() else { return };
+    pub fn abspielen(
+        &self,
+        puffer: &AudioBuffer,
+        wann: f64,
+        lautstaerke: f32,
+        tempo: f32,
+        ziel: &AudioNode,
+    ) {
+        let Ok(q) = self.ctx.create_buffer_source() else {
+            return;
+        };
         q.set_buffer(Some(puffer));
         q.playback_rate().set_value(tempo);
         let g = self.verstaerker(lautstaerke);
-        let _ = q.connect_with_audio_node(&g).and_then(|_| g.connect_with_audio_node(ziel));
+        let _ = q
+            .connect_with_audio_node(&g)
+            .and_then(|_| g.connect_with_audio_node(ziel));
         let _ = q.start_with_when(wann.max(self.jetzt()));
     }
 
     /// Wie [`abspielen`](Self::abspielen), aber aus einer Richtung, auf den Umgebungs-Bus.
-    pub fn abspielen_bei(&self, puffer: &AudioBuffer, ort: Ort, lautstaerke: f32, tempo: f32, referenz: f64, abfall: f64) {
+    pub fn abspielen_bei(
+        &self,
+        puffer: &AudioBuffer,
+        ort: Ort,
+        lautstaerke: f32,
+        tempo: f32,
+        referenz: f64,
+        abfall: f64,
+    ) {
         let p = self.panner(ort, referenz, abfall);
         let _ = p.connect_with_audio_node(&self.umgebung);
         self.abspielen(puffer, 0.0, lautstaerke, tempo, p.unchecked_ref());
@@ -115,19 +149,40 @@ impl Kern {
 
     /// Ein zufälliger Schritt-Puffer (dumpfer Schlag, Grundbaustein vieler Geräusche).
     pub fn schlag(&self, wann: f64, lautstaerke: f32, tempo: f32, ziel: &AudioNode) {
-        self.abspielen(super::waehle(&self.puffer.schritte), wann, lautstaerke, tempo, ziel);
+        self.abspielen(
+            super::waehle(&self.puffer.schritte),
+            wann,
+            lautstaerke,
+            tempo,
+            ziel,
+        );
     }
 
     /// Ein kurzer gestimmter Blip: eine Blase, wenn `verh` > 1, ein Tropfen, wenn < 1.
     #[allow(clippy::too_many_arguments)]
-    pub fn blip(&self, ziel: &AudioNode, wann: f64, f: f32, verh: f32, laenge: f64, laut: f32, art: OscillatorType) {
+    pub fn blip(
+        &self,
+        ziel: &AudioNode,
+        wann: f64,
+        f: f32,
+        verh: f32,
+        laenge: f64,
+        laut: f32,
+        art: OscillatorType,
+    ) {
         let o = self.oszillator(art);
         let _ = o.frequency().set_value_at_time(f, wann);
-        let _ = o.frequency().exponential_ramp_to_value_at_time(f * verh, wann + laenge);
+        let _ = o
+            .frequency()
+            .exponential_ramp_to_value_at_time(f * verh, wann + laenge);
         let g = self.verstaerker(0.0);
         let _ = g.gain().set_value_at_time(0.0001, wann);
-        let _ = g.gain().exponential_ramp_to_value_at_time(laut.max(0.0002), wann + 0.006);
-        let _ = g.gain().exponential_ramp_to_value_at_time(0.0001, wann + laenge);
+        let _ = g
+            .gain()
+            .exponential_ramp_to_value_at_time(laut.max(0.0002), wann + 0.006);
+        let _ = g
+            .gain()
+            .exponential_ramp_to_value_at_time(0.0001, wann + laenge);
         let _ = o.connect_with_audio_node(&g);
         let _ = g.connect_with_audio_node(ziel);
         let _ = o.start_with_when(wann);
@@ -141,8 +196,12 @@ impl Kern {
             o.frequency().set_value(f * mal);
             let g = self.verstaerker(0.0);
             let _ = g.gain().set_value_at_time(0.0001, wann);
-            let _ = g.gain().exponential_ramp_to_value_at_time((laut * lvl).max(0.0002), wann + 0.003);
-            let _ = g.gain().exponential_ramp_to_value_at_time(0.0001, wann + 0.25);
+            let _ = g
+                .gain()
+                .exponential_ramp_to_value_at_time((laut * lvl).max(0.0002), wann + 0.003);
+            let _ = g
+                .gain()
+                .exponential_ramp_to_value_at_time(0.0001, wann + 0.25);
             let _ = o.connect_with_audio_node(&g);
             let _ = g.connect_with_audio_node(ziel);
             let _ = o.start_with_when(wann);

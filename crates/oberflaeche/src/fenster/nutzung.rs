@@ -14,7 +14,11 @@ use crate::ui::{Knopf, KnopfArt, KnopfGroesse, Textfeld};
 use crate::zustand::zustand;
 
 fn verbrauch(v: &Verbrauch) -> String {
-    let tokens = format!("{} ein · {} aus", texte::zahl_kurz(v.tokens_ein), texte::zahl_kurz(v.tokens_aus));
+    let tokens = format!(
+        "{} ein · {} aus",
+        texte::zahl_kurz(v.tokens_ein),
+        texte::zahl_kurz(v.tokens_aus)
+    );
     match v.kosten {
         Some(k) => format!("{} · {tokens}", texte::dollar(k)),
         None => tokens,
@@ -35,8 +39,17 @@ fn bis(um: u64) -> String {
 pub fn Nutzung() -> impl IntoView {
     let z = zustand();
     let pro_arbeiter = move || {
-        let mut l: Vec<_> = z.arbeiter.get().into_iter().filter_map(|a| a.verbrauch.clone().map(|v| (a.name, v))).collect();
-        l.sort_by(|a, b| b.1.kosten.unwrap_or(0.0).total_cmp(&a.1.kosten.unwrap_or(0.0)));
+        let mut l: Vec<_> = z
+            .arbeiter
+            .get()
+            .into_iter()
+            .filter_map(|a| a.verbrauch.clone().map(|v| (a.name, v)))
+            .collect();
+        l.sort_by(|a, b| {
+            b.1.kosten
+                .unwrap_or(0.0)
+                .total_cmp(&a.1.kosten.unwrap_or(0.0))
+        });
         l
     };
     view! {
@@ -129,7 +142,10 @@ pub fn Prompts() -> impl IntoView {
 #[component]
 pub fn Dienste() -> impl IntoView {
     let z = zustand();
-    let host = window().location().hostname().unwrap_or_else(|_| "localhost".into());
+    let host = window()
+        .location()
+        .hostname()
+        .unwrap_or_else(|_| "localhost".into());
     view! {
         <Rahmen fenster=Fenster::Dienste titel="🔌 Dienste" breite="max-w-xl">
             <p class="text-muted-foreground mb-3 text-sm">"Was die Arbeiter dieser Etage gestartet haben und auf einem Port lauscht (Dev-Server, APIs)."</p>

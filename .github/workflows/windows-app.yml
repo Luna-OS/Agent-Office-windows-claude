@@ -83,7 +83,7 @@ jobs:
           mkdir -p "$s/werkzeuge"
           cp desktop/target/release/open-agentic-office-desktop.exe "$s/"
           cp target/release/open-agentic-office.exe "$s/"
-          cp target/release/office-agenten.exe "$s/" 2>/dev/null || echo "Hinweis: keine office-agenten-CLI gebaut"
+          for b in office-agenten office-pty-wirt; do cp "target/release/$b.exe" "$s/" 2>/dev/null || echo "Hinweis: $b nicht gebaut"; done
           cp -R dist "$s/dist"
           cp -R desktop/claude desktop/tools "$s/"
           cp "$(which gh)" "$s/werkzeuge/gh.exe"

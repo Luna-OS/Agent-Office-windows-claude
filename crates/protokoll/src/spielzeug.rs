@@ -237,20 +237,46 @@ pub struct Stand {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "typ", rename_all = "snake_case")]
 pub enum Client {
-    DekorHinzufuegen { platz: DekorPlatz },
-    DekorAendern { id: String, aenderung: DekorAenderung },
-    DekorEntfernen { id: String },
+    DekorHinzufuegen {
+        platz: DekorPlatz,
+    },
+    DekorAendern {
+        id: String,
+        aenderung: DekorAenderung,
+    },
+    DekorEntfernen {
+        id: String,
+    },
     /// Den Hund streicheln (muss in Reichweite sein).
     HundStreicheln,
     /// Den Hund umbenennen ("" gibt ihm seinen ersten Namen zurück).
-    HundName { name: String },
+    HundName {
+        name: String,
+    },
     /// Den Basketball nehmen oder fangen.
     BallNehmen,
     /// Den Ball werfen (oder fallen lassen).
-    BallWerfen { x: f32, y: f32, z: f32, vx: f32, vy: f32, vz: f32 },
-    AutoEinsteigen { auto: u32, sitz: AutoSitz },
+    BallWerfen {
+        x: f32,
+        y: f32,
+        z: f32,
+        vx: f32,
+        vy: f32,
+        vz: f32,
+    },
+    AutoEinsteigen {
+        auto: u32,
+        sitz: AutoSitz,
+    },
     AutoAussteigen,
-    AutoFahren { auto: u32, x: f32, z: f32, rot_y: f32, tempo: f32, lenkung: f32 },
+    AutoFahren {
+        auto: u32,
+        x: f32,
+        z: f32,
+        rot_y: f32,
+        tempo: f32,
+        lenkung: f32,
+    },
     Hupen,
     /// An den Automaten treten (mit `spiel` weiterspielen, sonst neues Spiel).
     ArcadeSpielen {
@@ -258,15 +284,31 @@ pub enum Client {
         spiel: Option<String>,
     },
     ArcadeVerlassen,
-    ArcadeBild { bild: ArcadeBild },
+    ArcadeBild {
+        bild: ArcadeBild,
+    },
     WbOeffnen,
     WbSchliessen,
-    WbAendern { elemente: Vec<WbElement> },
-    WbZeiger { zeiger: WbZeiger },
+    WbAendern {
+        elemente: Vec<WbElement>,
+    },
+    WbZeiger {
+        zeiger: WbZeiger,
+    },
     /// Golf-Abschlag vom Balkon.
-    Golf { gier: f32, neigung: f32, kraft: f32 },
+    Golf {
+        gier: f32,
+        neigung: f32,
+        kraft: f32,
+    },
     /// Ein Wurf an der Dachbar: Treffer (u, v) auf der Scheibe, steckt, n-ter Wurf der Runde.
-    Barwurf { spiel: Barspiel, u: f32, v: f32, steckt: bool, n: u32 },
+    Barwurf {
+        spiel: Barspiel,
+        u: f32,
+        v: f32,
+        steckt: bool,
+        n: u32,
+    },
 }
 
 /// Nachrichten an den Browser.
@@ -274,23 +316,63 @@ pub enum Client {
 #[serde(tag = "typ", rename_all = "snake_case")]
 pub enum Server {
     /// Alles auf einmal, nach `etagen::Server::Betreten`.
-    Stand { stand: Box<Stand> },
-    Dekor { liste: Vec<Dekor> },
-    Hund { hund: Hund },
-    Ball { ball: Ball },
+    Stand {
+        stand: Box<Stand>,
+    },
+    Dekor {
+        liste: Vec<Dekor>,
+    },
+    Hund {
+        hund: Hund,
+    },
+    Ball {
+        ball: Ball,
+    },
     /// `antwort`: an den, der ein-/aussteigen wollte, ob es klappte oder nicht.
     Autos {
         autos: Vec<Auto>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         antwort: Option<bool>,
     },
-    AutoBewegt { auto: u32, x: f32, z: f32, rot_y: f32, tempo: f32, lenkung: f32 },
-    Hupe { auto: u32 },
-    Arcade { arcade: Arcade },
-    ArcadeBild { bild: ArcadeBild },
-    WbAenderung { elemente: Vec<WbElement> },
-    WbLeute { leute: Vec<String> },
-    WbZeiger { id: String, zeiger: WbZeiger },
-    Golf { id: String, gier: f32, neigung: f32, kraft: f32 },
-    Barwurf { id: String, spiel: Barspiel, u: f32, v: f32, steckt: bool, n: u32 },
+    AutoBewegt {
+        auto: u32,
+        x: f32,
+        z: f32,
+        rot_y: f32,
+        tempo: f32,
+        lenkung: f32,
+    },
+    Hupe {
+        auto: u32,
+    },
+    Arcade {
+        arcade: Arcade,
+    },
+    ArcadeBild {
+        bild: ArcadeBild,
+    },
+    WbAenderung {
+        elemente: Vec<WbElement>,
+    },
+    WbLeute {
+        leute: Vec<String>,
+    },
+    WbZeiger {
+        id: String,
+        zeiger: WbZeiger,
+    },
+    Golf {
+        id: String,
+        gier: f32,
+        neigung: f32,
+        kraft: f32,
+    },
+    Barwurf {
+        id: String,
+        spiel: Barspiel,
+        u: f32,
+        v: f32,
+        steckt: bool,
+        n: u32,
+    },
 }

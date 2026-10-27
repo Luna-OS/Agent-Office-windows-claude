@@ -15,6 +15,7 @@ mod hud;
 pub mod lite;
 pub mod lokal;
 pub mod markdown;
+mod melder;
 pub mod modal;
 mod seitenleiste;
 mod tasten;
@@ -33,10 +34,12 @@ use leptos::prelude::*;
 /// Hängt die Oberfläche in `<body>` und prüft die Anmeldung.
 pub fn starten(bruecke: Bruecke) {
     bruecke::setzen(bruecke);
+    zustand::wurzel_anlegen();
     leptos::mount::mount_to_body(app::App);
     modal::esc_abfangen();
     tasten::anmelden();
     anmeldung::pruefen();
+    melder::starten();
     // Die Perspektive aus den Einstellungen an die Welt geben, jetzt und bei jeder Änderung.
     Effect::new(|_| {
         let ich = lokal::lokal().with(|l| l.ich_perspektive);
@@ -72,7 +75,9 @@ pub fn hinweis(text: Option<String>) {
 
 /// Der Fernseher: der erste geteilte Bildschirm groß, sonst das Teilen-Fenster.
 pub fn tv_oeffnen() {
-    let erster = zustand::zustand().bildschirme.with_untracked(|l| l.first().map(|b| b.spieler.clone()));
+    let erster = zustand::zustand()
+        .bildschirme
+        .with_untracked(|l| l.first().map(|b| b.spieler.clone()));
     modal::oeffnen(match erster {
         Some(s) => Fenster::Bildschirm(s),
         None => Fenster::Teilen,

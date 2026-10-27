@@ -19,7 +19,9 @@ fn schicken(e: E) {
 fn Etage(e: EtageInfo) -> impl IntoView {
     let z = zustand();
     let id = e.id.clone();
-    let hier = z.etage.with_untracked(|h| h.as_deref() == Some(e.id.as_str()));
+    let hier = z
+        .etage
+        .with_untracked(|h| h.as_deref() == Some(e.id.as_str()));
     let admin = z.ich.with_untracked(|i| i.admin);
     let klont = e.klont;
     let fahren = {
@@ -32,9 +34,25 @@ fn Etage(e: EtageInfo) -> impl IntoView {
         }
     };
     let stand = if e.klont {
-        e.klon.as_ref().map(|k| format!("{} {}{}", k.schritt, k.prozent.map(|p| format!("{p} %")).unwrap_or_default(), k.detail.as_ref().map(|d| format!(" · {d}")).unwrap_or_default())).unwrap_or_else(|| "wird geklont …".into())
+        e.klon
+            .as_ref()
+            .map(|k| {
+                format!(
+                    "{} {}{}",
+                    k.schritt,
+                    k.prozent.map(|p| format!("{p} %")).unwrap_or_default(),
+                    k.detail
+                        .as_ref()
+                        .map(|d| format!(" · {d}"))
+                        .unwrap_or_default()
+                )
+            })
+            .unwrap_or_else(|| "wird geklont …".into())
     } else {
-        format!("🤖 {} ({} arbeiten) · 👥 {}", e.arbeiter, e.beschaeftigt, e.personen)
+        format!(
+            "🤖 {} ({} arbeiten) · 👥 {}",
+            e.arbeiter, e.beschaeftigt, e.personen
+        )
     };
     view! {
         <li class="flex items-center gap-2 rounded-lg border p-2" class:bg-accent=hier>
@@ -78,10 +96,18 @@ pub fn Aufzug() -> impl IntoView {
     view! {
         <Rahmen fenster=Fenster::Aufzug titel="🛗 Etagen" breite="max-w-xl">
             <div class="flex flex-col gap-3">
-                <Knopf art=KnopfArt::Umriss class="h-11 w-full" on:click=move |_| {
-                    crate::bruecke::befehl(crate::bruecke::Befehl::ZurEtage(etagen::DACH.into()));
-                    modal::schliessen(&Fenster::Aufzug);
-                }>"🌇 Dachterrasse: Bar, DJ, Leinwand"</Knopf>
+                <div class="grid grid-cols-2 gap-2">
+                    <Knopf art=KnopfArt::Umriss class="h-11" on:click=move |_| {
+                        crate::bruecke::befehl(crate::bruecke::Befehl::ZurEtage(etagen::DACH.into()));
+                        modal::schliessen(&Fenster::Aufzug);
+                    }>"🌇 Dachterrasse"</Knopf>
+                    <Show when=|| !crate::lite::ist_lite()>
+                        <Knopf art=KnopfArt::Umriss class="h-11" attr:title="Unter der untersten Etage: die Autos" on:click=move |_| {
+                            crate::bruecke::befehl(crate::bruecke::Befehl::ZurGarage);
+                            modal::schliessen(&Fenster::Aufzug);
+                        }>"🚗 Garage"</Knopf>
+                    </Show>
+                </div>
                 <ul class="flex flex-col gap-2">
                     {move || {
                         let mut l = z.etagen.get();

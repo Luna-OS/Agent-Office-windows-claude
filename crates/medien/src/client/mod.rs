@@ -36,12 +36,18 @@ pub(crate) fn fehlertext(e: &JsValue) -> String {
     if let Some(s) = e.as_string() {
         return s;
     }
-    js_sys::Reflect::get(e, &"message".into()).ok().and_then(|m| m.as_string()).unwrap_or_else(|| format!("{e:?}"))
+    js_sys::Reflect::get(e, &"message".into())
+        .ok()
+        .and_then(|m| m.as_string())
+        .unwrap_or_else(|| format!("{e:?}"))
 }
 
 /// Der Name eines JS-Fehlers (`NotAllowedError` …).
 pub(crate) fn fehlername(e: &JsValue) -> String {
-    js_sys::Reflect::get(e, &"name".into()).ok().and_then(|m| m.as_string()).unwrap_or_default()
+    js_sys::Reflect::get(e, &"name".into())
+        .ok()
+        .and_then(|m| m.as_string())
+        .unwrap_or_default()
 }
 
 /// Setzt `obj[schluessel] = wert`.
@@ -64,9 +70,15 @@ impl Takt {
     pub fn neu(ms: i32, f: impl FnMut() + 'static) -> Self {
         let rueckruf = Closure::<dyn FnMut()>::new(f);
         let id = fenster()
-            .set_interval_with_callback_and_timeout_and_arguments_0(rueckruf.as_ref().unchecked_ref(), ms)
+            .set_interval_with_callback_and_timeout_and_arguments_0(
+                rueckruf.as_ref().unchecked_ref(),
+                ms,
+            )
             .unwrap_or(0);
-        Self { id, _rueckruf: rueckruf }
+        Self {
+            id,
+            _rueckruf: rueckruf,
+        }
     }
 }
 
@@ -84,15 +96,25 @@ pub(crate) struct Lauscher {
 }
 
 impl Lauscher {
-    pub fn neu(ziel: &web_sys::EventTarget, art: &'static str, f: impl FnMut(web_sys::Event) + 'static) -> Self {
+    pub fn neu(
+        ziel: &web_sys::EventTarget,
+        art: &'static str,
+        f: impl FnMut(web_sys::Event) + 'static,
+    ) -> Self {
         let rueckruf = Closure::<dyn FnMut(web_sys::Event)>::new(f);
         let _ = ziel.add_event_listener_with_callback(art, rueckruf.as_ref().unchecked_ref());
-        Self { ziel: ziel.clone(), art, rueckruf }
+        Self {
+            ziel: ziel.clone(),
+            art,
+            rueckruf,
+        }
     }
 }
 
 impl Drop for Lauscher {
     fn drop(&mut self) {
-        let _ = self.ziel.remove_event_listener_with_callback(self.art, self.rueckruf.as_ref().unchecked_ref());
+        let _ = self
+            .ziel
+            .remove_event_listener_with_callback(self.art, self.rueckruf.as_ref().unchecked_ref());
     }
 }

@@ -26,7 +26,11 @@ fn Abschnitt(titel: &'static str, children: Children) -> impl IntoView {
 }
 
 #[component]
-fn Schalter(name: &'static str, an: Signal<bool>, setzen: fn(&mut crate::lokal::Lokal, bool)) -> impl IntoView {
+fn Schalter(
+    name: &'static str,
+    an: Signal<bool>,
+    setzen: fn(&mut crate::lokal::Lokal, bool),
+) -> impl IntoView {
     view! {
         <label class="flex items-center gap-2 text-sm">
             <input type="checkbox" prop:checked=move || an.get() on:change=move |e| { let v = event_target_checked(&e); aendern(|l| setzen(l, v)); } />
@@ -39,11 +43,22 @@ fn Schalter(name: &'static str, an: Signal<bool>, setzen: fn(&mut crate::lokal::
 fn Profil() -> impl IntoView {
     let z = zustand();
     let name = RwSignal::new(z.mein_name());
-    let farbe = RwSignal::new(z.ich_selbst.with_untracked(|p| p.as_ref().map(|p| p.farbe.clone())).unwrap_or_else(|| "#ff8a5b".into()));
+    let farbe = RwSignal::new(
+        z.ich_selbst
+            .with_untracked(|p| p.as_ref().map(|p| p.farbe.clone()))
+            .unwrap_or_else(|| "#ff8a5b".into()),
+    );
     let speichern = move |e: leptos::ev::SubmitEvent| {
         e.prevent_default();
-        let aussehen = z.ich_selbst.with_untracked(|p| p.as_ref().map(|p| p.aussehen)).unwrap_or_default();
-        senden(ClientNachricht::Praesenz(praesenz::Client::Profil { name: name.get_untracked().trim().to_string(), farbe: farbe.get_untracked(), aussehen }));
+        let aussehen = z
+            .ich_selbst
+            .with_untracked(|p| p.as_ref().map(|p| p.aussehen))
+            .unwrap_or_default();
+        senden(ClientNachricht::Praesenz(praesenz::Client::Profil {
+            name: name.get_untracked().trim().to_string(),
+            farbe: farbe.get_untracked(),
+            aussehen,
+        }));
         crate::zustand::info("Profil gespeichert.");
     };
     view! {
@@ -75,6 +90,8 @@ pub fn Einstellungen() -> impl IntoView {
                     <Schalter name="„Im Office“ zeigen" an=Signal::derive(move || l.with(|l| l.tafel_personen)) setzen=|l, v| l.tafel_personen = v />
                     <Schalter name="Chat zeigen" an=Signal::derive(move || l.with(|l| l.tafel_chat)) setzen=|l, v| l.tafel_chat = v />
                     <Schalter name="Voice stumm beitreten (Push-to-Talk mit V)" an=Signal::derive(move || l.with(|l| l.voice_stumm)) setzen=|l, v| l.voice_stumm = v />
+                    <Knopf art=KnopfArt::Umriss groesse=KnopfGroesse::Klein class="self-start" attr:title="Eine Meldung, wenn ein Arbeiter dich braucht und dieser Tab im Hintergrund ist"
+                        on:click=|_| crate::melder::erlauben()>"🔔 Desktop-Benachrichtigungen"</Knopf>
                     <label class="flex items-center gap-2 text-sm">
                         "🔊"
                         <input type="range" min="0" max="1" step="0.05" class="flex-1" prop:value=move || l.with(|l| l.lautstaerke.to_string())

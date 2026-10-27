@@ -8,18 +8,29 @@ use std::time::Duration;
 
 use agenten::{Absender, Agenten, AgentenEinstellungen, Ereignis};
 use protokoll::agenten::Server as AgSrv;
-use protokoll::arbeiter::{ArbeiterArt, ArbeiterInfo, Aufraeumen, Client as ArbCl, Server as ArbSrv};
+use protokoll::arbeiter::{
+    ArbeiterArt, ArbeiterInfo, Aufraeumen, Client as ArbCl, Server as ArbSrv,
+};
 use protokoll::aufgaben::Server as AufSrv;
 use protokoll::{ClientNachricht, ServerNachricht};
 use tokio::sync::broadcast::Receiver;
 
 fn git(dir: &Path, args: &[&str]) {
-    let ok = Command::new("git").args(args).current_dir(dir).status().unwrap().success();
+    let ok = Command::new("git")
+        .args(args)
+        .current_dir(dir)
+        .status()
+        .unwrap()
+        .success();
     assert!(ok, "git {args:?}");
 }
 
 /// Wartet auf ein Ereignis, auf das `pruefen` passt.
-async fn warte<T>(rx: &mut Receiver<Ereignis>, sekunden: u64, mut pruefen: impl FnMut(&Ereignis) -> Option<T>) -> T {
+async fn warte<T>(
+    rx: &mut Receiver<Ereignis>,
+    sekunden: u64,
+    mut pruefen: impl FnMut(&Ereignis) -> Option<T>,
+) -> T {
     let ende = tokio::time::Instant::now() + Duration::from_secs(sekunden);
     loop {
         let rest = ende.saturating_duration_since(tokio::time::Instant::now());
@@ -32,7 +43,8 @@ async fn warte<T>(rx: &mut Receiver<Ereignis>, sekunden: u64, mut pruefen: impl 
                     eprintln!("Dienste: {liste:?}");
                 }
                 if std::env::var("TEST_TERMINAL").is_ok()
-                    && let ServerNachricht::Arbeiter(ArbSrv::TerminalDaten { daten, .. }) = &e.nachricht
+                    && let ServerNachricht::Arbeiter(ArbSrv::TerminalDaten { daten, .. }) =
+                        &e.nachricht
                 {
                     eprint!("{daten}");
                 }
@@ -57,7 +69,11 @@ fn aktualisiert(e: &Ereignis) -> Option<ArbeiterInfo> {
 }
 
 fn eingabe(text: &str) -> String {
-    if cfg!(windows) { format!("{text}\r\n") } else { format!("{text}\n") }
+    if cfg!(windows) {
+        format!("{text}\r\n")
+    } else {
+        format!("{text}\n")
+    }
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
@@ -85,7 +101,12 @@ async fn agenten_reden_miteinander() {
     ag.etage_anmelden("e", repo.path().to_path_buf());
     ag.tische_setzen("e", vec!["t1".into(), "t2".into(), "t3".into()]);
     let mut rx = ag.ereignisse();
-    let luna = Absender { verbindung: "v1".into(), name: "Luna".into(), etage: Some("e".into()), konto: None };
+    let luna = Absender {
+        verbindung: "v1".into(),
+        name: "Luna".into(),
+        etage: Some("e".into()),
+        konto: None,
+    };
 
     // Ada: ein Agent (eigener Befehl = Shell) mit Worktree. Bruno: eine Shell.
     let anlegen = |tisch: &str, art, provider: Option<&str>| {
@@ -100,27 +121,59 @@ async fn agenten_reden_miteinander() {
             issue: None,
         })
     };
-    ag.nachricht(&luna, anlegen("t1", ArbeiterArt::Agent, Some("eigen"))).await;
-    let ada = warte(&mut rx, 20, |e| aktualisiert(e).filter(|a| a.tisch == "t1" && a.worktree.is_some())).await;
+    ag.nachricht(&luna, anlegen("t1", ArbeiterArt::Agent, Some("eigen")))
+        .await;
+    let ada = warte(&mut rx, 20, |e| {
+        aktualisiert(e).filter(|a| a.tisch == "t1" && a.worktree.is_some())
+    })
+    .await;
     assert_eq!(ada.name, "Ada");
     let wt = ada.worktree.clone().unwrap();
     assert!(repo.path().join(&wt.pfad).is_dir(), "Worktree fehlt");
-    ag.nachricht(&luna, anlegen("t2", ArbeiterArt::Shell, None)).await;
+    ag.nachricht(&luna, anlegen("t2", ArbeiterArt::Shell, None))
+        .await;
     let bruno = warte(&mut rx, 20, |e| aktualisiert(e).filter(|a| a.tisch == "t2")).await;
     assert!(bruno.worktree.is_none(), "Shells bekommen keinen Worktree");
 
     // Luna schaut Ada ins Terminal.
-    ag.nachricht(&luna, ClientNachricht::Arbeiter(ArbCl::Anschauen { arbeiter: ada.id.clone() })).await;
-    warte(&mut rx, 10, |e| matches!(&e.nachricht, ServerNachricht::Arbeiter(ArbSrv::TerminalSnapshot { .. })).then_some(())).await;
+    ag.nachricht(
+        &luna,
+        ClientNachricht::Arbeiter(ArbCl::Anschauen {
+            arbeiter: ada.id.clone(),
+        }),
+    )
+    .await;
+    warte(&mut rx, 10, |e| {
+        matches!(
+            &e.nachricht,
+            ServerNachricht::Arbeiter(ArbSrv::TerminalSnapshot { .. })
+        )
+        .then_some(())
+    })
+    .await;
 
-    ag.nachricht(&luna, ClientNachricht::Arbeiter(ArbCl::Anschauen { arbeiter: bruno.id.clone() })).await;
+    ag.nachricht(
+        &luna,
+        ClientNachricht::Arbeiter(ArbCl::Anschauen {
+            arbeiter: bruno.id.clone(),
+        }),
+    )
+    .await;
 
     // Bruno schreibt Ada über die CLI.
-    let tippe = |text: &str| ClientNachricht::Arbeiter(ArbCl::Eingabe { arbeiter: bruno.id.clone(), daten: eingabe(text) });
+    let tippe = |text: &str| {
+        ClientNachricht::Arbeiter(ArbCl::Eingabe {
+            arbeiter: bruno.id.clone(),
+            daten: eingabe(text),
+        })
+    };
     tokio::time::sleep(Duration::from_secs(2)).await;
-    ag.nachricht(&luna, tippe("office-agenten senden Ada Hallo von Bruno")).await;
+    ag.nachricht(&luna, tippe("office-agenten senden Ada Hallo von Bruno"))
+        .await;
     let n = warte(&mut rx, 30, |e| match &e.nachricht {
-        ServerNachricht::Agenten(AgSrv::Nachricht { nachricht }) if nachricht.von == "Bruno" => Some(nachricht.clone()),
+        ServerNachricht::Agenten(AgSrv::Nachricht { nachricht }) if nachricht.von == "Bruno" => {
+            Some(nachricht.clone())
+        }
         _ => None,
     })
     .await;
@@ -128,15 +181,25 @@ async fn agenten_reden_miteinander() {
     assert_eq!(n.text, "Hallo von Bruno");
 
     // Status und Board über die CLI.
-    ag.nachricht(&luna, tippe("office-agenten status Teste den Bus")).await;
+    ag.nachricht(&luna, tippe("office-agenten status Teste den Bus"))
+        .await;
     warte(&mut rx, 30, |e| match &e.nachricht {
-        ServerNachricht::Agenten(AgSrv::Feed { eintrag }) if eintrag.notiz.as_deref() == Some("Teste den Bus") => Some(()),
+        ServerNachricht::Agenten(AgSrv::Feed { eintrag })
+            if eintrag.notiz.as_deref() == Some("Teste den Bus") =>
+        {
+            Some(())
+        }
         _ => None,
     })
     .await;
-    ag.nachricht(&luna, tippe("office-agenten aufgabe-neu Board-testen")).await;
+    ag.nachricht(&luna, tippe("office-agenten aufgabe-neu Board-testen"))
+        .await;
     warte(&mut rx, 30, |e| match &e.nachricht {
-        ServerNachricht::Aufgaben(AufSrv::Stand { board }) => board.aufgaben.iter().any(|a| a.titel == "Board-testen").then_some(()),
+        ServerNachricht::Aufgaben(AufSrv::Stand { board }) => board
+            .aufgaben
+            .iter()
+            .any(|a| a.titel == "Board-testen")
+            .then_some(()),
         _ => None,
     })
     .await;
@@ -150,7 +213,10 @@ async fn agenten_reden_miteinander() {
     };
     ag.nachricht(&luna, tippe(server)).await;
     warte(&mut rx, 40, |e| match &e.nachricht {
-        ServerNachricht::Agenten(AgSrv::Dienste { liste }) => liste.iter().any(|d| d.name == "Bruno" && d.port > 0).then_some(()),
+        ServerNachricht::Agenten(AgSrv::Dienste { liste }) => liste
+            .iter()
+            .any(|d| d.name == "Bruno" && d.port > 0)
+            .then_some(()),
         _ => None,
     })
     .await;
@@ -158,7 +224,9 @@ async fn agenten_reden_miteinander() {
     // Ada bekommt die Nachricht in ihr Terminal getippt, sobald sie Zeit hat.
     let mut gesehen = String::new();
     warte(&mut rx, 60, |e| match &e.nachricht {
-        ServerNachricht::Arbeiter(ArbSrv::TerminalDaten { arbeiter, daten }) if *arbeiter == ada.id => {
+        ServerNachricht::Arbeiter(ArbSrv::TerminalDaten { arbeiter, daten })
+            if *arbeiter == ada.id =>
+        {
             gesehen.push_str(daten);
             gesehen.contains("Hallo von Bruno").then_some(())
         }
@@ -167,12 +235,19 @@ async fn agenten_reden_miteinander() {
     .await;
 
     // Heimschicken räumt den Worktree samt Branch weg.
-    ag.nachricht(&luna, ClientNachricht::Arbeiter(ArbCl::Stoppen { arbeiter: ada.id.clone(), aufraeumen: Aufraeumen::Alles })).await;
+    ag.nachricht(
+        &luna,
+        ClientNachricht::Arbeiter(ArbCl::Stoppen {
+            arbeiter: ada.id.clone(),
+            aufraeumen: Aufraeumen::Alles,
+        }),
+    )
+    .await;
     warte(&mut rx, 20, |e| matches!(&e.nachricht, ServerNachricht::Arbeiter(ArbSrv::Entfernt { arbeiter }) if *arbeiter == ada.id).then_some(())).await;
     assert!(!repo.path().join(&wt.pfad).exists(), "Worktree ist noch da");
 
     // Gespeichert: Bruno steht in workers.json.
-    ag.beenden().await;
+    ag.alles_beenden().await;
     let datei = std::fs::read_to_string(daten.path().join("etagen/e/workers.json")).unwrap();
     assert!(datei.contains("Bruno") && !datei.contains("\"Ada\""));
 }

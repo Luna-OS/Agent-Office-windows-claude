@@ -22,14 +22,27 @@ fn gleich(a: &[u8], b: &[u8]) -> bool {
 }
 
 /// Ein Hook-Ereignis eines Arbeiters. Sagt, ob es angenommen wurde.
-pub fn verarbeiten(ag: &Agenten, route: &str, arbeiter: &str, token: &str, ereignis: &str, nutzlast: &Value) -> bool {
-    let Some(etage) = ausweisen(ag, arbeiter, token) else { return false };
+pub fn verarbeiten(
+    ag: &Agenten,
+    route: &str,
+    arbeiter: &str,
+    token: &str,
+    ereignis: &str,
+    nutzlast: &Value,
+) -> bool {
+    let Some(etage) = ausweisen(ag, arbeiter, token) else {
+        return false;
+    };
     let mut z = ag.innen.zustand();
-    let Some(a) = z.arbeiter_mut(&etage, arbeiter) else { return false };
+    let Some(a) = z.arbeiter_mut(&etage, arbeiter) else {
+        return false;
+    };
     if !a.laeuft() {
         return false;
     }
-    let Some(p) = provider::finden(route) else { return false };
+    let Some(p) = provider::finden(route) else {
+        return false;
+    };
     let mut speichern = false;
     let mut stopp = false;
     let mut dateien = false;
@@ -47,7 +60,9 @@ pub fn verarbeiten(ag: &Agenten, route: &str, arbeiter: &str, token: &str, ereig
                     a.info.aufgabe = None;
                     a.fehlschlaege = 0;
                 }
-                if a.info.status == ArbeiterStatus::Startet || (a.info.status == ArbeiterStatus::Wartet && a.info.hinweis.is_some()) {
+                if a.info.status == ArbeiterStatus::Startet
+                    || (a.info.status == ArbeiterStatus::Wartet && a.info.hinweis.is_some())
+                {
                     a.status_setzen(ArbeiterStatus::Bereit);
                 }
                 if let Some(text) = a.prompt_tippen.take() {
@@ -66,14 +81,20 @@ pub fn verarbeiten(ag: &Agenten, route: &str, arbeiter: &str, token: &str, ereig
                 a.status_setzen(ArbeiterStatus::Arbeitet);
                 a.info.aktion = None;
             }
-            HookEreignis::WerkzeugVor { beschreibung, aktion } => {
+            HookEreignis::WerkzeugVor {
+                beschreibung,
+                aktion,
+            } => {
                 a.info.aktivitaet = Some(beschreibung);
                 a.status_setzen(ArbeiterStatus::Arbeitet);
                 if a.info.aktion != Some(Aktion::Scheitert) || aktion != Some(Aktion::Testen) {
                     a.info.aktion = aktion;
                 }
             }
-            HookEreignis::WerkzeugNach { fehlgeschlagen, test } => {
+            HookEreignis::WerkzeugNach {
+                fehlgeschlagen,
+                test,
+            } => {
                 if test {
                     if fehlgeschlagen {
                         a.fehlschlaege += 1;
@@ -96,7 +117,8 @@ pub fn verarbeiten(ag: &Agenten, route: &str, arbeiter: &str, token: &str, ereig
             HookEreignis::BrauchtMenschen(was) => {
                 if a.info.status != ArbeiterStatus::Wartet {
                     let text = format!("{} wartet auf einen Menschen: {was}", a.info.name);
-                    ag.innen.melden(&etage, &a.info.name, crate::MeldungArt::Wartet, text);
+                    ag.innen
+                        .melden(&etage, &a.info.name, crate::MeldungArt::Wartet, text);
                 }
                 a.info.aktivitaet = Some(was);
                 a.status_setzen(ArbeiterStatus::Wartet);
@@ -104,8 +126,18 @@ pub fn verarbeiten(ag: &Agenten, route: &str, arbeiter: &str, token: &str, ereig
             HookEreignis::Leerlauf => {}
             HookEreignis::Stopp => {
                 if a.info.status != ArbeiterStatus::Fertig {
-                    let was = a.info.aufgabe.as_ref().map(|t| format!(": {}", t.name)).unwrap_or_default();
-                    ag.innen.melden(&etage, &a.info.name, crate::MeldungArt::Fertig, format!("{} ist fertig{was}", a.info.name));
+                    let was = a
+                        .info
+                        .aufgabe
+                        .as_ref()
+                        .map(|t| format!(": {}", t.name))
+                        .unwrap_or_default();
+                    ag.innen.melden(
+                        &etage,
+                        &a.info.name,
+                        crate::MeldungArt::Fertig,
+                        format!("{} ist fertig{was}", a.info.name),
+                    );
                 }
                 a.status_setzen(ArbeiterStatus::Fertig);
                 stopp = true;
@@ -136,12 +168,24 @@ pub fn verarbeiten(ag: &Agenten, route: &str, arbeiter: &str, token: &str, ereig
 
 /// Liest den Verbrauch aus seinem Transkript neu.
 pub fn verbrauch_auffrischen(ag: &Agenten, etage: &str, id: &str) {
-    let Some(pfad) = ag.innen.zustand().arbeiter_mut(etage, id).and_then(|a| a.transkript.clone()) else { return };
+    let Some(pfad) = ag
+        .innen
+        .zustand()
+        .arbeiter_mut(etage, id)
+        .and_then(|a| a.transkript.clone())
+    else {
+        return;
+    };
     let (ag, etage, id) = (ag.clone(), etage.to_string(), id.to_string());
     ag.innen.laufzeit.clone().spawn(async move {
-        let Ok(Some(v)) = tokio::task::spawn_blocking(move || crate::verbrauch::lesen(&pfad)).await else { return };
+        let Ok(Some(v)) = tokio::task::spawn_blocking(move || crate::verbrauch::lesen(&pfad)).await
+        else {
+            return;
+        };
         let mut z = ag.innen.zustand();
-        let Some(a) = z.arbeiter_mut(&etage, &id) else { return };
+        let Some(a) = z.arbeiter_mut(&etage, &id) else {
+            return;
+        };
         if a.info.verbrauch.as_ref() != Some(&v) {
             let alt = a.info.verbrauch.replace(v.clone());
             ag.innen.arbeiter_melden(&z.etagen[&etage], &id);
@@ -156,15 +200,21 @@ pub fn dateien_auffrischen(ag: &Agenten, etage: &str, id: &str) {
     let pfad = {
         let z = ag.innen.zustand();
         let Some(e) = z.etagen.get(etage) else { return };
-        let Some(wt) = e.arbeiter.get(id).and_then(|a| a.info.worktree.clone()) else { return };
+        let Some(wt) = e.arbeiter.get(id).and_then(|a| a.info.worktree.clone()) else {
+            return;
+        };
         worktree::absolut(&e.verzeichnis, &wt.pfad)
     };
     let (ag, etage, id) = (ag.clone(), etage.to_string(), id.to_string());
     ag.innen.laufzeit.clone().spawn(async move {
-        let Ok(dateien) = worktree::geaenderte_dateien(&pfad).await else { return };
+        let Ok(dateien) = worktree::geaenderte_dateien(&pfad).await else {
+            return;
+        };
         let branch = worktree::aktueller_branch(&pfad).await;
         let mut z = ag.innen.zustand();
-        let Some(a) = z.arbeiter_mut(&etage, &id) else { return };
+        let Some(a) = z.arbeiter_mut(&etage, &id) else {
+            return;
+        };
         let dateien: Vec<String> = dateien.into_iter().take(50).collect();
         let mut geaendert = a.dateien != dateien;
         a.dateien = dateien;

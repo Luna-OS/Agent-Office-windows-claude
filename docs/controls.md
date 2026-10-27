@@ -6,7 +6,7 @@ Zurück zur [README](../README.md).
 | --- | --- |
 | W A S D / Pfeile | Laufen (mit Shift rennen); auf der Leiter steigen W und S; im Auto ist W Gas, S bremst und fährt rückwärts, A und D lenken |
 | Leertaste | Springen (du kannst auf Schreibtischen, Sofas und den Autos in der Garage landen); im Auto bremsen |
-| Maus | Umsehen. Ein Klick ins Bild fängt die Maus (Pointer-Lock) |
+| Maus | In der Ich-Perspektive umsehen. Ein Klick ins Bild fängt die Maus (Pointer-Lock), Esc gibt sie frei |
 | E / Klick | Benutzen: Arbeiter einstellen, sein Terminal öffnen, eine Tafel lesen, die Karte eines Issues von der Tafel nehmen, einen Tafel-Agenten ansprechen, Besprechung im Besprechungsraum einberufen, am Whiteboard zeichnen, am Bücherregal Doku lesen, hinsetzen (oder aufstehen), Aufzug fahren, Leiter greifen (oder loslassen), Feuerwehrstange hinunterrutschen, Kaffee holen, Rauchpause, am Golf-Abschlag abschlagen, den Hund streicheln, den Basketball aufheben (dann E halten und loslassen zum Werfen), an der Dachbar etwas bestellen, die Dart-Scheibe oder die Axtbahn auf dem Dach betreten, in ein Auto in der Garage steigen (oder aussteigen), den Gong schlagen, am Schild **🚧 Platz zum Wachsen** die Nordwand durchbrechen |
 | Q | Die Issue-Karte, die du trägst, zurückhängen, oder den Basketball fallen lassen |
 | P | Prompt: einem neuen Arbeiter oder dem an diesem Schreibtisch eine Aufgabe geben |
@@ -18,14 +18,14 @@ Zurück zur [README](../README.md).
 | O | Einen Pull Request für einen Arbeiter auf seinem Branch öffnen oder den vorhandenen ansehen |
 | N | Zum Arbeiter gehen, der am längsten auf jemanden wartet; nochmal für den nächsten |
 | F | Ein Bild aus dem Netz an eine Wand hängen (Scrollen ändert die Größe, Klick hängt es auf) |
-| F1 / ? | Diese Hilfe; im Auto hupen (H) |
+| F1 / ? / H | Diese Hilfe (im Auto hupt H) |
 | T / Enter | Chat |
-| G / 1–6 | Emote: G halten für das Rad oder 1–6 drücken (winken, Daumen hoch, klatschen, tanzen, zeigen, Facepalm) |
-| / | Chat und jedes Terminal deiner Etage durchsuchen |
-| Strg + K (⌘K am Mac) | Befehlspalette: Arbeiter, Issue, PR, Dienst, Tafel, Teammitglied oder Aktion finden; Enter öffnet, Shift+Enter geht erst hin |
+| G / 1–6 | Emote: G klappt die Emote-Leiste auf, oder 1–6 drücken (winken, Daumen hoch, klatschen, tanzen, zeigen, Facepalm) |
+| / | Suchen: Arbeiter, Aufgaben, Fenster, Leute (öffnet die Suche, wie Strg+K) |
+| Strg + K (⌘K am Mac) | Befehlspalette: ein paar Buchstaben tippen, Enter öffnet |
 | V | Sprache betreten; in der Sprache gedrückt halten zum Sprechen (loslassen = stumm) |
 | M | In der Sprache stumm / laut |
-| Tab | Das ☰-Menü: alle Fenster und was auf dem Bildschirm erscheint |
+| Tab | Das ☰-Menü oben rechts: alle Fenster (Tab schließt es wieder) |
 | Esc | Jedes Fenster (auch ein Terminal) schließen und zurück in die Maus-Steuerung |
 | Strg + [ | Stattdessen Esc an ein Terminal schicken, um ein Menü wie Claudes `/skills` zu schließen oder Claude zu unterbrechen. **⎋ Esc** im Kopf des Terminals tut dasselbe |
 

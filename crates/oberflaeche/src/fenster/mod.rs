@@ -12,10 +12,12 @@ pub mod buecher;
 pub mod einstellungen;
 pub mod github;
 pub mod hilfe;
+pub mod kerker;
 pub mod konten;
 pub mod medien;
 pub mod meeting;
 pub mod menue;
+pub mod minen;
 pub mod nutzung;
 pub mod palette;
 pub mod station;
@@ -58,8 +60,15 @@ pub fn ansicht(f: Fenster) -> AnyView {
         Fenster::Arcade => view! { <arcade::Arcade /> }.into_any(),
         Fenster::Meeting => view! { <meeting::Meeting /> }.into_any(),
         Fenster::Station(t) => view! { <station::Station tisch=t /> }.into_any(),
+        Fenster::Minen => view! { <minen::Minen /> }.into_any(),
+        Fenster::Kerker => view! { <kerker::Kerker /> }.into_any(),
         Fenster::Team => view! { <team::Team /> }.into_any(),
         Fenster::Konten => view! { <konten::Konten /> }.into_any(),
-        Fenster::Terminal(id) => view! { <crate::terminal::TerminalFenster arbeiter=id /> }.into_any(),
+        Fenster::Terminal(id) => {
+            view! { <crate::terminal::TerminalFenster arbeiter=id /> }.into_any()
+        }
     }
 }
+
+#[cfg(test)]
+mod regel;

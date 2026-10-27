@@ -20,23 +20,46 @@ pub enum WeltAktion {
     /// E im Aufzug: die Etagenwahl.
     AufzugOeffnen,
     /// E an einem Arbeiter: sein Terminal.
-    TerminalOeffnen { arbeiter: String },
+    TerminalOeffnen {
+        arbeiter: String,
+    },
+    /// E an einem Pult der Board-Agenten ("station-issues", "station-pulls", "station-queue"):
+    /// dem Agenten dort etwas auftragen (er wird bei Bedarf angelegt oder geweckt).
+    StationOeffnen {
+        tisch: String,
+    },
     /// E oder P an einem freien Tisch: einen Arbeiter einstellen (mit Prompt).
-    Einstellen { tisch: String },
+    Einstellen {
+        tisch: String,
+    },
     /// B an einem freien Tisch: eine gemeinsame Shell.
-    ShellOeffnen { tisch: String },
+    ShellOeffnen {
+        tisch: String,
+    },
     /// P an einem besetzten Tisch: dem Arbeiter einen Auftrag geben.
-    PromptOeffnen { arbeiter: String },
+    PromptOeffnen {
+        arbeiter: String,
+    },
     /// C: die Änderungen des Arbeiters.
-    AenderungenOeffnen { arbeiter: String },
+    AenderungenOeffnen {
+        arbeiter: String,
+    },
     /// X: Arbeiter nach Hause schicken (die Oberfläche fragt nach, was mit dem Worktree passiert).
-    NachHauseSchicken { arbeiter: String },
+    NachHauseSchicken {
+        arbeiter: String,
+    },
     /// O: Pull Request öffnen oder ansehen.
-    PullRequest { arbeiter: String },
-    /// S an einem Tisch: das Schild darüber.
-    SchildOeffnen { tisch: String },
+    PullRequest {
+        arbeiter: String,
+    },
+    /// L an einem Tisch: das Schild darüber.
+    SchildOeffnen {
+        tisch: String,
+    },
     /// E an einer Wandtafel.
-    BoardOeffnen { board: Board },
+    BoardOeffnen {
+        board: Board,
+    },
     /// E am Fernseher (oder auf der Couch hingesetzt): geteilten Bildschirm groß zeigen.
     TvOeffnen,
     WhiteboardOeffnen,
@@ -51,11 +74,19 @@ pub enum WeltAktion {
     HundUmbenennen,
     /// F: ein Bild aus dem Netz an die Wand hängen, dort wo man hinschaut (`url` ist leer; die
     /// Oberfläche fragt nach URL und Titel und schickt `spielzeug::Client::DekorHinzufuegen`).
-    BildAufhaengen { platz: protokoll::spielzeug::DekorPlatz },
+    BildAufhaengen {
+        platz: protokoll::spielzeug::DekorPlatz,
+    },
+    /// Im Chefsessel auf der Empore sitzend E: Minesweeper auf dem Chefmonitor.
+    MinesweeperOeffnen,
+    /// E an der Kerkertür (Burg-Karte): wer eingesperrt ist.
+    KerkerOeffnen,
     /// H: die Steuerung.
     HilfeOeffnen,
     /// Eine kurze Meldung für die Hinweisleiste oder als Toast.
-    Meldung { text: String },
+    Meldung {
+        text: String,
+    },
 }
 
 /// Die Wandtafeln.
@@ -109,23 +140,53 @@ pub struct Hoerer {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Klang {
     /// Der Basketball prallt auf (Boden, Wand, Brett).
-    BallAufprall { pos: [f32; 3] },
-    BallRing { pos: [f32; 3] },
+    BallAufprall {
+        pos: [f32; 3],
+    },
+    BallRing {
+        pos: [f32; 3],
+    },
     /// Korb!
-    BallKorb { pos: [f32; 3] },
-    Golfschlag { pos: [f32; 3] },
+    BallKorb {
+        pos: [f32; 3],
+    },
+    Golfschlag {
+        pos: [f32; 3],
+    },
     /// Der Golfball ist im Loch.
-    GolfLoch { pos: [f32; 3] },
-    Bellen { pos: [f32; 3] },
-    Hupe { pos: [f32; 3] },
+    GolfLoch {
+        pos: [f32; 3],
+    },
+    Bellen {
+        pos: [f32; 3],
+    },
+    Hupe {
+        pos: [f32; 3],
+    },
     /// Ein fahrendes Auto (Index wie im Protokoll), regelmäßig solange es fährt.
-    Motor { auto: u32, pos: [f32; 3], tempo: f32 },
-    Gong { pos: [f32; 3] },
-    Kaffee { pos: [f32; 3] },
-    Dart { pos: [f32; 3] },
-    Axt { pos: [f32; 3] },
-    Lufthorn { pos: [f32; 3] },
-    Aufzug { pos: [f32; 3] },
+    Motor {
+        auto: u32,
+        pos: [f32; 3],
+        tempo: f32,
+    },
+    Gong {
+        pos: [f32; 3],
+    },
+    Kaffee {
+        pos: [f32; 3],
+    },
+    Dart {
+        pos: [f32; 3],
+    },
+    Axt {
+        pos: [f32; 3],
+    },
+    Lufthorn {
+        pos: [f32; 3],
+    },
+    Aufzug {
+        pos: [f32; 3],
+    },
 }
 
 type Rueckruf<T> = Option<Rc<dyn Fn(T)>>;
@@ -153,6 +214,7 @@ pub(crate) struct Eingang {
     pub zur_etage: Option<String>,
     /// Ich-Ansicht (true) oder hinter dem Kopf (false), aus den Einstellungen der Oberfläche.
     pub perspektive: Option<bool>,
+    pub zur_garage: bool,
 }
 
 thread_local! {
@@ -223,6 +285,12 @@ pub fn bildschirm_leeren(ziel: Bildschirm) {
         e.bilder.retain(|(z, _)| z != &ziel);
         e.bilder.push((ziel, None));
     });
+}
+
+/// In die Garage unter dem Gebäude (unter der untersten Etage). Von dort aus der untersten Etage
+/// geht es direkt hinunter, sonst fährt man mit dem Aufzug dorthin (`Gehen` mit Ort in der Garage).
+pub fn zur_garage() {
+    EINGANG.with_borrow_mut(|e| e.zur_garage = true);
 }
 
 /// Ich-Ansicht (`true`) oder Kamera hinter dem Kopf (`false`). Das Mausrad wechselt auch.

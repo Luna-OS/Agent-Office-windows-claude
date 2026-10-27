@@ -16,27 +16,52 @@ use crate::konfig::Konfig;
 const NUTZER: &str = "office";
 
 fn helfer() -> PathBuf {
-    std::env::var_os("OFFICE_TEAM_HELFER").map(PathBuf::from).unwrap_or_else(|| PathBuf::from("/usr/local/bin/open-agentic-office-team"))
+    std::env::var_os("OFFICE_TEAM_HELFER")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("/usr/local/bin/open-agentic-office-team"))
 }
 
 fn ist_github_name(s: &str) -> bool {
-    !s.is_empty() && s.len() <= 39 && s.chars().next().is_some_and(|c| c.is_ascii_alphanumeric()) && s.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')
+    !s.is_empty()
+        && s.len() <= 39
+        && s.chars().next().is_some_and(|c| c.is_ascii_alphanumeric())
+        && s.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')
 }
 
 fn ist_mitglied(s: &str) -> bool {
-    !s.is_empty() && s.len() <= 39 && s.chars().next().is_some_and(|c| c.is_ascii_alphanumeric()) && s.chars().all(|c| c.is_ascii_alphanumeric() || "._-".contains(c))
+    !s.is_empty()
+        && s.len() <= 39
+        && s.chars().next().is_some_and(|c| c.is_ascii_alphanumeric())
+        && s.chars()
+            .all(|c| c.is_ascii_alphanumeric() || "._-".contains(c))
 }
 
 async fn rufen(args: &[&str], eingabe: Option<String>) -> (i32, String, String) {
     let mut cmd = tokio::process::Command::new(helfer());
-    cmd.args(args).stdin(std::process::Stdio::piped()).stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped()).kill_on_drop(true);
-    let Ok(mut kind) = cmd.spawn() else { return (1, String::new(), "Der Team-Helfer ließ sich nicht starten".into()) };
+    cmd.args(args)
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .kill_on_drop(true);
+    let Ok(mut kind) = cmd.spawn() else {
+        return (
+            1,
+            String::new(),
+            "Der Team-Helfer ließ sich nicht starten".into(),
+        );
+    };
     if let Some(mut stdin) = kind.stdin.take() {
         use tokio::io::AsyncWriteExt;
-        let _ = stdin.write_all(eingabe.unwrap_or_default().as_bytes()).await;
+        let _ = stdin
+            .write_all(eingabe.unwrap_or_default().as_bytes())
+            .await;
     }
     match tokio::time::timeout(Duration::from_secs(15), kind.wait_with_output()).await {
-        Ok(Ok(a)) => (a.status.code().unwrap_or(1), String::from_utf8_lossy(&a.stdout).into_owned(), String::from_utf8_lossy(&a.stderr).trim().to_string()),
+        Ok(Ok(a)) => (
+            a.status.code().unwrap_or(1),
+            String::from_utf8_lossy(&a.stdout).into_owned(),
+            String::from_utf8_lossy(&a.stderr).trim().to_string(),
+        ),
         _ => (1, String::new(), "Der Team-Helfer antwortete nicht".into()),
     }
 }
@@ -47,19 +72,33 @@ pub fn verfuegbar(k: &Konfig) -> bool {
 
 /// Wohin getunnelt wird: office@host, oder ssh://office@host:port, wenn die Adresse einen eigenen Port hat.
 pub fn ssh(k: &Konfig) -> Option<String> {
-    let h = k.oeffentlicher_host.as_deref()?.trim_start_matches("https://").trim_start_matches("http://");
+    let h = k
+        .oeffentlicher_host
+        .as_deref()?
+        .trim_start_matches("https://")
+        .trim_start_matches("http://");
     match h.rsplit_once(':') {
-        Some((host, port)) if port != "22" && port.bytes().all(|b| b.is_ascii_digit()) => Some(format!("ssh://{NUTZER}@{host}:{port}")),
+        Some((host, port)) if port != "22" && port.bytes().all(|b| b.is_ascii_digit()) => {
+            Some(format!("ssh://{NUTZER}@{host}:{port}"))
+        }
         Some((host, _)) => Some(format!("{NUTZER}@{host}")),
         None => Some(format!("{NUTZER}@{h}")),
     }
 }
 
 pub async fn stand(k: &Konfig) -> TeamStand {
-    let mut s = TeamStand { port: k.port, tailnet: k.tailscale_host.clone(), deploy: k.deploy_befehl.clone(), ..Default::default() };
+    let mut s = TeamStand {
+        port: k.port,
+        tailnet: k.tailscale_host.clone(),
+        deploy: k.deploy_befehl.clone(),
+        ..Default::default()
+    };
     if !verfuegbar(k) {
         if s.tailnet.is_none() {
-            s.nicht_verfuegbar = Some("Einladungen gibt es auf Offices, die mit deploy/provision.sh aufgesetzt sind.".into());
+            s.nicht_verfuegbar = Some(
+                "Einladungen gibt es auf Offices, die mit deploy/provision.sh aufgesetzt sind."
+                    .into(),
+            );
         }
         return s;
     }
@@ -75,7 +114,10 @@ pub async fn stand(k: &Konfig) -> TeamStand {
         .lines()
         .filter_map(|l| {
             let mut t = l.split_whitespace();
-            Some(TeamMitglied { name: t.next()?.to_string(), schluessel: t.next()?.parse().unwrap_or(0) })
+            Some(TeamMitglied {
+                name: t.next()?.to_string(),
+                schluessel: t.next()?.parse().unwrap_or(0),
+            })
         })
         .collect();
     s
@@ -84,7 +126,9 @@ pub async fn stand(k: &Konfig) -> TeamStand {
 /// Lädt die SSH-Schlüssel von github.com/<name>.keys ein. Gibt (Name, Anzahl) zurück.
 pub async fn einladen(k: &Konfig, github: &str) -> Result<(String, u32), String> {
     if !verfuegbar(k) {
-        return Err("Einladungen gibt es auf Offices, die mit deploy/provision.sh aufgesetzt sind".into());
+        return Err(
+            "Einladungen gibt es auf Offices, die mit deploy/provision.sh aufgesetzt sind".into(),
+        );
     }
     let name = github.trim().trim_start_matches('@').to_string();
     if !ist_github_name(&name) {
@@ -93,29 +137,51 @@ pub async fn einladen(k: &Konfig, github: &str) -> Result<(String, u32), String>
     let url = format!("https://github.com/{name}.keys");
     let n = name.clone();
     let text = tokio::task::spawn_blocking(move || -> Result<String, String> {
-        let agent: ureq::Agent = ureq::Agent::config_builder().timeout_global(Some(Duration::from_secs(10))).http_status_as_error(false).build().into();
-        let mut r = agent.get(&url).call().map_err(|e| format!("GitHub war nicht erreichbar: {e}"))?;
+        let agent: ureq::Agent = ureq::Agent::config_builder()
+            .timeout_global(Some(Duration::from_secs(10)))
+            .http_status_as_error(false)
+            .build()
+            .into();
+        let mut r = agent
+            .get(&url)
+            .call()
+            .map_err(|e| format!("GitHub war nicht erreichbar: {e}"))?;
         match r.status().as_u16() {
             404 => Err(format!("Einen GitHub-Nutzer {n} gibt es nicht")),
-            200 => r.body_mut().with_config().limit(64 * 1024).read_to_string().map_err(|e| e.to_string()),
-            s => Err(format!("GitHub antwortete {s} für die Schlüssel von {n} – bitte noch einmal")),
+            200 => r
+                .body_mut()
+                .with_config()
+                .limit(64 * 1024)
+                .read_to_string()
+                .map_err(|e| e.to_string()),
+            s => Err(format!(
+                "GitHub antwortete {s} für die Schlüssel von {n} – bitte noch einmal"
+            )),
         }
     })
     .await
     .map_err(|e| e.to_string())??;
     if text.trim().is_empty() {
-        return Err(format!("{name} hat keine SSH-Schlüssel auf GitHub – unter github.com/settings/keys lässt sich einer hinzufügen"));
+        return Err(format!(
+            "{name} hat keine SSH-Schlüssel auf GitHub – unter github.com/settings/keys lässt sich einer hinzufügen"
+        ));
     }
     match rufen(&["hinzufuegen", &name], Some(text)).await {
         (0, aus, _) => Ok((name, aus.trim().parse().unwrap_or(0))),
-        (65, ..) => Err(format!("Keiner der GitHub-Schlüssel von {name} passt hier zu SSH")),
-        (_, _, err) => Err(format!("Die Schlüssel von {name} ließen sich nicht hinzufügen: {err}")),
+        (65, ..) => Err(format!(
+            "Keiner der GitHub-Schlüssel von {name} passt hier zu SSH"
+        )),
+        (_, _, err) => Err(format!(
+            "Die Schlüssel von {name} ließen sich nicht hinzufügen: {err}"
+        )),
     }
 }
 
 pub async fn entfernen(k: &Konfig, name: &str) -> Result<(), String> {
     if !verfuegbar(k) {
-        return Err("Einladungen gibt es auf Offices, die mit deploy/provision.sh aufgesetzt sind".into());
+        return Err(
+            "Einladungen gibt es auf Offices, die mit deploy/provision.sh aufgesetzt sind".into(),
+        );
     }
     if !ist_mitglied(name) {
         return Err(format!("„{name}“ ist kein Name aus dem Team"));

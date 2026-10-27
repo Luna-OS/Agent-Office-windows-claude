@@ -21,7 +21,7 @@ thread_local! {
 }
 
 fn link() -> RwSignal<Option<String>> {
-    LINK.with(|l| *l.get_or_init(|| RwSignal::new(None)))
+    LINK.with(|l| *l.get_or_init(|| crate::zustand::global(|| RwSignal::new(None))))
 }
 
 /// Antwort auf `LinkErzeugen`.

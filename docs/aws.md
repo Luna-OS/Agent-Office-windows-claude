@@ -32,7 +32,7 @@ Was `up` in etwa 2 Minuten tut:
 
 Alles läuft über SSH, es gibt also keine Zertifikatswarnungen, und `localhost` gilt als sicherer Ursprung: Sprachchat und Bildschirm teilen funktionieren einfach. Lass das Terminal offen, solange du das Office nutzt; Strg+C schließt den Tunnel. Beim nächsten Mal: `deploy/aws.sh open`. Ist Port 4600 auf deinem Rechner belegt, nimmt es den nächsten freien.
 
-**Dein Team einladen.** Mitspieler brauchen weder AWS-Zugang noch dieses Repo, nur `ssh`. Klicke im Office im **☰**-Menü auf **👥 Mitspieler einladen** und tippe ihren GitHub-Benutzernamen. Das installiert die SSH-Schlüssel von `github.com/<benutzername>.keys`. Das Fenster gibt dir dann einen Befehl für macOS, Linux oder Windows zum Verschicken. Er öffnet den Tunnel und, sobald der steht, das Office in ihrem Browser:
+**Dein Team einladen.** Mitspieler brauchen weder AWS-Zugang noch dieses Repo, nur `ssh`. Klicke im Office im **☰**-Menü auf **👥 Team** und tippe ihren GitHub-Benutzernamen. Das installiert die SSH-Schlüssel von `github.com/<benutzername>.keys`. Das Fenster gibt dir dann einen Befehl für macOS, Linux oder Windows zum Verschicken. Er öffnet den Tunnel und, sobald der steht, das Office in ihrem Browser:
 
 ```
 ssh -o ExitOnForwardFailure=yes -o PermitLocalCommand=yes -o LocalCommand="open http://localhost:4600" -L 4600:localhost:4600 office@<deine-office-ip>
@@ -74,7 +74,7 @@ deploy/aws.sh ssh | logs           # auf die Maschine / den Logs des Office folg
 
 **Aus dem Office aktualisieren.** **⬆️ Office aktualisieren** im **☰**-Menü fragt GitHub nach einer neueren Fassung. Gibt es eine, erscheint in der oberen Leiste ein oranger Knopf **⬆️ Update**. **Jetzt aktualisieren** lädt die neue Binärdatei samt Client neben die laufende (`open-agentic-office-update`). Währenddessen arbeitet das Office weiter, und alle sehen ein Banner. Schlägt das Laden oder Bauen fehl, ändert sich nichts. Gelingt es, tauscht das Office die Dateien aus und startet neu, und alle sehen den Dialog *„🛠️ Office wird aktualisiert“*. Wenige Sekunden später lädt ihre Seite in der neuen Fassung neu. Die Arbeiter arbeiten durch: Ihre Terminals laufen in einem eigenen Prozess, den die neue Fassung wieder aufnimmt.
 
-Die Hilfsprogramme für **👥 Mitspieler einladen** und die Selbstaktualisierung installiert `up`. Ein Office, das davor entstand, braucht einmal `deploy/aws.sh up`; `update` allein reicht nicht.
+Die Hilfsprogramme für **👥 Team** und die Selbstaktualisierung installiert `up`. Ein Office, das davor entstand, braucht einmal `deploy/aws.sh up`; `update` allein reicht nicht.
 
 Nützliche Optionen für `up`:
 
@@ -88,9 +88,9 @@ Nützliche Optionen für `up`:
 - Gib `--claude-token "$(claude setup-token)"` an, das nutzt dein Claude-Abo, oder `--anthropic-api-key <key>`.
 - Tu nichts, dann springt der erste Arbeiter mit *„Claude ist nicht angemeldet – tippe /login“*. Öffne sein Terminal und führe `/login` aus.
 
-Das ist die eigene Anmeldung des Office, die Arbeiter nutzen, solange du mit dem Office-Passwort drin bist. Haben Mitspieler [Konten](../README.md#nutzer-hinzufügen), melden sich alle unter **☰ → 🔐 Deine Anmeldungen** bei ihrem eigenen Claude an, und ihre Arbeiter laufen auf ihrem Abo. Admins können dort stattdessen die des Office wählen.
+Das ist die eigene Anmeldung des Office, die Arbeiter nutzen, solange du mit dem Office-Passwort drin bist. Haben Mitspieler [Konten](../README.md#nutzer-hinzufügen), melden sich alle unter **☰ → 🔑 Anmeldungen** bei ihrem eigenen Claude an, und ihre Arbeiter laufen auf ihrem Abo. Admins können dort stattdessen die des Office wählen.
 
-**GitHub.** Standardmäßig meldet dein lokales `gh auth token` die GitHub CLI auf der Maschine an. Das Office nutzt es, um deine Repos zu listen und zu klonen und die Issue- und PR-Tafeln zu lesen, es braucht also Zugriff darauf. Mit dem Office-Passwort laufen auch Kommentieren, Mergen, Pushen und das Öffnen von PRs darüber. Leute mit Konten tun das als sie selbst, mit dem GitHub-Konto, bei dem sie sich unter **🔐 Deine Anmeldungen** anmelden. Jeder Arbeiter läuft als derselbe Benutzer auf der Maschine, also kommt jeder, der das Office nutzen kann, an dieses Token: Gib `--github-token <feingranulares Token>` oder `--no-github-token` an, wenn das zu viel ist.
+**GitHub.** Standardmäßig meldet dein lokales `gh auth token` die GitHub CLI auf der Maschine an. Das Office nutzt es, um deine Repos zu listen und zu klonen und die Issue- und PR-Tafeln zu lesen, es braucht also Zugriff darauf. Mit dem Office-Passwort laufen auch Kommentieren, Mergen, Pushen und das Öffnen von PRs darüber. Leute mit Konten tun das als sie selbst, mit dem GitHub-Konto, bei dem sie sich unter **🔑 Anmeldungen** anmelden. Jeder Arbeiter läuft als derselbe Benutzer auf der Maschine, also kommt jeder, der das Office nutzen kann, an dieses Token: Gib `--github-token <feingranulares Token>` oder `--no-github-token` an, wenn das zu viel ist.
 
 ## Tailscale
 
@@ -108,7 +108,7 @@ Zusätzlich zu allem oben tut `up` dann Folgendes:
 
 In der Sicherheitsgruppe wird nichts Neues geöffnet: Tailscale baut nur ausgehende Verbindungen auf und fällt auf seine Relays zurück, wenn keine direkte geht. SSH bleibt für deine IP offen, für `deploy/aws.sh` selbst.
 
-Jeder in deinem Tailnet öffnet den Link. Es gibt kein Terminal, das offen bleiben muss, und keine SSH-Schlüssel oder IPs hinzuzufügen. Für jemanden außerhalb deines Tailnets [teile die Maschine](https://tailscale.com/kb/1084/sharing) auf der [Maschinen-Seite](https://login.tailscale.com/admin/machines) (**⋯ → Teilen…**). Sie nehmen es in ihrem eigenen Tailscale an und erreichen diese eine Maschine, sonst nichts von dir. Oder [lade sie](https://login.tailscale.com/admin/users) in dein Tailnet ein. **☰ → 👥 Mitspieler einladen** im Office und `deploy/aws.sh invite` ohne Benutzernamen erklären beides und geben dir einen Einladungstext. Alle melden sich weiterhin im Office selbst an, mit dem Passwort oder einem Konto aus **🔑 Konten**.
+Jeder in deinem Tailnet öffnet den Link. Es gibt kein Terminal, das offen bleiben muss, und keine SSH-Schlüssel oder IPs hinzuzufügen. Für jemanden außerhalb deines Tailnets [teile die Maschine](https://tailscale.com/kb/1084/sharing) auf der [Maschinen-Seite](https://login.tailscale.com/admin/machines) (**⋯ → Teilen…**). Sie nehmen es in ihrem eigenen Tailscale an und erreichen diese eine Maschine, sonst nichts von dir. Oder [lade sie](https://login.tailscale.com/admin/users) in dein Tailnet ein. **☰ → 👥 Team** im Office und `deploy/aws.sh invite` ohne Benutzernamen erklären beides und geben dir einen Einladungstext. Alle melden sich weiterhin im Office selbst an, mit dem Passwort oder einem Konto aus **👥 Team**.
 
 **Die Server der Arbeiter.** Jeder auf der **🌐 Dienste**-Tafel bekommt statt eines Tunnelbefehls einen eigenen Link im Tailnet, `https://open-agentic-office.<dein-tailnet>.ts.net:5173`. Startet ein Arbeiter einen Server, bittet das Office Serve über `/usr/local/bin/open-agentic-office-serve` um diesen Port, ein kleiner root-Helfer, der einen Port immer nur auf das Office richtet. Das Office prüft dann, dass der Besucher angemeldet ist, und leitet an den Server des Arbeiters weiter, wie bei einem Dienst-Tunnel. Stoppt der Server, schließt der Port wieder. `deploy/aws.sh service 5173` öffnet diesen Link ebenfalls.
 
@@ -120,7 +120,7 @@ Jeder in deinem Tailnet öffnet den Link. Es gibt kein Terminal, das offen bleib
 
 **Schlüsselablauf.** Tailscale lässt den Schlüssel einer Maschine nach 180 Tagen ablaufen, dann fällt das Office aus deinem Tailnet. Wähle auf der Maschinen-Seite die Maschine und dann **⋯ → Schlüsselablauf deaktivieren**. Ein Auth-Key mit Tag vermeidet das ebenfalls, denn markierte Maschinen laufen nicht ab (der Tag muss in `tagOwners` deiner Richtlinie stehen).
 
-**Ein bestehendes Office umziehen.** Führe `deploy/aws.sh up --tailscale` darauf aus. Ein späteres `up` hält es auch ohne die Option im Tailnet. Per SSH-Schlüssel Eingeladene können weiter hineintunneln, bis du sie unter **👥 Mitspieler einladen** entfernst.
+**Ein bestehendes Office umziehen.** Führe `deploy/aws.sh up --tailscale` darauf aus. Ein späteres `up` hält es auch ohne die Option im Tailnet. Per SSH-Schlüssel Eingeladene können weiter hineintunneln, bis du sie unter **👥 Team** entfernst.
 
 **Was dein Tailnet erreicht.** Die Sicherheitsgruppe gilt nicht für Verkehr, der über Tailscale kommt. Wen deine [Zugriffsregeln](https://tailscale.com/kb/1018/acls) an die Maschine lassen, kann jeden Port erreichen, auf dem dort etwas auf allen Schnittstellen lauscht. Das schließt ein `vite --host` eines Arbeiters oder eine von ihm gestartete Datenbank ein, nicht nur das Office. Die Standardregel lässt alle im Tailnet jede Maschine erreichen. Verschärfe sie, wenn dir das zu viel ist. Leute, mit denen du die Maschine geteilt hast, erreichen nur diese eine.
 

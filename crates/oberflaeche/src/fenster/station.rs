@@ -14,9 +14,21 @@ use crate::zustand::zustand;
 /// Name und Station zu einer Pult-ID.
 fn pult(tisch: &str) -> (&'static str, &'static str, &'static str) {
     match tisch {
-        "station-issues" => ("issues", "🐞 Issue-Agent", "z. B. „Leg ein Issue für den Login-Fehler an“ oder „Welche Issues sind am dringendsten?“"),
-        "station-pulls" => ("pulls", "🔀 PR-Agent", "z. B. „Fass PR #12 zusammen“ oder „Welche PRs sind bereit zum Mergen?“"),
-        _ => ("aufgaben", "📋 Aufgaben-Agent", "z. B. „Teil das Feature in Aufgaben auf“ oder „Was ist noch offen?“"),
+        "station-issues" => (
+            "issues",
+            "🐞 Issue-Agent",
+            "z. B. „Leg ein Issue für den Login-Fehler an“ oder „Welche Issues sind am dringendsten?“",
+        ),
+        "station-pulls" => (
+            "pulls",
+            "🔀 PR-Agent",
+            "z. B. „Fass PR #12 zusammen“ oder „Welche PRs sind bereit zum Mergen?“",
+        ),
+        _ => (
+            "aufgaben",
+            "📋 Aufgaben-Agent",
+            "z. B. „Teil das Feature in Aufgaben auf“ oder „Was ist noch offen?“",
+        ),
     }
 }
 
@@ -26,7 +38,13 @@ pub fn Station(tisch: String) -> impl IntoView {
     let (station, titel, beispiel) = pult(&tisch);
     let t = StoredValue::new(tisch.clone());
     let text = RwSignal::new(String::new());
-    let agent = Memo::new(move |_| z.arbeiter.with(|l| l.iter().find(|a| a.station.as_deref() == Some(station)).cloned()));
+    let agent = Memo::new(move |_| {
+        z.arbeiter.with(|l| {
+            l.iter()
+                .find(|a| a.station.as_deref() == Some(station))
+                .cloned()
+        })
+    });
     let feld = NodeRef::<leptos::html::Textarea>::new();
     Effect::new(move |_| {
         if let Some(f) = feld.get() {
@@ -38,7 +56,10 @@ pub fn Station(tisch: String) -> impl IntoView {
         if s.is_empty() {
             return;
         }
-        senden(ClientNachricht::Arbeiter(A::StationAuftrag { tisch: t.get_value(), text: s }));
+        senden(ClientNachricht::Arbeiter(A::StationAuftrag {
+            tisch: t.get_value(),
+            text: s,
+        }));
         text.set(String::new());
         modal::schliessen(&Fenster::Station(t.get_value()));
     };

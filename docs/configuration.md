@@ -27,7 +27,8 @@ Das Office startest du in einem Projektordner mit `open-agentic-office ~/code/me
 ## Kommandozeile
 
 ```
-open-agentic-office [PROJEKTORDNER] [Optionen]
+open-agentic-office [Optionen] [PROJEKTORDNER]
+open-agentic-office einrichten [Optionen]   Erst-Einrichtung (Projekte-Ordner, GitHub, Etagen) noch einmal
 
       --daten <dir>       Datenordner (Standard ~/open-agentic-office, Env OFFICE_HOME)
       --projekte <dir>    Wohin neue Etagen geklont werden, als <dir>/<owner>/<repo> (Env OFFICE_PROJEKTE)
@@ -40,6 +41,9 @@ open-agentic-office [PROJEKTORDNER] [Optionen]
       --passwort-zuruecksetzen   Ein neues gemeinsames Passwort setzen und ausgeben
       --no-open           Den Browser nicht öffnen, den Anmelde-Link ausgeben (Env OFFICE_NO_OPEN=1)
       --max-arbeiter <n>  Höchstens n Arbeiter gleichzeitig
+      --stadt <name>      Stadt für Sonne und Wetter (Env OFFICE_STADT)
+  -V, --version           Version
+  -h, --hilfe             Hilfe
       --proxy-vertrauen   X-Forwarded-* vertrauen (hinter Caddy/nginx)
       --beanspruch-token  Einmal-Token, mit dem der erste Admin die Lobby übernimmt (Env OFFICE_BEANSPRUCH_TOKEN)
 
@@ -55,6 +59,11 @@ Weitere Umgebungsvariablen:
 | Variable | Wirkung |
 | --- | --- |
 | `OFFICE_TURN` | TURN-Server für Sprache, kommagetrennt, z. B. `turn:nutzer:pass@host:3478` (Standard: STUN `stun.l.google.com:19302`) |
+| `OFFICE_PROXY_VERTRAUEN` | Wie `--proxy-vertrauen` |
+| `OFFICE_AGENT_<ID>` | Programm eines Anbieters überschreiben, z. B. `OFFICE_AGENT_CLAUDE=/pfad/zu/claude`; `OFFICE_AGENT_EIGEN` ist der eigene Befehl |
+| `OFFICE_DSH_PROFIL` | Profil von DeepSeek Harness über ACP (Standard `acp`) |
+| `OFFICE_PTY_WIRT=aus` | Terminals ohne den eigenen Wirt-Prozess `office-pty-wirt` betreiben (dann überleben sie keinen Neustart des Servers). Der Wirt beendet sich selbst, wenn 30 Minuten lang kein Server zurückkommt oder keine Terminals mehr laufen |
+| `OFFICE_TEAM_HELFER`, `OFFICE_SERVE_HELFER` | Pfade der Hilfsprogramme für SSH-Team und Tailscale Serve (Standard `/usr/local/bin/open-agentic-office-team` bzw. `-serve`) |
 | `OFFICE_HOOK_PORT` | Port des Loopback-Hook-Servers festlegen |
 | `OFFICE_LOG` | Log-Stufe, z. B. `debug` |
 | `OFFICE_SELBSTUPDATE=1` | Schaltet **☰ → Office aktualisieren** frei |

@@ -3,6 +3,7 @@
 //! Token oder die Anmeldung des Office-Rechners (Admins; Mitglieder für Claude, wenn geteilt).
 
 pub mod ablauf;
+pub mod claude;
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -15,8 +16,23 @@ use tokio::sync::broadcast;
 use crate::speicher::{laden, speichern};
 
 /// Diese Variablen gehören zu einer Claude- bzw. GitHub-Anmeldung und werden für ein Konto ersetzt.
-pub const CLAUDE_VARIABLEN: [&str; 7] = ["CLAUDE_CODE_OAUTH_TOKEN", "CLAUDE_CODE_OAUTH_REFRESH_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN_FILE_DESCRIPTOR", "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "CLAUDE_CONFIG_DIR", "CLAUDE_SECURESTORAGE_CONFIG_DIR"];
-pub const GITHUB_VARIABLEN: [&str; 6] = ["GH_TOKEN", "GITHUB_TOKEN", "GH_ENTERPRISE_TOKEN", "GITHUB_ENTERPRISE_TOKEN", "GH_CONFIG_DIR", "GIT_CONFIG_GLOBAL"];
+pub const CLAUDE_VARIABLEN: [&str; 7] = [
+    "CLAUDE_CODE_OAUTH_TOKEN",
+    "CLAUDE_CODE_OAUTH_REFRESH_TOKEN",
+    "CLAUDE_CODE_OAUTH_TOKEN_FILE_DESCRIPTOR",
+    "ANTHROPIC_API_KEY",
+    "ANTHROPIC_AUTH_TOKEN",
+    "CLAUDE_CONFIG_DIR",
+    "CLAUDE_SECURESTORAGE_CONFIG_DIR",
+];
+pub const GITHUB_VARIABLEN: [&str; 6] = [
+    "GH_TOKEN",
+    "GITHUB_TOKEN",
+    "GH_ENTERPRISE_TOKEN",
+    "GITHUB_ENTERPRISE_TOKEN",
+    "GH_CONFIG_DIR",
+    "GIT_CONFIG_GLOBAL",
+];
 
 /// Wie ein Konto sich angemeldet hat.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -59,7 +75,10 @@ pub type AnmeldungenRef = Arc<Anmeldungen>;
 
 /// Ein eingefügter Claude-Token (`claude setup-token`) oder Anthropic-API-Schlüssel?
 pub fn ist_claude_token(t: &str) -> bool {
-    t.starts_with("sk-ant-") && t.len() >= 30 && t.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+    t.starts_with("sk-ant-")
+        && t.len() >= 30
+        && t.chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
 }
 
 pub fn ist_api_schluessel(t: &str) -> bool {
@@ -67,16 +86,29 @@ pub fn ist_api_schluessel(t: &str) -> bool {
 }
 
 fn sicher(konto: &str) -> String {
-    konto.chars().filter(|c| c.is_ascii_alphanumeric()).collect()
+    konto
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric())
+        .collect()
 }
 
 fn leer(status: AnmeldeStatus) -> Anmeldung {
-    Anmeldung { status, weg: AnmeldeWeg::Login, wer: None, offen: None, fehler: None }
+    Anmeldung {
+        status,
+        weg: AnmeldeWeg::Login,
+        wer: None,
+        offen: None,
+        fehler: None,
+    }
 }
 
 impl Anmeldungen {
     pub fn neu(daten: &Path) -> AnmeldungenRef {
-        Arc::new(Self { homes: daten.join("homes"), live: Mutex::default(), geaendert: broadcast::channel(64).0 })
+        Arc::new(Self {
+            homes: daten.join("homes"),
+            live: Mutex::default(),
+            geaendert: broadcast::channel(64).0,
+        })
     }
 
     /// Der Ordner eines Kontos (wird angelegt).
@@ -101,7 +133,11 @@ impl Anmeldungen {
 
     /// Wie `art` für das Konto läuft. Office nur, wenn erlaubt (sonst wieder der eigene Login).
     pub fn weg(&self, g: &Gespeichert, art: AnmeldeArt, darf_office: bool) -> AnmeldeWeg {
-        match if art == AnmeldeArt::Claude { &g.claude } else { &g.github } {
+        match if art == AnmeldeArt::Claude {
+            &g.claude
+        } else {
+            &g.github
+        } {
             Some(Wahl::Office) if darf_office => AnmeldeWeg::Office,
             Some(Wahl::Token { .. }) => AnmeldeWeg::Token,
             _ => AnmeldeWeg::Login,
@@ -118,13 +154,21 @@ impl Anmeldungen {
                 AnmeldeArt::Github => (l.and_then(|l| l.github.clone()), g.gesehen_github.clone()),
             };
             let mut a = laufend.unwrap_or_else(|| match gesehen {
-                Some(wer) => Anmeldung { wer: Some(wer), ..leer(AnmeldeStatus::Ok) },
+                Some(wer) => Anmeldung {
+                    wer: Some(wer),
+                    ..leer(AnmeldeStatus::Ok)
+                },
                 None => leer(AnmeldeStatus::Keine),
             });
             a.weg = self.weg(&g, art, darf);
             a
         };
-        Stand { claude: eine(AnmeldeArt::Claude, office_claude), github: eine(AnmeldeArt::Github, office_github), office_claude, office_github }
+        Stand {
+            claude: eine(AnmeldeArt::Claude, office_claude),
+            github: eine(AnmeldeArt::Github, office_github),
+            office_claude,
+            office_github,
+        }
     }
 
     /// Setzt den laufenden Stand einer Anmeldung.
@@ -153,28 +197,67 @@ impl Anmeldungen {
     }
 
     /// Die Umgebung für Programme im Namen des Kontos. Ein leerer Wert heißt: Variable entfernen.
-    pub fn umgebung(&self, konto: &str, nur: Option<AnmeldeArt>, office_claude: bool, office_github: bool) -> Vec<(String, String)> {
+    pub fn umgebung(
+        &self,
+        konto: &str,
+        nur: Option<AnmeldeArt>,
+        office_claude: bool,
+        office_github: bool,
+    ) -> Vec<(String, String)> {
         let g = self.laden(konto);
         let home = self.home(konto);
         let mut env = Vec::new();
-        if nur != Some(AnmeldeArt::Github) && self.weg(&g, AnmeldeArt::Claude, office_claude) != AnmeldeWeg::Office {
-            env.extend(CLAUDE_VARIABLEN.iter().map(|k| (k.to_string(), String::new())));
-            env.push(("CLAUDE_CONFIG_DIR".into(), home.join("claude").display().to_string()));
+        if nur != Some(AnmeldeArt::Github)
+            && self.weg(&g, AnmeldeArt::Claude, office_claude) != AnmeldeWeg::Office
+        {
+            env.extend(
+                CLAUDE_VARIABLEN
+                    .iter()
+                    .map(|k| (k.to_string(), String::new())),
+            );
+            env.push((
+                "CLAUDE_CONFIG_DIR".into(),
+                home.join("claude").display().to_string(),
+            ));
             if let Some(Wahl::Token { token }) = &g.claude {
-                env.push((if ist_api_schluessel(token) { "ANTHROPIC_API_KEY" } else { "CLAUDE_CODE_OAUTH_TOKEN" }.into(), token.clone()));
+                env.push((
+                    if ist_api_schluessel(token) {
+                        "ANTHROPIC_API_KEY"
+                    } else {
+                        "CLAUDE_CODE_OAUTH_TOKEN"
+                    }
+                    .into(),
+                    token.clone(),
+                ));
             }
         }
-        if nur != Some(AnmeldeArt::Claude) && self.weg(&g, AnmeldeArt::Github, office_github) != AnmeldeWeg::Office {
-            env.extend(GITHUB_VARIABLEN.iter().map(|k| (k.to_string(), String::new())));
-            env.push(("GH_CONFIG_DIR".into(), home.join("gh").display().to_string()));
-            env.push(("GIT_CONFIG_GLOBAL".into(), home.join("gitconfig").display().to_string()));
+        if nur != Some(AnmeldeArt::Claude)
+            && self.weg(&g, AnmeldeArt::Github, office_github) != AnmeldeWeg::Office
+        {
+            env.extend(
+                GITHUB_VARIABLEN
+                    .iter()
+                    .map(|k| (k.to_string(), String::new())),
+            );
+            env.push((
+                "GH_CONFIG_DIR".into(),
+                home.join("gh").display().to_string(),
+            ));
+            env.push((
+                "GIT_CONFIG_GLOBAL".into(),
+                home.join("gitconfig").display().to_string(),
+            ));
             if let Some(Wahl::Token { token }) = &g.github {
                 env.push(("GH_TOKEN".into(), token.clone()));
             }
         }
         // Spätere Einträge überschreiben frühere: nur den letzten Wert je Variable behalten.
         let mut gesehen = std::collections::HashSet::new();
-        let mut aus: Vec<(String, String)> = env.into_iter().rev().filter(|(k, _)| gesehen.insert(k.clone())).collect();
+        let mut aus: Vec<(String, String)> = env
+            .into_iter()
+            .rev()
+            .filter(|(k, _)| gesehen.insert(k.clone()))
+            .collect();
         aus.reverse();
         aus
     }
@@ -182,7 +265,10 @@ impl Anmeldungen {
     /// Ein Konto wurde entzogen: Abläufe stoppen und den Ordner vergessen (bleibt auf der Platte).
     pub fn vergessen(&self, konto: &str) {
         if let Some(mut l) = self.live.lock().unwrap().remove(konto) {
-            for f in [l.abbruch_claude.take(), l.abbruch_github.take()].into_iter().flatten() {
+            for f in [l.abbruch_claude.take(), l.abbruch_github.take()]
+                .into_iter()
+                .flatten()
+            {
                 f();
             }
         }
@@ -209,21 +295,37 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let a = Anmeldungen::neu(dir.path());
         let mut g = a.laden("k1");
-        g.claude = Some(Wahl::Token { token: "sk-ant-oat01-abcdefghijklmnopqrstuvwxyz".into() });
+        g.claude = Some(Wahl::Token {
+            token: "sk-ant-oat01-abcdefghijklmnopqrstuvwxyz".into(),
+        });
         a.sichern("k1", &g);
         let env = a.umgebung("k1", None, false, false);
         let wert = |k: &str| env.iter().find(|(n, _)| n == k).map(|(_, v)| v.clone());
-        assert!(wert("CLAUDE_CODE_OAUTH_TOKEN").unwrap().starts_with("sk-ant-oat01"));
-        assert_eq!(wert("ANTHROPIC_API_KEY").as_deref(), Some(""), "fremde Schlüssel werden entfernt");
+        assert!(
+            wert("CLAUDE_CODE_OAUTH_TOKEN")
+                .unwrap()
+                .starts_with("sk-ant-oat01")
+        );
+        assert_eq!(
+            wert("ANTHROPIC_API_KEY").as_deref(),
+            Some(""),
+            "fremde Schlüssel werden entfernt"
+        );
         assert!(wert("GH_CONFIG_DIR").unwrap().contains("gh"));
-        assert_eq!(env.iter().filter(|(k, _)| k == "CLAUDE_CONFIG_DIR").count(), 1);
+        assert_eq!(
+            env.iter().filter(|(k, _)| k == "CLAUDE_CONFIG_DIR").count(),
+            1
+        );
     }
 
     #[test]
     fn office_nur_wenn_erlaubt() {
         let dir = tempfile::tempdir().unwrap();
         let a = Anmeldungen::neu(dir.path());
-        let g = Gespeichert { claude: Some(Wahl::Office), ..Default::default() };
+        let g = Gespeichert {
+            claude: Some(Wahl::Office),
+            ..Default::default()
+        };
         assert_eq!(a.weg(&g, AnmeldeArt::Claude, true), AnmeldeWeg::Office);
         assert_eq!(a.weg(&g, AnmeldeArt::Claude, false), AnmeldeWeg::Login);
         assert!(ist_claude_token("sk-ant-api03-abcdefghijklmnopqrstuvwxyz"));

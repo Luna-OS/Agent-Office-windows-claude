@@ -89,7 +89,10 @@ und öffne einen Pull Request.",
 ];
 
 pub fn laden(daten: &Path) -> HashMap<String, String> {
-    std::fs::read_to_string(daten.join("prompts.json")).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default()
+    std::fs::read_to_string(daten.join("prompts.json"))
+        .ok()
+        .and_then(|t| serde_json::from_str(&t).ok())
+        .unwrap_or_default()
 }
 
 pub fn speichern(daten: &Path, eigene: &HashMap<String, String>) {
@@ -100,7 +103,11 @@ pub fn speichern(daten: &Path, eigene: &HashMap<String, String>) {
 
 /// Der Text einer Vorlage, wie das Office ihn gerade hat, mit ausgefüllten Platzhaltern.
 pub fn text(eigene: &HashMap<String, String>, id: &str, werte: &[(&str, &str)]) -> String {
-    let roh = eigene.get(id).map(String::as_str).or_else(|| VORLAGEN.iter().find(|v| v.id == id).map(|v| v.standard)).unwrap_or("");
+    let roh = eigene
+        .get(id)
+        .map(String::as_str)
+        .or_else(|| VORLAGEN.iter().find(|v| v.id == id).map(|v| v.standard))
+        .unwrap_or("");
     let mut aus = roh.to_string();
     for (k, v) in werte {
         aus = aus.replace(&format!("{{{{{k}}}}}"), v);
@@ -127,11 +134,18 @@ pub fn liste(eigene: &HashMap<String, String>) -> Vec<PromptInfo> {
 }
 
 /// Setzt (oder mit `None`/leer: verwirft) den eigenen Text einer Vorlage.
-pub fn setzen(eigene: &mut HashMap<String, String>, id: &str, text: Option<String>) -> Result<(), String> {
+pub fn setzen(
+    eigene: &mut HashMap<String, String>,
+    id: &str,
+    text: Option<String>,
+) -> Result<(), String> {
     if !VORLAGEN.iter().any(|v| v.id == id) {
         return Err(format!("Unbekannter Prompt „{id}“"));
     }
-    match text.map(|t| t.replace("\r\n", "\n").trim().to_string()).filter(|t| !t.is_empty()) {
+    match text
+        .map(|t| t.replace("\r\n", "\n").trim().to_string())
+        .filter(|t| !t.is_empty())
+    {
         Some(t) if t.chars().count() > MAX_TEXT => return Err("Der Prompt ist zu lang".into()),
         Some(t) => {
             eigene.insert(id.to_string(), t);
@@ -150,7 +164,11 @@ mod tests {
     #[test]
     fn ausfuellen_und_ueberschreiben() {
         let mut eigene = HashMap::new();
-        let t = text(&eigene, "warteschlange", &[("titel", "Login"), ("notiz", "")]);
+        let t = text(
+            &eigene,
+            "warteschlange",
+            &[("titel", "Login"), ("notiz", "")],
+        );
         assert!(t.starts_with("Login\n\nDu arbeitest"));
         setzen(&mut eigene, "warteschlange", Some("Mach {{titel}}!".into())).unwrap();
         assert_eq!(text(&eigene, "warteschlange", &[("titel", "X")]), "Mach X!");

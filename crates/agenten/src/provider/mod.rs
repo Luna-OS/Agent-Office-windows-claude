@@ -3,6 +3,7 @@
 //! Zeile in `register()`.
 
 pub(crate) mod claude;
+mod muse;
 mod weitere;
 
 use std::collections::HashMap;
@@ -41,14 +42,22 @@ pub struct StartPlan {
 #[derive(Debug, Clone, PartialEq)]
 pub enum HookEreignis {
     /// Die Sitzung ist bereit; `geleert` nach `/clear`.
-    SitzungStart { geleert: bool },
+    SitzungStart {
+        geleert: bool,
+    },
     /// Die Sitzungs-ID (zum Fortsetzen).
     Sitzung(String),
     /// Wo das Transkript der Sitzung liegt (für den Verbrauch).
     Transkript(String),
     Prompt(String),
-    WerkzeugVor { beschreibung: String, aktion: Option<Aktion> },
-    WerkzeugNach { fehlgeschlagen: bool, test: bool },
+    WerkzeugVor {
+        beschreibung: String,
+        aktion: Option<Aktion>,
+    },
+    WerkzeugNach {
+        fehlgeschlagen: bool,
+        test: bool,
+    },
     /// Will eine Erlaubnis oder stellt eine Frage.
     BrauchtMenschen(String),
     /// Ein Hinweis, der nur auf einen Menschen wartet (Leerlauf-Hinweis).
@@ -78,6 +87,10 @@ pub trait Provider: Send + Sync {
     fn hat_hooks(&self) -> bool {
         false
     }
+    /// Er läuft ohne Terminal und spricht ACP (JSON-RPC über stdin/stdout); das Office zeichnet.
+    fn acp(&self) -> bool {
+        false
+    }
     /// Umgebungsvariablen eigener Sitzungen, die ein Arbeiter nicht erben darf.
     fn entfernen(&self) -> &'static [&'static str] {
         &[]
@@ -103,6 +116,8 @@ pub fn register() -> Vec<Box<dyn Provider>> {
         Box::new(weitere::Gemini),
         Box::new(weitere::Grok),
         Box::new(weitere::Pi),
+        Box::new(muse::Muse),
+        Box::new(muse::DeepSeek),
         Box::new(weitere::Eigen),
     ]
 }
@@ -142,7 +157,9 @@ pub fn wert_gueltig(wert: &str) -> bool {
     !wert.is_empty()
         && wert.len() <= 256
         && !wert.starts_with('-')
-        && wert.chars().all(|c| c.is_ascii_alphanumeric() || "._:/@+-".contains(c))
+        && wert
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || "._:/@+-".contains(c))
 }
 
 /// Was ein Werkzeugaufruf von außen aussieht.
@@ -150,15 +167,32 @@ pub fn aktion_von(werkzeug: &str, eingabe: &Value) -> Option<Aktion> {
     let w = werkzeug.to_ascii_lowercase();
     if w.contains("bash") || w.contains("shell") || w.contains("exec") {
         let befehl = eingabe.get("command").and_then(Value::as_str).unwrap_or("");
-        return Some(if ist_test(befehl) { Aktion::Testen } else { Aktion::Schreiben });
+        return Some(if ist_test(befehl) {
+            Aktion::Testen
+        } else {
+            Aktion::Schreiben
+        });
     }
     if w.contains("web") || w.contains("fetch") || w.contains("search") && w.contains("web") {
         return Some(Aktion::Web);
     }
-    if ["edit", "write", "multiedit", "notebookedit", "apply_patch", "patch"].iter().any(|n| w.contains(n)) {
+    if [
+        "edit",
+        "write",
+        "multiedit",
+        "notebookedit",
+        "apply_patch",
+        "patch",
+    ]
+    .iter()
+    .any(|n| w.contains(n))
+    {
         return Some(Aktion::Schreiben);
     }
-    if ["read", "grep", "glob", "ls", "search", "view"].iter().any(|n| w.contains(n)) {
+    if ["read", "grep", "glob", "ls", "search", "view"]
+        .iter()
+        .any(|n| w.contains(n))
+    {
         return Some(Aktion::Lesen);
     }
     None
@@ -167,9 +201,23 @@ pub fn aktion_von(werkzeug: &str, eingabe: &Value) -> Option<Aktion> {
 /// Ein Befehl, der Tests oder einen Build laufen lässt.
 pub fn ist_test(befehl: &str) -> bool {
     let b = befehl.to_ascii_lowercase();
-    ["cargo test", "cargo build", "cargo check", "cargo clippy", "npm test", "npm run test", "npm run build", "pytest", "go test", "jest", "vitest", "make", "tsc"]
-        .iter()
-        .any(|t| b.contains(t))
+    [
+        "cargo test",
+        "cargo build",
+        "cargo check",
+        "cargo clippy",
+        "npm test",
+        "npm run test",
+        "npm run build",
+        "pytest",
+        "go test",
+        "jest",
+        "vitest",
+        "make",
+        "tsc",
+    ]
+    .iter()
+    .any(|t| b.contains(t))
 }
 
 fn kuerzen(text: &str, max: usize) -> String {
@@ -184,39 +232,77 @@ fn kuerzen(text: &str, max: usize) -> String {
 /// Die Hooks von Claude Code; Codex spricht dieselben Ereignisse und Felder.
 pub fn claude_artige_hooks(ereignis: &str, n: &Value) -> Vec<HookEreignis> {
     let mut aus = Vec::new();
-    if let Some(s) = n.get("session_id").and_then(Value::as_str).filter(|s| !s.is_empty() && s.len() <= 160) {
+    if let Some(s) = n
+        .get("session_id")
+        .and_then(Value::as_str)
+        .filter(|s| !s.is_empty() && s.len() <= 160)
+    {
         aus.push(HookEreignis::Sitzung(s.to_string()));
     }
-    if let Some(t) = n.get("transcript_path").and_then(Value::as_str).filter(|t| !t.is_empty() && t.len() <= 4096) {
+    if let Some(t) = n
+        .get("transcript_path")
+        .and_then(Value::as_str)
+        .filter(|t| !t.is_empty() && t.len() <= 4096)
+    {
         aus.push(HookEreignis::Transkript(t.to_string()));
     }
-    let werkzeug = n.get("tool_name").and_then(Value::as_str).unwrap_or("Werkzeug");
+    let werkzeug = n
+        .get("tool_name")
+        .and_then(Value::as_str)
+        .unwrap_or("Werkzeug");
     let eingabe = n.get("tool_input").cloned().unwrap_or(Value::Null);
     let beschreibung = || {
         let detail = ["command", "file_path", "pattern", "url", "description"]
             .iter()
             .find_map(|k| eingabe.get(*k).and_then(Value::as_str))
             .unwrap_or("");
-        kuerzen(&if detail.is_empty() { werkzeug.to_string() } else { format!("{werkzeug}: {detail}") }, 80)
+        kuerzen(
+            &if detail.is_empty() {
+                werkzeug.to_string()
+            } else {
+                format!("{werkzeug}: {detail}")
+            },
+            80,
+        )
     };
     match ereignis {
-        "SessionStart" => aus.push(HookEreignis::SitzungStart { geleert: n.get("source").and_then(Value::as_str) == Some("clear") }),
-        "UserPromptSubmit" => aus.push(HookEreignis::Prompt(n.get("prompt").and_then(Value::as_str).unwrap_or("").to_string())),
-        "PreToolUse" if werkzeug == "AskUserQuestion" || werkzeug.ends_with("request_user_input") => {
+        "SessionStart" => aus.push(HookEreignis::SitzungStart {
+            geleert: n.get("source").and_then(Value::as_str) == Some("clear"),
+        }),
+        "UserPromptSubmit" => aus.push(HookEreignis::Prompt(
+            n.get("prompt")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .to_string(),
+        )),
+        "PreToolUse"
+            if werkzeug == "AskUserQuestion" || werkzeug.ends_with("request_user_input") =>
+        {
             aus.push(HookEreignis::BrauchtMenschen("Stellt eine Frage".into()))
         }
-        "PreToolUse" => aus.push(HookEreignis::WerkzeugVor { beschreibung: beschreibung(), aktion: aktion_von(werkzeug, &eingabe) }),
+        "PreToolUse" => aus.push(HookEreignis::WerkzeugVor {
+            beschreibung: beschreibung(),
+            aktion: aktion_von(werkzeug, &eingabe),
+        }),
         "PostToolUse" | "PostToolUseFailure" => {
             let befehl = eingabe.get("command").and_then(Value::as_str).unwrap_or("");
             let fehler = ereignis == "PostToolUseFailure"
-                || n.pointer("/tool_response/exit_code").and_then(Value::as_i64).is_some_and(|c| c != 0);
-            aus.push(HookEreignis::WerkzeugNach { fehlgeschlagen: fehler, test: ist_test(befehl) })
+                || n.pointer("/tool_response/exit_code")
+                    .and_then(Value::as_i64)
+                    .is_some_and(|c| c != 0);
+            aus.push(HookEreignis::WerkzeugNach {
+                fehlgeschlagen: fehler,
+                test: ist_test(befehl),
+            })
         }
-        "PermissionRequest" => aus.push(HookEreignis::BrauchtMenschen(format!("Will: {}", beschreibung()))),
+        "PermissionRequest" => aus.push(HookEreignis::BrauchtMenschen(format!(
+            "Will: {}",
+            beschreibung()
+        ))),
         "Notification" => match n.get("notification_type").and_then(Value::as_str) {
-            Some("permission_prompt") | Some("elicitation_dialog") => {
-                aus.push(HookEreignis::BrauchtMenschen("Wartet auf eine Antwort".into()))
-            }
+            Some("permission_prompt") | Some("elicitation_dialog") => aus.push(
+                HookEreignis::BrauchtMenschen("Wartet auf eine Antwort".into()),
+            ),
             Some("idle_prompt") => aus.push(HookEreignis::Leerlauf),
             _ => {}
         },
@@ -234,7 +320,9 @@ mod tests {
     #[test]
     fn register_ist_vollstaendig_und_eindeutig() {
         let ids: Vec<_> = register().iter().map(|p| p.id()).collect();
-        for id in ["claude", "codex", "opencode", "gemini", "grok", "pi", "eigen"] {
+        for id in [
+            "claude", "codex", "opencode", "gemini", "grok", "pi", "muse", "dsh", "eigen",
+        ] {
             assert!(ids.contains(&id), "{id} fehlt");
         }
         let mut sortiert = ids.clone();
@@ -248,11 +336,26 @@ mod tests {
 
     #[test]
     fn claude_hooks_werden_zurueckgefuehrt() {
-        let e = claude_artige_hooks("PreToolUse", &json!({"session_id": "abc", "tool_name": "Bash", "tool_input": {"command": "cargo test -p x"}}));
+        let e = claude_artige_hooks(
+            "PreToolUse",
+            &json!({"session_id": "abc", "tool_name": "Bash", "tool_input": {"command": "cargo test -p x"}}),
+        );
         assert_eq!(e[0], HookEreignis::Sitzung("abc".into()));
-        assert_eq!(e[1], HookEreignis::WerkzeugVor { beschreibung: "Bash: cargo test -p x".into(), aktion: Some(Aktion::Testen) });
-        assert_eq!(claude_artige_hooks("Stop", &json!({})), vec![HookEreignis::Stopp]);
-        assert!(matches!(claude_artige_hooks("PermissionRequest", &json!({"tool_name": "Edit"}))[0], HookEreignis::BrauchtMenschen(_)));
+        assert_eq!(
+            e[1],
+            HookEreignis::WerkzeugVor {
+                beschreibung: "Bash: cargo test -p x".into(),
+                aktion: Some(Aktion::Testen)
+            }
+        );
+        assert_eq!(
+            claude_artige_hooks("Stop", &json!({})),
+            vec![HookEreignis::Stopp]
+        );
+        assert!(matches!(
+            claude_artige_hooks("PermissionRequest", &json!({"tool_name": "Edit"}))[0],
+            HookEreignis::BrauchtMenschen(_)
+        ));
     }
 
     #[test]

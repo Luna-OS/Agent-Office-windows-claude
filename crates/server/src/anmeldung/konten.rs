@@ -37,7 +37,12 @@ struct Gespeichert {
 
 impl Default for Gespeichert {
     fn default() -> Self {
-        Self { konten: Vec::new(), einladungen: Vec::new(), gemeinsames_passwort: true, claude_teilen: false }
+        Self {
+            konten: Vec::new(),
+            einladungen: Vec::new(),
+            gemeinsames_passwort: true,
+            claude_teilen: false,
+        }
     }
 }
 
@@ -51,7 +56,11 @@ pub fn name_saeubern(name: &str) -> String {
     let s: String = name.chars().filter(|c| !c.is_control()).collect();
     let s = s.split_whitespace().collect::<Vec<_>>().join(" ");
     let s: String = s.chars().take(NAME_MAX).collect();
-    if s.chars().any(char::is_alphanumeric) { s } else { String::new() }
+    if s.chars().any(char::is_alphanumeric) {
+        s
+    } else {
+        String::new()
+    }
 }
 
 fn gleicher_name(a: &str, b: &str) -> bool {
@@ -119,7 +128,12 @@ impl Konten {
 
     pub fn offene_einladungen(&self) -> Vec<Einladung> {
         let jetzt = jetzt_ms();
-        self.d.einladungen.iter().filter(|e| e.gueltig_bis > jetzt).cloned().collect()
+        self.d
+            .einladungen
+            .iter()
+            .filter(|e| e.gueltig_bis > jetzt)
+            .cloned()
+            .collect()
     }
 
     /// Prüft Name und Passwort eines Kontos.
@@ -136,10 +150,18 @@ impl Konten {
 
     fn name_vergeben(&self, name: &str, ausser_einladung: Option<&str>) -> bool {
         self.d.konten.iter().any(|k| gleicher_name(&k.name, name))
-            || self.offene_einladungen().iter().any(|e| Some(e.id.as_str()) != ausser_einladung && e.name.as_deref().is_some_and(|n| gleicher_name(n, name)))
+            || self.offene_einladungen().iter().any(|e| {
+                Some(e.id.as_str()) != ausser_einladung
+                    && e.name.as_deref().is_some_and(|n| gleicher_name(n, name))
+            })
     }
 
-    pub fn einladen(&mut self, von: &str, rolle: Rolle, name: Option<&str>) -> Result<Einladung, String> {
+    pub fn einladen(
+        &mut self,
+        von: &str,
+        rolle: Rolle,
+        name: Option<&str>,
+    ) -> Result<Einladung, String> {
         let name = match name.map(str::trim).filter(|n| !n.is_empty()) {
             Some(n) => {
                 let s = name_saeubern(n);
@@ -177,7 +199,9 @@ impl Konten {
             return None;
         }
         let jetzt = jetzt_ms();
-        self.d.einladungen.iter().find(|e| e.gueltig_bis > jetzt && passwort::gleich(e.token.as_bytes(), token.as_bytes()))
+        self.d.einladungen.iter().find(|e| {
+            e.gueltig_bis > jetzt && passwort::gleich(e.token.as_bytes(), token.as_bytes())
+        })
     }
 
     pub fn einladung_zurueckziehen(&mut self, id: &str) -> bool {
@@ -191,14 +215,23 @@ impl Konten {
     }
 
     /// Löst eine Einladung ein: legt das Konto an.
-    pub fn beitreten(&mut self, token: &str, name: &str, passwort_neu: &str) -> Result<Konto, String> {
-        let e = self.einladung_finden(token).cloned().ok_or("Dieser Einladungslink ist abgelaufen oder wurde schon benutzt. Bitte um einen neuen.")?;
+    pub fn beitreten(
+        &mut self,
+        token: &str,
+        name: &str,
+        passwort_neu: &str,
+    ) -> Result<Konto, String> {
+        let e = self.einladung_finden(token).cloned().ok_or(
+            "Dieser Einladungslink ist abgelaufen oder wurde schon benutzt. Bitte um einen neuen.",
+        )?;
         let name = e.name.clone().unwrap_or_else(|| name_saeubern(name));
         if name.is_empty() {
             return Err("Wähl einen Namen".into());
         }
         if passwort_neu.chars().count() < PASSWORT_MIN {
-            return Err(format!("Wähl ein Passwort mit mindestens {PASSWORT_MIN} Zeichen"));
+            return Err(format!(
+                "Wähl ein Passwort mit mindestens {PASSWORT_MIN} Zeichen"
+            ));
         }
         if passwort_neu.len() > PASSWORT_MAX {
             return Err("Das Passwort ist zu lang".into());
@@ -229,9 +262,23 @@ impl Konten {
     }
 
     pub fn rolle_setzen(&mut self, id: &str, rolle: Rolle) -> Result<(), String> {
-        let admins = self.d.konten.iter().filter(|k| k.rolle == Rolle::Admin).count();
-        let k = self.d.konten.iter_mut().find(|k| k.id == id).ok_or("Dieses Konto gibt es nicht mehr")?;
-        if k.rolle == Rolle::Admin && rolle != Rolle::Admin && admins == 1 && !self.d.gemeinsames_passwort {
+        let admins = self
+            .d
+            .konten
+            .iter()
+            .filter(|k| k.rolle == Rolle::Admin)
+            .count();
+        let k = self
+            .d
+            .konten
+            .iter_mut()
+            .find(|k| k.id == id)
+            .ok_or("Dieses Konto gibt es nicht mehr")?;
+        if k.rolle == Rolle::Admin
+            && rolle != Rolle::Admin
+            && admins == 1
+            && !self.d.gemeinsames_passwort
+        {
             return Err("Der letzte Admin kann nicht Mitglied werden, solange das gemeinsame Passwort aus ist".into());
         }
         k.rolle = rolle;
@@ -275,11 +322,18 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let mut k = Konten::laden(dir.path());
         let e = k.einladen("Terminal", Rolle::Admin, Some("Luna")).unwrap();
-        assert!(k.einladen("Terminal", Rolle::Mitglied, Some("luna")).is_err(), "Name doppelt");
+        assert!(
+            k.einladen("Terminal", Rolle::Mitglied, Some("luna"))
+                .is_err(),
+            "Name doppelt"
+        );
         assert!(k.beitreten(&e.token, "egal", "kurz").is_err());
         let konto = k.beitreten(&e.token, "egal", "langesPasswort").unwrap();
         assert_eq!(konto.name, "Luna");
-        assert!(k.beitreten(&e.token, "x", "langesPasswort").is_err(), "nur einmal");
+        assert!(
+            k.beitreten(&e.token, "x", "langesPasswort").is_err(),
+            "nur einmal"
+        );
         assert!(k.pruefen("LUNA", "langesPasswort").is_some());
         assert!(k.pruefen("Luna", "falsch").is_none());
         let wieder = Konten::laden(dir.path());

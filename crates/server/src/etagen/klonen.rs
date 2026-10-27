@@ -14,7 +14,9 @@ pub const STILL_MAX: Duration = Duration::from_secs(180);
 
 fn schritt(git: &str) -> Option<&'static str> {
     Some(match git {
-        "Enumerating objects" | "Counting objects" | "Compressing objects" => "GitHub packt zusammen",
+        "Enumerating objects" | "Counting objects" | "Compressing objects" => {
+            "GitHub packt zusammen"
+        }
         "Receiving objects" => "Herunterladen",
         "Resolving deltas" => "Entpacken",
         "Checking connectivity" => "Prüfen",
@@ -28,20 +30,43 @@ fn schritt(git: &str) -> Option<&'static str> {
 pub fn zeile_lesen(zeile: &str) -> Option<KlonFortschritt> {
     let z = zeile.trim();
     if z.starts_with("Cloning into ") {
-        return Some(KlonFortschritt { schritt: "Verbinde mit GitHub".into(), prozent: None, detail: None });
+        return Some(KlonFortschritt {
+            schritt: "Verbinde mit GitHub".into(),
+            prozent: None,
+            detail: None,
+        });
     }
     let z = z.strip_prefix("remote: ").unwrap_or(z);
     let (was, rest) = z.split_once(':')?;
     let schritt = schritt(was)?;
     let rest = rest.trim();
-    let prozent = rest.split_once('%').and_then(|(p, _)| p.trim().parse::<u8>().ok()).map(|p| p.min(100));
-    let detail = rest.split_once(", ").map(|(_, d)| d.replace(" | ", " · ").trim_end_matches(", done.").trim_end_matches('.').to_string()).filter(|d| !d.is_empty());
-    Some(KlonFortschritt { schritt: schritt.into(), prozent, detail })
+    let prozent = rest
+        .split_once('%')
+        .and_then(|(p, _)| p.trim().parse::<u8>().ok())
+        .map(|p| p.min(100));
+    let detail = rest
+        .split_once(", ")
+        .map(|(_, d)| {
+            d.replace(" | ", " · ")
+                .trim_end_matches(", done.")
+                .trim_end_matches('.')
+                .to_string()
+        })
+        .filter(|d| !d.is_empty());
+    Some(KlonFortschritt {
+        schritt: schritt.into(),
+        prozent,
+        detail,
+    })
 }
 
 /// Warum ein Klon scheiterte, als Hinweis, was auf dem Rechner des Office zu tun ist.
 pub fn warum_gescheitert(ausgabe: &str) -> String {
-    let gesagt: Vec<&str> = ausgabe.split(['\r', '\n']).map(str::trim).filter(|l| !l.is_empty() && zeile_lesen(l).is_none()).collect();
+    let gesagt: Vec<&str> = ausgabe
+        .split(['\r', '\n'])
+        .map(str::trim)
+        .filter(|l| !l.is_empty() && zeile_lesen(l).is_none())
+        .collect();
     let alles = gesagt.join("\n");
     let hat = |s: &str| alles.to_lowercase().contains(&s.to_lowercase());
     if hat("Host key verification failed") {
@@ -53,14 +78,21 @@ pub fn warum_gescheitert(ausgabe: &str) -> String {
     if hat("Permission denied (publickey") {
         return "GitHub nahm den ssh-Schlüssel des Office nicht an. Mit `gh ssh-key add` hinzufügen oder über https klonen".into();
     }
-    if hat("terminal prompts disabled") || hat("could not read Username") || hat("Authentication failed") {
+    if hat("terminal prompts disabled")
+        || hat("could not read Username")
+        || hat("Authentication failed")
+    {
         return "git wollte ein GitHub-Passwort. `gh auth setup-git` auf dem Rechner des Office ausführen".into();
     }
     if hat("Could not resolve to a Repository") || hat("not found") {
         return "Dieses Repository gibt es nicht, oder diese Anmeldung darf es nicht sehen".into();
     }
     let ende = gesagt[gesagt.len().saturating_sub(2)..].join(" ");
-    if ende.is_empty() { "gh ist fehlgeschlagen".into() } else { ende }
+    if ende.is_empty() {
+        "gh ist fehlgeschlagen".into()
+    } else {
+        ende
+    }
 }
 
 /// Wie ein Klon endete.
@@ -72,20 +104,38 @@ pub enum Ende {
 }
 
 /// Klont `repo` nach `ziel` und meldet Fortschritt (höchstens einmal pro Sekunde) an `fortschritt`.
-pub async fn klonen(repo: &str, ziel: &Path, umgebung: &[(String, String)], mut fortschritt: impl FnMut(KlonFortschritt), abbruch: oneshot::Receiver<()>) -> Ende {
+pub async fn klonen(
+    repo: &str,
+    ziel: &Path,
+    umgebung: &[(String, String)],
+    mut fortschritt: impl FnMut(KlonFortschritt),
+    abbruch: oneshot::Receiver<()>,
+) -> Ende {
     if let Some(dir) = ziel.parent()
         && let Err(e) = tokio::fs::create_dir_all(dir).await
     {
         return Ende::Fehler(format!("Konnte {} nicht anlegen: {e}", dir.display()));
     }
     let mut cmd = tokio::process::Command::new("gh");
-    cmd.arg("repo").arg("clone").arg(repo).arg(ziel).args(["--", "--progress"]);
+    cmd.arg("repo")
+        .arg("clone")
+        .arg(repo)
+        .arg(ziel)
+        .args(["--", "--progress"]);
     crate::anmeldungen::anwenden(&mut cmd, umgebung);
-    cmd.env("GIT_TERMINAL_PROMPT", "0").env("GH_PROMPT_DISABLED", "1");
-    cmd.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::piped()).kill_on_drop(true);
+    cmd.env("GIT_TERMINAL_PROMPT", "0")
+        .env("GH_PROMPT_DISABLED", "1");
+    cmd.stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .kill_on_drop(true);
     let mut kind = match cmd.spawn() {
         Ok(k) => k,
-        Err(e) => return Ende::Fehler(format!("gh ließ sich nicht starten ({e}). Ist die GitHub-CLI installiert?")),
+        Err(e) => {
+            return Ende::Fehler(format!(
+                "gh ließ sich nicht starten ({e}). Ist die GitHub-CLI installiert?"
+            ));
+        }
     };
     let mut stderr = kind.stderr.take().expect("stderr ist gepipt");
     let mut ausgabe = String::new();
@@ -133,13 +183,21 @@ mod tests {
         assert_eq!(f.schritt, "Herunterladen");
         assert_eq!(f.prozent, Some(45));
         assert_eq!(f.detail.as_deref(), Some("1.20 MiB · 2.00 MiB/s"));
-        assert_eq!(zeile_lesen("remote: Counting objects: 100% (5/5), done.").unwrap().prozent, Some(100));
+        assert_eq!(
+            zeile_lesen("remote: Counting objects: 100% (5/5), done.")
+                .unwrap()
+                .prozent,
+            Some(100)
+        );
         assert!(zeile_lesen("irgendwas").is_none());
     }
 
     #[test]
     fn fehler_erklaeren() {
-        assert!(warum_gescheitert("Cloning into 'x'...\nHost key verification failed.\n").contains("ssh"));
+        assert!(
+            warum_gescheitert("Cloning into 'x'...\nHost key verification failed.\n")
+                .contains("ssh")
+        );
         assert_eq!(warum_gescheitert(""), "gh ist fehlgeschlagen");
     }
 }

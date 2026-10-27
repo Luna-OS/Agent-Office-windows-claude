@@ -16,7 +16,10 @@ use crate::modal::{Fenster, Rahmen};
 use crate::zustand::zustand;
 use spiel::{Lage, SPALTEN, Spiel, ZEILEN};
 
-const FARBEN: [&str; 9] = ["#1e1f2e", "#72ddf7", "#ffd166", "#d69cff", "#7cf29a", "#ff5c7a", "#6cb6ff", "#ff8a5b", "#3a3c55"];
+const FARBEN: [&str; 9] = [
+    "#1e1f2e", "#72ddf7", "#ffd166", "#d69cff", "#7cf29a", "#ff5c7a", "#6cb6ff", "#ff8a5b",
+    "#3a3c55",
+];
 const ZELLE: f64 = 26.0;
 
 #[derive(Clone, Copy)]
@@ -30,7 +33,14 @@ thread_local! {
 }
 
 fn automat() -> Automat {
-    AUTOMAT.with(|a| *a.get_or_init(|| Automat { stand: RwSignal::new(ArcadeStand::default()), bild: RwSignal::new(None) }))
+    AUTOMAT.with(|a| {
+        *a.get_or_init(|| {
+            crate::zustand::global(|| Automat {
+                stand: RwSignal::new(ArcadeStand::default()),
+                bild: RwSignal::new(None),
+            })
+        })
+    })
 }
 
 pub fn empfangen(m: &Server) {
@@ -66,8 +76,12 @@ fn bild_von(s: &Spiel) -> ArcadeBild {
 
 /// Zeichnet ein Bild des Schachts (eigenes Spiel oder das eines anderen).
 fn malen(canvas: &web_sys::HtmlCanvasElement, b: &ArcadeBild) {
-    let Ok(Some(c)) = canvas.get_context("2d") else { return };
-    let Ok(c) = c.dyn_into::<web_sys::CanvasRenderingContext2d>() else { return };
+    let Ok(Some(c)) = canvas.get_context("2d") else {
+        return;
+    };
+    let Ok(c) = c.dyn_into::<web_sys::CanvasRenderingContext2d>() else {
+        return;
+    };
     c.set_fill_style_str(FARBEN[0]);
     c.fill_rect(0.0, 0.0, SPALTEN as f64 * ZELLE, ZEILEN as f64 * ZELLE);
     for (i, ch) in b.zellen.chars().enumerate() {
@@ -85,7 +99,15 @@ fn malen(canvas: &web_sys::HtmlCanvasElement, b: &ArcadeBild) {
         c.set_fill_style_str("#ffffff");
         c.set_font("bold 28px Nunito, system-ui, sans-serif");
         c.set_text_align("center");
-        let _ = c.fill_text(if b.zustand == "pause" { "PAUSE" } else { "VORBEI" }, SPALTEN as f64 * ZELLE / 2.0, ZEILEN as f64 * ZELLE / 2.0);
+        let _ = c.fill_text(
+            if b.zustand == "pause" {
+                "PAUSE"
+            } else {
+                "VORBEI"
+            },
+            SPALTEN as f64 * ZELLE / 2.0,
+            ZEILEN as f64 * ZELLE / 2.0,
+        );
     }
 }
 
@@ -98,7 +120,13 @@ pub fn Arcade() -> impl IntoView {
     let spiel = StoredValue::new(None::<Spiel>);
     let mein = RwSignal::new(None::<ArcadeBild>);
     let besetzt = Memo::new(move |_| a.stand.with(|s| s.spieler.clone().filter(|p| p.id != du)));
-    let anzeige = Memo::new(move |_| if besetzt.get().is_some() { a.bild.get() } else { mein.get() });
+    let anzeige = Memo::new(move |_| {
+        if besetzt.get().is_some() {
+            a.bild.get()
+        } else {
+            mein.get()
+        }
+    });
 
     let schicken = move || {
         if let Some(s) = spiel.get_value() {
@@ -123,7 +151,11 @@ pub fn Arcade() -> impl IntoView {
     let takt = set_interval_with_handle(
         move || {
             let jetzt = crate::texte::jetzt();
-            let faellig = spiel.with_value(|s| s.as_ref().is_some_and(|s| s.lage == Lage::Laeuft && jetzt - letzter.get_value() >= s.takt_ms() as u64));
+            let faellig = spiel.with_value(|s| {
+                s.as_ref().is_some_and(|s| {
+                    s.lage == Lage::Laeuft && jetzt - letzter.get_value() >= s.takt_ms() as u64
+                })
+            });
             if faellig {
                 letzter.set_value(jetzt);
                 spiel.update_value(|s| {
@@ -170,7 +202,8 @@ pub fn Arcade() -> impl IntoView {
         }
     });
 
-    let zahl = move |f: fn(&ArcadeBild) -> u32| move || anzeige.with(|b| b.as_ref().map(f).unwrap_or(0));
+    let zahl =
+        move |f: fn(&ArcadeBild) -> u32| move || anzeige.with(|b| b.as_ref().map(f).unwrap_or(0));
     view! {
         <Rahmen fenster=Fenster::Arcade titel="🕹️ BLOCKFALL" breite="max-w-2xl">
             <div class="flex flex-wrap gap-6">

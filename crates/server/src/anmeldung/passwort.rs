@@ -11,13 +11,21 @@ pub const PASSWORT_MAX: usize = 512;
 pub fn hashen(passwort: &str) -> String {
     let mut salz = [0u8; 16];
     rand::rng().fill_bytes(&mut salz);
-    format!("{}${}", B64.encode(salz), B64.encode(ableiten(passwort, &salz)))
+    format!(
+        "{}${}",
+        B64.encode(salz),
+        B64.encode(ableiten(passwort, &salz))
+    )
 }
 
 /// Passt `passwort` zum gespeicherten Hash?
 pub fn pruefen(passwort: &str, gespeichert: &str) -> bool {
-    let Some((salz, hash)) = gespeichert.split_once('$') else { return false };
-    let (Ok(salz), Ok(hash)) = (B64.decode(salz), B64.decode(hash)) else { return false };
+    let Some((salz, hash)) = gespeichert.split_once('$') else {
+        return false;
+    };
+    let (Ok(salz), Ok(hash)) = (B64.decode(salz), B64.decode(hash)) else {
+        return false;
+    };
     let passwort = &passwort[..passwort.len().min(PASSWORT_MAX)];
     gleich(&ableiten(passwort, &salz), &hash)
 }
@@ -48,7 +56,10 @@ pub fn erzeugen() -> String {
     const ZEICHEN: &[u8] = b"abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
     let mut b = [0u8; 18];
     rand::rng().fill_bytes(&mut b);
-    let s: String = b.iter().map(|x| ZEICHEN[*x as usize % ZEICHEN.len()] as char).collect();
+    let s: String = b
+        .iter()
+        .map(|x| ZEICHEN[*x as usize % ZEICHEN.len()] as char)
+        .collect();
     format!("{}-{}-{}", &s[0..6], &s[6..12], &s[12..18])
 }
 

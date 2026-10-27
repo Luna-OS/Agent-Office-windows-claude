@@ -8,7 +8,8 @@ use std::rc::Rc;
 use protokoll::medien::JukeboxZustand;
 use wasm_bindgen::JsCast;
 use web_sys::{
-    AudioContextState, AudioNode, AudioScheduledSourceNode, BiquadFilterType, GainNode, HtmlAudioElement, OscillatorType,
+    AudioContextState, AudioNode, AudioScheduledSourceNode, BiquadFilterType, GainNode,
+    HtmlAudioElement, OscillatorType,
 };
 
 use super::{Kern, Klang, Ort};
@@ -31,6 +32,8 @@ struct Innen {
     stream: Option<HtmlAudioElement>,
     eingang: Option<AudioNode>,
     bus: Option<GainNode>,
+    /// Misst, was an den eigenen Ohren ankommt (nach der eigenen Musik-Lautstärke).
+    messer: Option<web_sys::AnalyserNode>,
     lautstaerke: f32,
     stumm: bool,
     abstand: f32,
@@ -47,7 +50,13 @@ pub struct Jukebox {
 impl Jukebox {
     /// `ort`: wo die Jukebox in der Lounge steht.
     pub fn neu(klang: &Klang, ort: Ort) -> Self {
-        let j = Self { klang: klang.clone(), innen: Rc::new(RefCell::new(Innen { lautstaerke: 0.5, ..Default::default() })) };
+        let j = Self {
+            klang: klang.clone(),
+            innen: Rc::new(RefCell::new(Innen {
+                lautstaerke: 0.5,
+                ..Default::default()
+            })),
+        };
         let j2 = j.clone();
         klang.beim_start(move |k| {
             // Eigener Musik-Bus direkt an die Ausgabe: eigene Lautstärke, spielt auch im verborgenen Tab.
@@ -57,10 +66,16 @@ impl Jukebox {
             let _ = panner.connect_with_audio_node(&ton);
             let _ = ton.connect_with_audio_node(&bus);
             let _ = bus.connect_with_audio_node(&k.ctx.destination());
+            let messer = k.ctx.create_analyser().ok();
+            if let Some(m) = &messer {
+                m.set_fft_size(2048);
+                let _ = bus.connect_with_audio_node(m);
+            }
             {
                 let mut i = j2.innen.borrow_mut();
                 i.eingang = Some(panner.unchecked_into());
                 i.bus = Some(bus);
+                i.messer = messer;
             }
             j2.lautstaerke_anwenden();
             j2.anwenden();
@@ -83,7 +98,9 @@ impl Jukebox {
                 start_ms: 0,
                 vergangen_ms: 0,
             }));
-            alt.zip(zustand).is_some_and(|(a, b)| a.an == b.an && a.stueck == b.stueck && a.url == b.url && a.start_ms == b.start_ms)
+            alt.zip(zustand).is_some_and(|(a, b)| {
+                a.an == b.an && a.stueck == b.stueck && a.url == b.url && a.start_ms == b.start_ms
+            })
         };
         if !gleich {
             self.anwenden();
@@ -106,6 +123,25 @@ impl Jukebox {
         self.lautstaerke_anwenden();
     }
 
+    /// Was gerade spielt (Stück-ID oder `"stream"`), `None` wenn aus.
+    pub fn spielt(&self) -> Option<String> {
+        let i = self.innen.borrow();
+        if i.spieler.is_some() || i.stream.is_some() {
+            i.zustand.as_ref().map(|z| z.stueck.clone())
+        } else {
+            None
+        }
+    }
+
+    /// Pegel (RMS) der Musik an den eigenen Ohren; ein Stream zählt hier nicht mit (läuft am Graphen vorbei).
+    pub fn pegel(&self) -> f32 {
+        let i = self.innen.borrow();
+        let Some(m) = &i.messer else { return 0.0 };
+        let mut d = vec![0f32; m.fft_size() as usize];
+        m.get_float_time_domain_data(&mut d);
+        (d.iter().map(|v| v * v).sum::<f32>() / d.len().max(1) as f32).sqrt()
+    }
+
     /// 0..1 auf jedem Schlag, für die Lichter der Jukebox.
     pub fn puls(&self) -> f64 {
         let i = self.innen.borrow();
@@ -117,7 +153,11 @@ impl Jukebox {
 
     fn lautstaerke_anwenden(&self) {
         let i = self.innen.borrow();
-        let g = if i.stumm { 0.0 } else { i.lautstaerke * i.lautstaerke };
+        let g = if i.stumm {
+            0.0
+        } else {
+            i.lautstaerke * i.lautstaerke
+        };
         if let (Some(bus), Some(k)) = (&i.bus, self.klang.kern()) {
             let _ = bus.gain().set_target_at_time(g, k.jetzt(), 0.05);
         }
@@ -141,10 +181,14 @@ impl Jukebox {
             }
             (i.zustand.clone(), i.versatz_ms)
         };
-        let Some(z) = zustand.filter(|z| z.an) else { return };
+        let Some(z) = zustand.filter(|z| z.an) else {
+            return;
+        };
         if z.stueck == STREAM {
             let Some(url) = &z.url else { return };
-            let Ok(a) = HtmlAudioElement::new_with_src(url) else { return };
+            let Ok(a) = HtmlAudioElement::new_with_src(url) else {
+                return;
+            };
             a.set_cross_origin(None);
             a.set_current_time(stelle_s(&z, versatz));
             let _ = a.play();
@@ -152,7 +196,10 @@ impl Jukebox {
             self.lautstaerke_anwenden();
             return;
         }
-        let (Some(k), Some(eingang)) = (self.klang.kern(), self.innen.borrow().eingang.clone()) else { return };
+        let (Some(k), Some(eingang)) = (self.klang.kern(), self.innen.borrow().eingang.clone())
+        else {
+            return;
+        };
         let spieler = Stueckspieler::neu(k, &eingang, &z.stueck);
         self.innen.borrow_mut().spieler = Some(spieler);
         self.takt();
@@ -196,7 +243,9 @@ impl Stueckspieler {
         let jetzt = k.jetzt();
         let blende = k.verstaerker(0.0);
         let _ = blende.gain().set_value_at_time(0.0, jetzt);
-        let _ = blende.gain().linear_ramp_to_value_at_time(PEGEL, jetzt + 1.5);
+        let _ = blende
+            .gain()
+            .linear_ramp_to_value_at_time(PEGEL, jetzt + 1.5);
         let _ = blende.connect_with_audio_node(aus);
         let komp = k.ctx.create_dynamics_compressor().expect("Kompressor");
         komp.threshold().set_value(-20.0);
@@ -320,7 +369,9 @@ impl Stueckspieler {
             Note::Kick { staerke } => {
                 let o = k.ctx.create_oscillator().expect("Osz");
                 let _ = o.frequency().set_value_at_time(115.0, wann);
-                let _ = o.frequency().exponential_ramp_to_value_at_time(44.0, wann + 0.12);
+                let _ = o
+                    .frequency()
+                    .exponential_ramp_to_value_at_time(44.0, wann + 0.12);
                 self.huelle(&o, &self.trocken, wann, 0.006, 0.85 * staerke as f32, 0.42);
             }
             Note::Snare { staerke } => {
@@ -337,7 +388,9 @@ impl Stueckspieler {
                 let o = k.ctx.create_oscillator().expect("Osz");
                 o.set_type(OscillatorType::Triangle);
                 let _ = o.frequency().set_value_at_time(190.0, wann);
-                let _ = o.frequency().exponential_ramp_to_value_at_time(140.0, wann + 0.08);
+                let _ = o
+                    .frequency()
+                    .exponential_ramp_to_value_at_time(140.0, wann + 0.08);
                 self.huelle(&o, &g, wann, 0.003, 0.25 * staerke as f32, 0.1);
                 let _ = g.connect_with_audio_node(&self.trocken);
                 let _ = g.connect_with_audio_node(&self.hall);
@@ -360,7 +413,10 @@ impl Stueckspieler {
                 let _ = g.gain().linear_ramp_to_value_at_time(0.34, wann + 0.012);
                 let _ = g.gain().set_target_at_time(0.24, wann + 0.012, 0.3);
                 let _ = g.gain().set_target_at_time(0.0, wann + laenge, 0.05);
-                for (art, mal, lvl) in [(OscillatorType::Sine, 1.0, 1.0), (OscillatorType::Triangle, 2.0, 0.18)] {
+                for (art, mal, lvl) in [
+                    (OscillatorType::Sine, 1.0, 1.0),
+                    (OscillatorType::Triangle, 2.0, 0.18),
+                ] {
                     let o = k.ctx.create_oscillator().expect("Osz");
                     o.set_type(art);
                     o.frequency().set_value(f * mal);
@@ -372,24 +428,39 @@ impl Stueckspieler {
                 }
                 let _ = g.connect_with_audio_node(&self.bass);
             }
-            Note::Taste { midi, laenge, staerke, versatz } => {
+            Note::Taste {
+                midi,
+                laenge,
+                staerke,
+                versatz,
+            } => {
                 // E-Piano: ein Sinus, kurz aufgehellt von einem zweiten in gleicher Tonhöhe (FM).
                 let wann = wann + versatz;
                 let f = midi_zu_hz(midi as f64) as f32;
                 let traeger = k.ctx.create_oscillator().expect("Osz");
                 traeger.frequency().set_value(f);
-                traeger.detune().set_value(((crate::tonfolge::streuung(midi as u32, 5) - 0.5) * 8.0) as f32);
+                traeger
+                    .detune()
+                    .set_value(((crate::tonfolge::streuung(midi as u32, 5) - 0.5) * 8.0) as f32);
                 let modul = k.ctx.create_oscillator().expect("Osz");
                 modul.frequency().set_value(f);
                 let tiefe = k.verstaerker(0.0);
-                let _ = tiefe.gain().set_value_at_time(f * 1.4 * staerke as f32, wann);
-                let _ = tiefe.gain().exponential_ramp_to_value_at_time(f * 0.12, wann + 0.5);
+                let _ = tiefe
+                    .gain()
+                    .set_value_at_time(f * 1.4 * staerke as f32, wann);
+                let _ = tiefe
+                    .gain()
+                    .exponential_ramp_to_value_at_time(f * 0.12, wann + 0.5);
                 let _ = modul.connect_with_audio_node(&tiefe);
                 let _ = tiefe.connect_with_audio_param(&traeger.frequency());
                 let g = k.verstaerker(0.0);
                 let _ = g.gain().set_value_at_time(0.0, wann);
-                let _ = g.gain().linear_ramp_to_value_at_time(0.085 * staerke as f32, wann + 0.006);
-                let _ = g.gain().set_target_at_time(0.035 * staerke as f32, wann + 0.006, 0.5);
+                let _ = g
+                    .gain()
+                    .linear_ramp_to_value_at_time(0.085 * staerke as f32, wann + 0.006);
+                let _ = g
+                    .gain()
+                    .set_target_at_time(0.035 * staerke as f32, wann + 0.006, 0.5);
                 let _ = g.gain().set_target_at_time(0.0, wann + laenge, 0.12);
                 let _ = traeger.connect_with_audio_node(&g);
                 let _ = g.connect_with_audio_node(&self.tasten);
@@ -421,7 +492,15 @@ impl Stueckspieler {
     }
 
     /// Oszillator durch eine exponentielle Hüllkurve nach `ziel`.
-    fn huelle(&self, o: &web_sys::OscillatorNode, ziel: &AudioNode, wann: f64, an: f64, spitze: f32, aus: f64) {
+    fn huelle(
+        &self,
+        o: &web_sys::OscillatorNode,
+        ziel: &AudioNode,
+        wann: f64,
+        an: f64,
+        spitze: f32,
+        aus: f64,
+    ) {
         let g = self.kern.verstaerker(0.0);
         exp_huelle(&g, wann, an, spitze, aus);
         let _ = o.connect_with_audio_node(&g);

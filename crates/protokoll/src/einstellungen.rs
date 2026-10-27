@@ -177,7 +177,12 @@ pub struct Karte {
 
 impl Default for Karte {
     fn default() -> Self {
-        Self { wahl: "office".into(), eigene: Vec::new(), von: None, um: None }
+        Self {
+            wahl: "office".into(),
+            eigene: Vec::new(),
+            von: None,
+            um: None,
+        }
     }
 }
 
@@ -197,14 +202,20 @@ pub struct Gesamt {
 #[serde(tag = "typ", rename_all = "snake_case")]
 pub enum Client {
     /// Webhook setzen; "" entfernt ihn.
-    Webhook { url: String },
+    Webhook {
+        url: String,
+    },
     /// Testnachricht über den Webhook; das Ergebnis kommt als Hinweis.
     WebhookTesten,
     /// Admins: höchstens so viele Arbeiter; `None` hebt das Limit auf.
-    MaschinenLimit { limit: Option<u32> },
+    MaschinenLimit {
+        limit: Option<u32>,
+    },
     UpdatePruefen,
     UpdateStarten,
-    ThemaSetzen { wahl: ThemaWahl },
+    ThemaSetzen {
+        wahl: ThemaWahl,
+    },
     /// Karte wechseln; ohne `karte` den Ordner der eigenen Karten neu lesen.
     KarteSetzen {
         #[serde(default)]
@@ -217,11 +228,25 @@ pub enum Client {
 #[serde(tag = "typ", rename_all = "snake_case")]
 pub enum Server {
     /// Alles auf einmal, direkt nach `praesenz::Server::Willkommen`.
-    Stand { stand: Box<Gesamt> },
-    Benachrichtigung { stand: Benachrichtigung },
-    Maschine { stand: Maschine },
-    Update { stand: Box<Update> },
-    Himmel { stand: Himmel },
-    Thema { stand: Thema },
-    Karte { stand: Karte },
+    Stand {
+        stand: Box<Gesamt>,
+    },
+    Benachrichtigung {
+        stand: Benachrichtigung,
+    },
+    Maschine {
+        stand: Maschine,
+    },
+    Update {
+        stand: Box<Update>,
+    },
+    Himmel {
+        stand: Himmel,
+    },
+    Thema {
+        stand: Thema,
+    },
+    Karte {
+        stand: Karte,
+    },
 }

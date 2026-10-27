@@ -30,7 +30,13 @@ pub struct Bar {
     pub tiefe: f32,
     pub hoehe: f32,
 }
-pub const BAR: Bar = Bar { x: 12.95, min_z: -6.0, max_z: 4.0, tiefe: 0.7, hoehe: 1.1 };
+pub const BAR: Bar = Bar {
+    x: 12.95,
+    min_z: -6.0,
+    max_z: 4.0,
+    tiefe: 0.7,
+    hoehe: 1.1,
+};
 
 /// Die Feuerstelle in der Lounge (Südwest), mit Sofas an drei Seiten: x, z, Radius.
 pub const FEUERSTELLE: (f32, f32, f32) = (-12.0, 8.2, 0.9);
@@ -38,10 +44,16 @@ pub const FEUERSTELLE: (f32, f32, f32) = (-12.0, 8.2, 0.9);
 pub const STEHTISCHE: [(f32, f32); 3] = [(6.6, 5.2), (9.6, 8.8), (6.0, 10.8)];
 
 /// Die Axtwurfbahn in der Nordwest-Ecke und die Dartscheibe außen an ihrer Ostwand.
-pub const AXTBAHN: Flaeche = Flaeche::neu(BODEN.min_x + 0.15, BODEN.min_x + 2.95, BODEN.min_z, BODEN.min_z + 3.4);
+pub const AXTBAHN: Flaeche = Flaeche::neu(
+    BODEN.min_x + 0.15,
+    BODEN.min_x + 2.95,
+    BODEN.min_z,
+    BODEN.min_z + 3.4,
+);
 pub const AXT_ZIEL: (f32, f32, f32) = (BODEN.min_x + 1.55, 1.5, BODEN.min_z + 0.25);
 pub const AXT_LINIE: f32 = 3.66;
-pub const DARTSCHEIBE: (f32, f32, f32) = (BODEN.min_x + 2.95 + 0.15 + 0.08, 1.73, BODEN.min_z + 1.8);
+pub const DARTSCHEIBE: (f32, f32, f32) =
+    (BODEN.min_x + 2.95 + 0.15 + 0.08, 1.73, BODEN.min_z + 1.8);
 pub const DART_ABSTAND: f32 = 2.37;
 
 /// Die große Leinwand über der Bühne, mit Blick nach Süden über die Tanzfläche.
@@ -54,7 +66,13 @@ pub struct Leinwand {
     pub breite: f32,
     pub hoehe: f32,
 }
-pub const LEINWAND: Leinwand = Leinwand { x: -3.0, y: 5.0, z: BODEN.min_z + 0.35, breite: 8.0, hoehe: 4.5 };
+pub const LEINWAND: Leinwand = Leinwand {
+    x: -3.0,
+    y: 5.0,
+    z: BODEN.min_z + 0.35,
+    breite: 8.0,
+    hoehe: 4.5,
+};
 
 impl Leinwand {
     /// Die vier Ecken der Bildfläche: links oben, rechts oben, rechts unten, links unten

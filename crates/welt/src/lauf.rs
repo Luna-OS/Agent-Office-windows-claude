@@ -46,8 +46,18 @@ pub async fn starten() {
         kx.css = grafik::css_groesse(&fenster);
 
         // Was von außen kam.
-        let (nachrichten, bilder, zur_etage, perspektive) =
-            EINGANG.with_borrow_mut(|e| (std::mem::take(&mut e.nachrichten), std::mem::take(&mut e.bilder), e.zur_etage.take(), e.perspektive.take()));
+        let (nachrichten, bilder, zur_etage, perspektive, garage) = EINGANG.with_borrow_mut(|e| {
+            (
+                std::mem::take(&mut e.nachrichten),
+                std::mem::take(&mut e.bilder),
+                e.zur_etage.take(),
+                e.perspektive.take(),
+                std::mem::take(&mut e.zur_garage),
+            )
+        });
+        if garage {
+            features::aufzug::zur_garage(&mut kx);
+        }
         if let Some(ich) = perspektive {
             kx.kamera.abstand = if ich { 0.0 } else { 3.0 };
         }
@@ -164,6 +174,12 @@ fn zeichnen_beschriftungen(fenster: &mut Window, kx: &Kontext) {
         }
         let groesse = (28.0 - abstand * 0.6).clamp(14.0, 28.0) * faktor;
         let breite = b.text.chars().count() as f32 * groesse * 0.27;
-        fenster.draw_text(&b.text, Vec2::new(p[0] * faktor - breite, p[1] * faktor - groesse), groesse, &font, b.farbe);
+        fenster.draw_text(
+            &b.text,
+            Vec2::new(p[0] * faktor - breite, p[1] * faktor - groesse),
+            groesse,
+            &font,
+            b.farbe,
+        );
     }
 }

@@ -15,7 +15,11 @@ use crate::kollision::Kasten;
 /// Baut alles draußen für eine Etage mit Index `index` (0 = unterste) von `etagen` Stück.
 /// `strasse` ist die Höhe der Straße relativ zum Boden der Etage.
 pub fn bauen(b: &mut Bau, index: usize, etagen: usize, dach: bool) {
-    let strasse = if dach { -crate::grundriss::dach::dach_tiefe(etagen) } else { strasse_unter(index) };
+    let strasse = if dach {
+        -crate::grundriss::dach::dach_tiefe(etagen)
+    } else {
+        strasse_unter(index)
+    };
     gebaeude(b, index, etagen, strasse, dach);
     let mut s = b.gruppe(0.0, strasse, 0.0, 0.0);
     boden(&mut s);
@@ -49,7 +53,15 @@ fn gebaeude(b: &mut Bau, index: usize, etagen: usize, strasse: f32, dach: bool) 
             huelle_band(b, cx, cz, y0, STOCKWERK - 0.02, aussen);
         }
         let oben = (etagen.max(index + 1) - index) as f32 * STOCKWERK - PLATTE;
-        b.block(cx, oben, cz, g.breite() + 0.4, 0.3, g.tiefe() + 0.4, toenen(aussen, -0.2));
+        b.block(
+            cx,
+            oben,
+            cz,
+            g.breite() + 0.4,
+            0.3,
+            g.tiefe() + 0.4,
+            toenen(aussen, -0.2),
+        );
     }
 }
 
@@ -65,7 +77,15 @@ fn huelle_band(b: &mut Bau, cx: f32, cz: f32, y0: f32, h: f32, c: Color) {
     b.block(cx, fy, g.min_z - 0.01, g.breite() - 2.0, fh, 0.02, glas);
     b.block(g.min_x - 0.01, fy, cz, 0.02, fh, g.tiefe() - 2.0, glas);
     b.block(g.max_x + 0.01, fy, cz, 0.02, fh, g.tiefe() - 2.0, glas);
-    b.block(cx, y0 + h - 0.15, cz, g.breite() + 0.1, 0.15, g.tiefe() + 0.1, toenen(c, -0.15));
+    b.block(
+        cx,
+        y0 + h - 0.15,
+        cz,
+        g.breite() + 0.1,
+        0.15,
+        g.tiefe() + 0.1,
+        toenen(c, -0.15),
+    );
 }
 
 /// Rasen ringsum (ganz unten, damit man nicht ins Leere fällt).
@@ -78,10 +98,34 @@ fn garage(b: &mut Bau) {
     let (cx, cz) = g.mitte();
     let beton = farbe("#adb5bd");
     let hoehe = 3.6 - PLATTE;
-    b.block(cx, 0.0, cz, g.breite(), 0.02, g.tiefe(), toenen(beton, -0.1));
+    b.block(
+        cx,
+        0.0,
+        cz,
+        g.breite(),
+        0.02,
+        g.tiefe(),
+        toenen(beton, -0.1),
+    );
     // Rück- und Westwand, Säulen vorne.
-    b.fester_block(cx, 0.0, g.min_z + WANDSTAERKE / 2.0, g.breite(), hoehe, WANDSTAERKE, farbe(farben::AUSSEN));
-    b.fester_block(g.min_x + WANDSTAERKE / 2.0, 0.0, cz, WANDSTAERKE, hoehe, g.tiefe(), farbe(farben::AUSSEN));
+    b.fester_block(
+        cx,
+        0.0,
+        g.min_z + WANDSTAERKE / 2.0,
+        g.breite(),
+        hoehe,
+        WANDSTAERKE,
+        farbe(farben::AUSSEN),
+    );
+    b.fester_block(
+        g.min_x + WANDSTAERKE / 2.0,
+        0.0,
+        cz,
+        WANDSTAERKE,
+        hoehe,
+        g.tiefe(),
+        farbe(farben::AUSSEN),
+    );
     for x in [-9.6, 0.0, 9.6] {
         b.fester_block(x, 0.0, g.max_z - 0.3, 0.5, hoehe, 0.5, beton);
         b.fester_block(x, 0.0, cz, 0.5, hoehe, 0.5, beton);
@@ -101,17 +145,65 @@ fn strasse_und_hof(b: &mut Bau) {
     let (z0, z1) = STRASSE;
     // Hof vor der Garage und an der Ostseite.
     let h = HOF;
-    b.block((h.min_x + h.max_x) / 2.0, 0.0, (h.min_z + h.max_z) / 2.0, h.breite(), 0.02, h.tiefe(), toenen(asphalt, 0.2));
+    b.block(
+        (h.min_x + h.max_x) / 2.0,
+        0.0,
+        (h.min_z + h.max_z) / 2.0,
+        h.breite(),
+        0.02,
+        h.tiefe(),
+        toenen(asphalt, 0.2),
+    );
     let s = SEITENHOF;
-    b.block((s.min_x + s.max_x) / 2.0, 0.0, (s.min_z + s.max_z) / 2.0, s.breite(), 0.02, s.tiefe(), toenen(asphalt, 0.2));
+    b.block(
+        (s.min_x + s.max_x) / 2.0,
+        0.0,
+        (s.min_z + s.max_z) / 2.0,
+        s.breite(),
+        0.02,
+        s.tiefe(),
+        toenen(asphalt, 0.2),
+    );
     // Gehwege und Straße mit Mittelstreifen.
-    b.block(0.0, 0.0, (21.0 + z0) / 2.0, 2.0 * STRASSE_ENDE, 0.12, z0 - 21.0, gehweg);
-    b.block(0.0, 0.0, (z0 + z1) / 2.0, 2.0 * STRASSE_ENDE, 0.03, z1 - z0, asphalt);
+    b.block(
+        0.0,
+        0.0,
+        (21.0 + z0) / 2.0,
+        2.0 * STRASSE_ENDE,
+        0.12,
+        z0 - 21.0,
+        gehweg,
+    );
+    b.block(
+        0.0,
+        0.0,
+        (z0 + z1) / 2.0,
+        2.0 * STRASSE_ENDE,
+        0.03,
+        z1 - z0,
+        asphalt,
+    );
     b.block(0.0, 0.0, z1 + 1.5, 2.0 * STRASSE_ENDE, 0.12, 3.0, gehweg);
     let mut x = -STRASSE_ENDE + 2.0;
     while x < STRASSE_ENDE {
         b.block(x, 0.03, (z0 + z1) / 2.0, 2.0, 0.005, 0.15, farbe("#ffffff"));
         x += 5.0;
+    }
+    // Der Rundkurs um die Nachbarschaft, mit Ziellinie auf der Straße bei x = 0.
+    for f in RUNDKURS {
+        b.block(
+            (f.min_x + f.max_x) / 2.0,
+            0.0,
+            (f.min_z + f.max_z) / 2.0,
+            f.breite(),
+            0.03,
+            f.tiefe(),
+            asphalt,
+        );
+    }
+    for i in 0..8 {
+        let c = if i % 2 == 0 { "#ffffff" } else { "#1b1b1b" };
+        b.block(0.0, 0.035, z0 + 0.5 + i as f32, 0.6, 0.005, 1.0, farbe(c));
     }
     // Laternen und Bäume am Gehweg.
     let mut x = -60.0;
@@ -123,7 +215,15 @@ fn strasse_und_hof(b: &mut Bau) {
     // Das Golfloch auf der anderen Straßenseite.
     let (gx, gz) = GOLF_LOCH;
     b.block(gx, 0.0, gz, 11.0, 0.03, 11.0, farbe("#52b788"));
-    b.block(-5.5, 0.0, (z1 + 3.0 + gz - 5.5) / 2.0, 11.0, 0.02, gz - 5.5 - z1 - 3.0, farbe("#74c69d"));
+    b.block(
+        -5.5,
+        0.0,
+        (z1 + 3.0 + gz - 5.5) / 2.0,
+        11.0,
+        0.02,
+        gz - 5.5 - z1 - 3.0,
+        farbe("#74c69d"),
+    );
     b.saeule(gx, 0.0, gz, 0.11, 0.04, farbe("#1b1b1b"));
     b.saeule(gx, 0.0, gz, 0.02, 2.2, farbe("#ffffff"));
     b.block(gx + 0.3, 1.8, gz, 0.6, 0.4, 0.02, farbe("#ef476f"));
@@ -144,7 +244,9 @@ pub fn baum(b: &mut Bau, x: f32, z: f32, s: f32) {
 
 /// Häuser der Nachbarschaft: Reihen hinter der Straße und hinter dem Gebäude.
 fn stadt(b: &mut Bau) {
-    let farben_ = ["#f4a261", "#e9c46a", "#2a9d8f", "#bde0fe", "#ffafcc", "#cdb4db", "#a8dadc", "#e76f51"];
+    let farben_ = [
+        "#f4a261", "#e9c46a", "#2a9d8f", "#bde0fe", "#ffafcc", "#cdb4db", "#a8dadc", "#e76f51",
+    ];
     let mut i = 0usize;
     for (z, tief) in [(48.0, 12.0), (-36.0, 14.0)] {
         let mut x = -100.0;
@@ -154,15 +256,38 @@ fn stadt(b: &mut Bau) {
             // Lücke fürs Golfloch gegenüber.
             if !(z > 0.0 && (-14.0..4.0).contains(&x)) {
                 let c = farbe(farben_[i % farben_.len()]);
-                b.block(x + breite / 2.0, 0.0, z + if z > 0.0 { tief / 2.0 } else { -tief / 2.0 }, breite - 1.0, hoch, tief, c);
-                b.block(x + breite / 2.0, hoch, z + if z > 0.0 { tief / 2.0 } else { -tief / 2.0 }, breite - 0.6, 0.4, tief + 0.4, toenen(c, -0.2));
+                b.block(
+                    x + breite / 2.0,
+                    0.0,
+                    z + if z > 0.0 { tief / 2.0 } else { -tief / 2.0 },
+                    breite - 1.0,
+                    hoch,
+                    tief,
+                    c,
+                );
+                b.block(
+                    x + breite / 2.0,
+                    hoch,
+                    z + if z > 0.0 { tief / 2.0 } else { -tief / 2.0 },
+                    breite - 0.6,
+                    0.4,
+                    tief + 0.4,
+                    toenen(c, -0.2),
+                );
             }
             x += breite;
             i += 1;
         }
     }
     // Ein paar Hochhäuser in der Ferne.
-    for (x, z, h) in [(-140.0, -80.0, 60.0), (-90.0, -120.0, 85.0), (60.0, -110.0, 70.0), (130.0, -70.0, 50.0), (150.0, 90.0, 65.0), (-150.0, 100.0, 55.0)] {
+    for (x, z, h) in [
+        (-140.0, -80.0, 60.0),
+        (-90.0, -120.0, 85.0),
+        (60.0, -110.0, 70.0),
+        (130.0, -70.0, 50.0),
+        (150.0, 90.0, 65.0),
+        (-150.0, 100.0, 55.0),
+    ] {
         b.block(x, 0.0, z, 18.0, h, 18.0, farbe("#8d99ae"));
     }
 }
@@ -176,11 +301,32 @@ fn balkon(b: &mut Bau) {
     b.kasten(Kasten::neu(k.min_x, k.max_x, k.min_z - WANDSTAERKE, k.max_z, 0.0).mit_unten(-0.2));
     // Geländer: Glas mit Handlauf, an drei Seiten.
     let rand = farbe("#ffffff");
-    for (x, z, bx, bz) in [(cx, k.max_z, k.breite(), 0.06), (k.min_x, cz, 0.06, k.tiefe()), (k.max_x, cz, 0.06, k.tiefe())] {
+    for (x, z, bx, bz) in [
+        (cx, k.max_z, k.breite(), 0.06),
+        (k.min_x, cz, 0.06, k.tiefe()),
+        (k.max_x, cz, 0.06, k.tiefe()),
+    ] {
         b.block(x, 1.02, z, bx, 0.06, bz, rand);
-        let mut glas = b.block(x, 0.0, z, bx * 0.98, 1.0, bz * 0.5, Color::new(0.84, 0.95, 1.0, 0.25));
+        let mut glas = b.block(
+            x,
+            0.0,
+            z,
+            bx * 0.98,
+            1.0,
+            bz * 0.5,
+            Color::new(0.84, 0.95, 1.0, 0.25),
+        );
         glas.enable_backface_culling(false);
-        b.kasten(Kasten::neu(x - bx / 2.0, x + bx / 2.0, z - bz / 2.0 - 0.05, z + bz / 2.0 + 0.05, 1.08).als_zaun());
+        b.kasten(
+            Kasten::neu(
+                x - bx / 2.0,
+                x + bx / 2.0,
+                z - bz / 2.0 - 0.05,
+                z + bz / 2.0 + 0.05,
+                1.08,
+            )
+            .als_zaun(),
+        );
     }
     // Aschenbecher (Raucherpause).
     let (ax, az) = ASCHENBECHER;
@@ -199,7 +345,10 @@ fn balkon(b: &mut Bau) {
     tasche.set_rotation(Quat::from_axis_angle(Vec3::X, -0.15));
     b.nutzbar("golf", "golf", [gx, 1.0, gz], 1.4);
     // Lampe neben den Balkontüren.
-    let (lx, lz) = (BALKON_TUER.u - BALKON_TUER.breite / 2.0 - 0.4, BODEN.max_z + WANDSTAERKE + 0.08);
+    let (lx, lz) = (
+        BALKON_TUER.u - BALKON_TUER.breite / 2.0 - 0.4,
+        BODEN.max_z + WANDSTAERKE + 0.08,
+    );
     let mut l = b.kugel(lx, 2.6, lz, 0.12, farbe("#fff7d6"));
     l.set_emissive(farbe("#ffe08a"));
 }
@@ -219,14 +368,38 @@ fn treppe_zum_ausgang(b: &mut Bau, strasse: f32) {
     for i in 0..stufen {
         let oben = -(i as f32 + 1.0) * steigung;
         let z = lz1 + (i as f32 + 0.5) * lauf;
-        b.block(xm, oben - 0.15, z, 1.6, 0.15, lauf, toenen(beton, if i % 2 == 0 { 0.0 } else { -0.06 }));
+        b.block(
+            xm,
+            oben - 0.15,
+            z,
+            1.6,
+            0.15,
+            lauf,
+            toenen(beton, if i % 2 == 0 { 0.0 } else { -0.06 }),
+        );
         b.kasten(Kasten::neu(x0, x1, z - lauf / 2.0, z + lauf / 2.0, oben).mit_unten(oben - 0.15));
     }
     // Geländer außen.
-    b.block(x0 - 0.03, 0.0, (lz0 + lz1 + stufen as f32 * lauf) / 2.0, 0.05, 1.0, lz1 - lz0 + stufen as f32 * lauf, farbe("#495057"));
+    b.block(
+        x0 - 0.03,
+        0.0,
+        (lz0 + lz1 + stufen as f32 * lauf) / 2.0,
+        0.05,
+        1.0,
+        lz1 - lz0 + stufen as f32 * lauf,
+        farbe("#495057"),
+    );
     b.kasten(Kasten::neu(x0 - 0.1, x0, lz0, lz1 + stufen as f32 * lauf, 1.1).als_zaun());
     // Das EXIT-Schild über der Tür.
-    let mut schild = b.quader(BODEN.min_x - 0.02, AUSGANG.oben + 0.3, AUSGANG.u, 0.04, 0.3, 0.7, farbe("#2a9d4b"));
+    let mut schild = b.quader(
+        BODEN.min_x - 0.02,
+        AUSGANG.oben + 0.3,
+        AUSGANG.u,
+        0.04,
+        0.3,
+        0.7,
+        farbe("#2a9d4b"),
+    );
     schild.set_emissive(farbe("#1f7a38"));
     let _ = (FRAC_PI_2, PI);
 }

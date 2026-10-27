@@ -21,13 +21,18 @@ thread_local! {
 }
 
 fn neuer_link() -> RwSignal<Option<String>> {
-    NEUER_LINK.with(|l| *l.get_or_init(|| RwSignal::new(None)))
+    NEUER_LINK.with(|l| *l.get_or_init(|| crate::zustand::global(|| RwSignal::new(None))))
 }
 
 /// Der volle Einladungslink für ein Token, auf dieser Adresse oder der ersten, die andere erreichen.
 fn link(token: &str) -> String {
-    let adressen = zustand().konten.with_untracked(|k| k.as_ref().map(|k| k.adressen.clone()).unwrap_or_default());
-    let basis = adressen.first().cloned().unwrap_or_else(|| window().location().origin().unwrap_or_default());
+    let adressen = zustand()
+        .konten
+        .with_untracked(|k| k.as_ref().map(|k| k.adressen.clone()).unwrap_or_default());
+    let basis = adressen
+        .first()
+        .cloned()
+        .unwrap_or_else(|| window().location().origin().unwrap_or_default());
     format!("{}/beitreten#{token}", basis.trim_end_matches('/'))
 }
 

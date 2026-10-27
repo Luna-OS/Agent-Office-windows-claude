@@ -36,7 +36,11 @@ impl Regen {
                 Wo::Garage => 0.11,
                 Wo::Drinnen => 0.06,
             };
-            let ziel = if regen < 0.01 { 0.0 } else { basis * regen.powf(0.8) };
+            let ziel = if regen < 0.01 {
+                0.0
+            } else {
+                basis * regen.powf(0.8)
+            };
             let _ = pegel.gain().set_target_at_time(ziel as f32, jetzt, 0.6);
             let f = match lage.wo {
                 Wo::Draussen => 6500.0,
@@ -51,9 +55,20 @@ impl Regen {
             let ort = if lage.wo == Wo::Drinnen && !lage.orte.fenster.is_empty() {
                 *waehle(&lage.orte.fenster)
             } else {
-                Ort { x: l.x + zufall_f(-4.0, 4.0), y: l.y - 1.2, z: l.z + zufall_f(-4.0, 4.0) }
+                Ort {
+                    x: l.x + zufall_f(-4.0, 4.0),
+                    y: l.y - 1.2,
+                    z: l.z + zufall_f(-4.0, 4.0),
+                }
             };
-            k.abspielen_bei(&k.puffer.tropfen, ort, zufall_f(0.05, 0.14), zufall_f(0.7, 1.4), 1.5, 1.3);
+            k.abspielen_bei(
+                &k.puffer.tropfen,
+                ort,
+                zufall_f(0.05, 0.14),
+                zufall_f(0.7, 1.4),
+                1.5,
+                1.3,
+            );
         }
     }
 }
@@ -66,15 +81,26 @@ impl Klang {
             return;
         }
         let t0 = k.jetzt() + verzoegerung;
-        let spitze = 0.45 * laut * if self.lage().wo == Wo::Drinnen { 0.6 } else { 1.0 };
+        let spitze = 0.45
+            * laut
+            * if self.lage().wo == Wo::Drinnen {
+                0.6
+            } else {
+                1.0
+            };
         let q = k.quelle(&k.puffer.braun, true);
         let ton = k.filter(BiquadFilterType::Lowpass, 700.0, 0.7);
         let _ = ton.frequency().set_value_at_time(700.0, t0);
-        let _ = ton.frequency().exponential_ramp_to_value_at_time(110.0, t0 + 3.5);
+        let _ = ton
+            .frequency()
+            .exponential_ramp_to_value_at_time(110.0, t0 + 3.5);
         let g = k.verstaerker(0.0);
         let p = g.gain();
         let _ = p.set_value_at_time(0.0001, t0);
-        let _ = p.exponential_ramp_to_value_at_time(spitze.max(0.0002), t0 + 0.08 + (1.0 - laut as f64) * 0.5);
+        let _ = p.exponential_ramp_to_value_at_time(
+            spitze.max(0.0002),
+            t0 + 0.08 + (1.0 - laut as f64) * 0.5,
+        );
         let _ = p.exponential_ramp_to_value_at_time((spitze * 0.35).max(0.0002), t0 + 1.3);
         let _ = p.exponential_ramp_to_value_at_time((spitze * 0.6).max(0.0002), t0 + 1.9);
         let _ = p.exponential_ramp_to_value_at_time(0.0001, t0 + 4.0 + laut as f64 * 2.5);

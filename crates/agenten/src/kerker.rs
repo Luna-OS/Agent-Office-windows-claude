@@ -11,7 +11,10 @@ use protokoll::arbeiter::ArbeiterInfo;
 pub const MAX_GEFANGENE: usize = 200;
 
 pub fn laden(ordner: &Path) -> Kerker {
-    std::fs::read_to_string(ordner.join("kerker.json")).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default()
+    std::fs::read_to_string(ordner.join("kerker.json"))
+        .ok()
+        .and_then(|t| serde_json::from_str(&t).ok())
+        .unwrap_or_default()
 }
 
 pub fn speichern(ordner: &Path, k: &Kerker) {
@@ -25,7 +28,13 @@ pub fn speichern(ordner: &Path, k: &Kerker) {
 pub fn einsperren(k: &mut Kerker, info: &ArbeiterInfo, um: u64) {
     k.gefangene.retain(|g| g.id != info.id);
     let gearbeitet_ms = info.gearbeitet_ms + info.arbeitet_seit.map_or(0, |s| um.saturating_sub(s));
-    k.gefangene.push(Gefangener { id: info.id.clone(), name: info.name.clone(), farbe: info.farbe.clone(), um, gearbeitet_ms });
+    k.gefangene.push(Gefangener {
+        id: info.id.clone(),
+        name: info.name.clone(),
+        farbe: info.farbe.clone(),
+        um,
+        gearbeitet_ms,
+    });
     let ueber = k.gefangene.len().saturating_sub(MAX_GEFANGENE);
     if ueber > 0 {
         k.gefangene.drain(..ueber);

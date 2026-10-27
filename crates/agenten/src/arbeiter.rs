@@ -15,12 +15,14 @@ use crate::terminal::Terminal;
 pub const FEHLSCHLAEGE_BIS_VERZWEIFLUNG: u32 = 3;
 
 pub const NAMEN: &[&str] = &[
-    "Ada", "Bruno", "Clara", "Dario", "Elif", "Finn", "Greta", "Hugo", "Ida", "Jonas", "Kira", "Lenz", "Mila", "Noah", "Olga",
-    "Paul", "Quirin", "Rosa", "Sami", "Tilda", "Ugo", "Vera", "Wim", "Xenia", "Yara", "Zeno",
+    "Ada", "Bruno", "Clara", "Dario", "Elif", "Finn", "Greta", "Hugo", "Ida", "Jonas", "Kira",
+    "Lenz", "Mila", "Noah", "Olga", "Paul", "Quirin", "Rosa", "Sami", "Tilda", "Ugo", "Vera",
+    "Wim", "Xenia", "Yara", "Zeno",
 ];
 
 pub const FARBEN: &[&str] = &[
-    "#e57373", "#64b5f6", "#81c784", "#ffb74d", "#ba68c8", "#4db6ac", "#f06292", "#aed581", "#7986cb", "#ffd54f",
+    "#e57373", "#64b5f6", "#81c784", "#ffb74d", "#ba68c8", "#4db6ac", "#f06292", "#aed581",
+    "#7986cb", "#ffd54f",
 ];
 
 pub struct Arbeiter {
@@ -82,7 +84,11 @@ impl Arbeiter {
 
     /// Kann jetzt eine Nachricht annehmen, ohne eine Rückfrage zu beantworten oder seine Arbeit zu stören.
     pub fn hat_zeit(&self) -> bool {
-        self.laeuft() && matches!(self.info.status, ArbeiterStatus::Bereit | ArbeiterStatus::Fertig)
+        self.laeuft()
+            && matches!(
+                self.info.status,
+                ArbeiterStatus::Bereit | ArbeiterStatus::Fertig
+            )
     }
 
     /// Setzt den Status; beim Übergang zu Fertig/Wartet merkt er sich, seit wann er wartet.
@@ -142,7 +148,11 @@ pub fn kuerzen(text: &str, max: usize) -> String {
     if einzeilig.chars().count() <= max {
         einzeilig
     } else {
-        einzeilig.chars().take(max.saturating_sub(1)).collect::<String>() + "…"
+        einzeilig
+            .chars()
+            .take(max.saturating_sub(1))
+            .collect::<String>()
+            + "…"
     }
 }
 
@@ -157,7 +167,10 @@ pub fn aufgabe_aus_prompt(prompt: &str) -> Option<ArbeiterAufgabe> {
     if let Some(erster) = name.chars().next() {
         name = erster.to_uppercase().collect::<String>() + &name[erster.len_utf8()..];
     }
-    Some(ArbeiterAufgabe { name: name.trim_end_matches(['.', ':', ',']).to_string(), zusammenfassung: kuerzen(zeile, 120) })
+    Some(ArbeiterAufgabe {
+        name: name.trim_end_matches(['.', ':', ',']).to_string(),
+        zusammenfassung: kuerzen(zeile, 120),
+    })
 }
 
 /// Status als deutsches Wort (für die CLI).

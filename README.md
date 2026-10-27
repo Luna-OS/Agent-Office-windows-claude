@@ -20,7 +20,7 @@
 
 **Ein 3D-Büro, das dein Team mit seinen Coding-Agenten teilt – komplett in Rust.**
 
-Setz **Claude Code**, **Codex**, **OpenCode**, **Gemini**, **Grok** und **Pi** als Arbeiter an Schreibtische, sieh dir ihr Terminal auf dem
+Setz **Claude Code**, **Codex**, **OpenCode**, **Gemini**, **Grok**, **Pi**, **Muse** und **DeepSeek Harness** als Arbeiter an Schreibtische, sieh dir ihr Terminal auf dem
 Laptop vor ihnen an und spring gemeinsam in jedes davon hinein. Jedes GitHub-Repo ist eine Etage des Gebäudes.
 
 [![Lizenz](https://img.shields.io/badge/lizenz-MIT-blue?style=flat-square)](LICENSE)
@@ -53,7 +53,7 @@ Dazu kommt noch viel mehr (Bürohund, Spielautomat, Basketball, Sportwagen in de
 
 Auf dem Rechner, der das Office betreibt:
 
-- mindestens ein Agenten-CLI, angemeldet als der Benutzer, der das Office betreibt: **Claude Code** (`claude`), **Codex** (`codex`), **OpenCode** (`opencode`), **Gemini** (`gemini`), **Grok** (`grok`) oder **Pi** (`pi`). Mit [Konten](#nutzer-hinzufügen) kann sich jeder im Office bei seinem eigenen Claude anmelden.
+- mindestens ein Agenten-CLI, angemeldet als der Benutzer, der das Office betreibt: **Claude Code** (`claude`), **Codex** (`codex`), **OpenCode** (`opencode`), **Gemini** (`gemini`), **Grok** (`grok`), **Pi** (`pi`), **Muse** (`muse`) oder **DeepSeek Harness** (`dsh`). Mit [Konten](#nutzer-hinzufügen) kann sich jeder im Office bei seinem eigenen Claude anmelden.
 - **git** und die **GitHub CLI** (`gh auth login`) zum Klonen der Repos und für die Issue- und PR-Tafeln
 
 Kein Node.js nötig: Server, Client und Werkzeuge sind Rust. Zum Selbstbauen brauchst du zusätzlich die Rust-Toolchain (siehe `rust-toolchain.toml`) und [Trunk](https://trunkrs.dev).
@@ -186,7 +186,7 @@ Das installiert git, die GitHub CLI, Claude Code und das Office als systemd-Dien
 
 Jeder bekommt ein eigenes Konto, damit sein Name an seiner Figur, im Chat und an jedem Terminal steht, in das er tippt.
 
-**1. Auf einem Server zuerst hereinlassen.** Auf einem Tailscale-Office kann jeder in deinem Tailnet schon hinein. Sonst ist das Office nur über einen SSH-Tunnel erreichbar, also braucht ein Teammitglied seinen SSH-Schlüssel auf der Maschine: Im Office **☰ → 👥 Team einladen** und den GitHub-Namen eintippen, oder im Terminal:
+**1. Auf einem Server zuerst hereinlassen.** Auf einem Tailscale-Office kann jeder in deinem Tailnet schon hinein. Sonst ist das Office nur über einen SSH-Tunnel erreichbar, also braucht ein Teammitglied seinen SSH-Schlüssel auf der Maschine: Im Office **☰ → 👥 Team** und den GitHub-Namen eintippen, oder im Terminal:
 
 ```bash
 deploy/aws.sh invite octocat        # installiert die Schlüssel von github.com/octocat.keys
@@ -199,7 +199,7 @@ Mit Railway, Fly.io und Dokploy geht es genauso (`deploy/railway.sh invite …`)
 ssh -L 4600:localhost:4600 office@<deine-office-ip>
 ```
 
-**2. Ein Konto anlegen.** **☰ → 🔑 Konten** öffnen und einen Einladungslink erzeugen (Name vorgeben oder wählen lassen; *Mitglied* oder *Admin*). Der Link gilt einmal, 7 Tage, und die Person wählt ihr Passwort selbst (`/beitreten#…`). Leg auch dir selbst eins an, als Admin. Dasselbe geht im Terminal der Office-Maschine, auch während es läuft:
+**2. Ein Konto anlegen.** **☰ → 👥 Team** öffnen und einen Einladungslink erzeugen (Name vorgeben oder wählen lassen; *Mitglied* oder *Admin*). Der Link gilt einmal, 7 Tage, und die Person wählt ihr Passwort selbst (`/beitreten#…`). Leg auch dir selbst eins an, als Admin. Dasselbe geht im Terminal der Office-Maschine, auch während es läuft:
 
 ```bash
 open-agentic-office konten liste                # Konten und offene Einladungen
@@ -208,11 +208,11 @@ open-agentic-office konten rolle ada mitglied
 open-agentic-office konten entziehen ada        # in Sekunden abgemeldet
 ```
 
-**Eigenes Claude und GitHub.** Mit Konten laufen die Arbeiter jedes Einzelnen auf seinem eigenen Claude-Abo, und das Office handelt auf GitHub als er: Kommentare, Merges, Labels, Pushes und PRs erscheinen unter seinem Namen. Beim ersten Beitritt öffnet sich **🔐 Deine Anmeldungen** (auch im ☰-Menü): *Mit Claude anmelden* und *Mit GitHub anmelden* (Einmalcode für github.com/login/device), oder ein Token einfügen. Admins können das Claude des Hosts mit allen teilen. Die Anmeldungen jedes Kontos liegen getrennt unter `homes/<konto>/` im Datenordner; das Konto zu entziehen löscht sie.
+**Eigenes Claude und GitHub.** Mit Konten laufen die Arbeiter jedes Einzelnen auf seinem eigenen Claude-Abo, und das Office handelt auf GitHub als er: Kommentare, Merges, Labels, Pushes und PRs erscheinen unter seinem Namen. Beim ersten Beitritt öffnet sich **🔑 Anmeldungen** (auch im ☰-Menü): *Mit Claude anmelden* und *Mit GitHub anmelden* (Einmalcode für github.com/login/device), oder ein Token einfügen. Admins können das Claude des Hosts mit allen teilen. Die Anmeldungen jedes Kontos liegen getrennt unter `homes/<konto>/` im Datenordner; das Konto zu entziehen löscht sie.
 
-**3. Das gemeinsame Passwort abschalten.** Bis dahin kommt jeder, der das Office-Passwort kennt, als Admin hinein. Sind alle angelegt, schalte es in **🔑 Konten** aus oder mit `open-agentic-office konten passwort aus`.
+**3. Das gemeinsame Passwort abschalten.** Bis dahin kommt jeder, der das Office-Passwort kennt, als Admin hinein. Sind alle angelegt, schalte es in **👥 Team** aus oder mit `open-agentic-office konten passwort aus`.
 
-**Jemanden entfernen.** Das Konto in **🔑 Konten** entziehen und auf einem Server zusätzlich in **👥 Team einladen** entfernen (`deploy/aws.sh uninvite <name>`), damit seine SSH-Schlüssel verschwinden. Ist das gemeinsame Passwort noch an, ändere es mit `deploy/aws.sh reset-password`.
+**Jemanden entfernen.** Das Konto in **👥 Team** entziehen und auf einem Server zusätzlich in **👥 Team** entfernen (`deploy/aws.sh uninvite <name>`), damit seine SSH-Schlüssel verschwinden. Ist das gemeinsame Passwort noch an, ändere es mit `deploy/aws.sh reset-password`.
 
 ## Steuerung
 
@@ -220,7 +220,7 @@ open-agentic-office konten entziehen ada        # in Sekunden abgemeldet
 | --- | --- |
 | W A S D | Laufen (mit Shift rennen) |
 | Leertaste | Springen |
-| Maus | Umsehen (Klick ins Bild fängt die Maus) |
+| Maus | Umsehen in der Ich-Perspektive (Klick ins Bild fängt die Maus) |
 | E / Klick | Benutzen: Arbeiter einstellen, Terminal öffnen, Tafel lesen, hinsetzen, Aufzug fahren |
 | P | Einem neuen Arbeiter oder dem an diesem Schreibtisch eine Aufgabe geben |
 | C | Änderungen eines Arbeiters ansehen: Diff, Commit, PR öffnen |

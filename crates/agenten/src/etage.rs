@@ -44,7 +44,11 @@ impl Etage {
     /// Ein Arbeiter nach ID oder Name (Groß-/Kleinschreibung egal).
     pub fn finden(&self, schluessel: &str) -> Option<&Arbeiter> {
         let s = schluessel.trim().trim_start_matches('@');
-        self.arbeiter.get(s).or_else(|| self.arbeiter.values().find(|a| a.info.name.eq_ignore_ascii_case(s)))
+        self.arbeiter.get(s).or_else(|| {
+            self.arbeiter
+                .values()
+                .find(|a| a.info.name.eq_ignore_ascii_case(s))
+        })
     }
 
     pub fn id_von(&self, schluessel: &str) -> Option<String> {
@@ -55,7 +59,10 @@ impl Etage {
 impl Zustand {
     /// Die Etage, auf der ein Arbeiter sitzt.
     pub fn etage_von(&self, arbeiter: &str) -> Option<String> {
-        self.etagen.values().find(|e| e.arbeiter.contains_key(arbeiter)).map(|e| e.id.clone())
+        self.etagen
+            .values()
+            .find(|e| e.arbeiter.contains_key(arbeiter))
+            .map(|e| e.id.clone())
     }
 
     pub fn arbeiter_mut(&mut self, etage: &str, arbeiter: &str) -> Option<&mut Arbeiter> {
@@ -68,12 +75,27 @@ impl Innen {
     pub(crate) fn arbeiter_melden(&self, e: &Etage, id: &str) {
         let Some(a) = e.arbeiter.get(id) else { return };
         let ziel = Ziel::Etage(e.id.clone());
-        self.senden(ziel.clone(), ServerNachricht::Arbeiter(ArbSrv::Aktualisiert { arbeiter: Box::new(a.info.clone()) }));
-        self.senden(ziel, ServerNachricht::Agenten(AgSrv::Feed { eintrag: a.feed_eintrag() }));
+        self.senden(
+            ziel.clone(),
+            ServerNachricht::Arbeiter(ArbSrv::Aktualisiert {
+                arbeiter: Box::new(a.info.clone()),
+            }),
+        );
+        self.senden(
+            ziel,
+            ServerNachricht::Agenten(AgSrv::Feed {
+                eintrag: a.feed_eintrag(),
+            }),
+        );
     }
 
     pub(crate) fn board_melden(&self, e: &Etage) {
-        self.senden(Ziel::Etage(e.id.clone()), ServerNachricht::Aufgaben(AufSrv::Stand { board: e.board.board.clone() }));
+        self.senden(
+            Ziel::Etage(e.id.clone()),
+            ServerNachricht::Aufgaben(AufSrv::Stand {
+                board: e.board.board.clone(),
+            }),
+        );
     }
 }
 
@@ -118,13 +140,16 @@ pub fn anmelden(ag: &Agenten, id: &str, verzeichnis: PathBuf) {
     };
     z.etagen.insert(id.to_string(), etage);
     drop(z);
+    crate::uebernahme::uebernehmen(ag, id, geladen.wirt);
     crate::github::aktualisieren_spaeter(ag.clone(), id.to_string());
 }
 
 /// Stoppt die Terminals einer Etage und speichert sie.
 pub fn abmelden(ag: &Agenten, id: &str) {
     let mut z = ag.innen.zustand();
-    let Some(mut e) = z.etagen.remove(id) else { return };
+    let Some(mut e) = z.etagen.remove(id) else {
+        return;
+    };
     drop(z);
     speicher::speichern(&ag.innen.daten, &e);
     for a in e.arbeiter.values_mut() {

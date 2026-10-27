@@ -33,8 +33,12 @@ impl KnopfArt {
             Self::Gefahr => "bg-destructive text-white shadow-xs hover:bg-destructive/90",
             Self::Warnung => "bg-warning text-warning-foreground hover:bg-warning/90",
             Self::Erfolg => "bg-success text-success-foreground hover:bg-success/90",
-            Self::Umriss => "border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground",
-            Self::Zweitrangig => "bg-secondary text-secondary-foreground shadow-xs hover:bg-secondary/80",
+            Self::Umriss => {
+                "border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground"
+            }
+            Self::Zweitrangig => {
+                "bg-secondary text-secondary-foreground shadow-xs hover:bg-secondary/80"
+            }
             Self::Geist => "hover:bg-accent hover:text-accent-foreground",
             Self::Link => "text-primary underline-offset-4 hover:underline",
         }

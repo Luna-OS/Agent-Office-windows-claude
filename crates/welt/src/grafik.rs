@@ -21,8 +21,12 @@ pub fn kein_webgpu_melden() {
     #[cfg(target_arch = "wasm32")]
     {
         web_sys::console::error_1(&KEIN_WEBGPU.into());
-        let Some(d) = web_sys::window().and_then(|w| w.document()) else { return };
-        let Ok(kasten) = d.create_element("div") else { return };
+        let Some(d) = web_sys::window().and_then(|w| w.document()) else {
+            return;
+        };
+        let Ok(kasten) = d.create_element("div") else {
+            return;
+        };
         kasten.set_id("welt-kein-webgpu");
         kasten.set_text_content(Some(KEIN_WEBGPU));
         let _ = kasten.set_attribute(
@@ -40,7 +44,11 @@ pub fn kein_webgpu_melden() {
 pub fn einrichtung(canvas_id: &str, webgpu: bool) -> kiss3d::window::CanvasSetup {
     kiss3d::window::CanvasSetup {
         canvas_id: canvas_id.to_string(),
-        samples: if webgpu { kiss3d::window::NumSamples::Four } else { kiss3d::window::NumSamples::One },
+        samples: if webgpu {
+            kiss3d::window::NumSamples::Four
+        } else {
+            kiss3d::window::NumSamples::One
+        },
         ..Default::default()
     }
 }
@@ -49,7 +57,10 @@ pub fn einrichtung(canvas_id: &str, webgpu: bool) -> kiss3d::window::CanvasSetup
 pub fn css_groesse(fenster: &kiss3d::window::Window) -> kiss3d::prelude::Vec2 {
     #[cfg(target_arch = "wasm32")]
     {
-        if let Some(c) = web_sys::window().and_then(|w| w.document()).and_then(|d| d.get_element_by_id(crate::api::CANVAS_ID)) {
+        if let Some(c) = web_sys::window()
+            .and_then(|w| w.document())
+            .and_then(|d| d.get_element_by_id(crate::api::CANVAS_ID))
+        {
             let r = c.get_bounding_client_rect();
             if r.width() > 0.0 {
                 return kiss3d::prelude::Vec2::new(r.width() as f32, r.height() as f32);
@@ -68,7 +79,10 @@ pub fn stunde() -> f32 {
     }
     #[cfg(not(target_arch = "wasm32"))]
     {
-        let s = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+        let s = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
         ((s % 86_400) as f32) / 3600.0
     }
 }

@@ -20,7 +20,13 @@ pub fn def(m: Muster) -> MusterDef {
         Muster::Debatte => MusterDef {
             name: "Debatte",
             wie: "Jeder schlägt vor, dann kritisiert ihr einander; in der letzten Runde schreibt der Vorsitz die Entscheidung.",
-            rollen: &["Vorsitz", "Pragmatiker", "Skeptiker", "Vereinfacher", "Anwalt der Nutzer"],
+            rollen: &[
+                "Vorsitz",
+                "Pragmatiker",
+                "Skeptiker",
+                "Vereinfacher",
+                "Anwalt der Nutzer",
+            ],
             plaetze: (2, 5, 3),
             runden: (2, 4, 3),
             braucht_pr: false,
@@ -29,7 +35,13 @@ pub fn def(m: Muster) -> MusterDef {
         Muster::Leitung => MusterDef {
             name: "Leitung & Team",
             wie: "Die Leitung teilt die Aufgabe auf, jeder im Team erledigt einen Teil, die Leitung führt alles zusammen und schreibt es auf.",
-            rollen: &["Leitung", "Entwickler 1", "Entwickler 2", "Entwickler 3", "Entwickler 4"],
+            rollen: &[
+                "Leitung",
+                "Entwickler 1",
+                "Entwickler 2",
+                "Entwickler 3",
+                "Entwickler 4",
+            ],
             plaetze: (2, 5, 3),
             runden: (3, 3, 3),
             braucht_pr: false,
@@ -38,7 +50,13 @@ pub fn def(m: Muster) -> MusterDef {
         Muster::MapReduce => MusterDef {
             name: "Map-Reduce",
             wie: "Dieselbe Aufgabe über jeden Teil parallel; der Kopf des Tisches fasst die Ergebnisse zusammen.",
-            rollen: &["Zusammenführer", "Bearbeiter 1", "Bearbeiter 2", "Bearbeiter 3", "Bearbeiter 4"],
+            rollen: &[
+                "Zusammenführer",
+                "Bearbeiter 1",
+                "Bearbeiter 2",
+                "Bearbeiter 3",
+                "Bearbeiter 4",
+            ],
             plaetze: (2, 5, 3),
             runden: (2, 2, 2),
             braucht_pr: false,
@@ -56,7 +74,13 @@ pub fn def(m: Muster) -> MusterDef {
         Muster::Review => MusterDef {
             name: "Review-Runde",
             wie: "Jeder liest einen Pull Request aus seinem Blickwinkel; der Kopf des Tisches führt alles zu einem Review zusammen, das als Kommentar an den PR geht.",
-            rollen: &["Korrektheit", "Sicherheit", "Leistung & Einfachheit", "Tests", "API-Gestaltung"],
+            rollen: &[
+                "Korrektheit",
+                "Sicherheit",
+                "Leistung & Einfachheit",
+                "Tests",
+                "API-Gestaltung",
+            ],
             plaetze: (2, 5, 3),
             runden: (2, 2, 2),
             braucht_pr: true,
@@ -87,7 +111,10 @@ pub fn ausgabe_problem(p: &str) -> Option<&'static str> {
         return Some("Die Ausgabe liegt im Projekt: gib einen relativen Pfad an");
     }
     let teile: Vec<&str> = p.split(['/', '\\']).collect();
-    if teile.iter().any(|t| t.is_empty() || *t == "." || *t == "..") {
+    if teile
+        .iter()
+        .any(|t| t.is_empty() || *t == "." || *t == "..")
+    {
         return Some("Der Ausgabepfad darf keine leeren, . oder .. Teile haben");
     }
     if [".git", ".office", super::NOTIZEN].contains(&teile[0]) {
@@ -109,27 +136,44 @@ pub struct Teil {
 }
 
 fn notiz(b: &Besprechung, runde: u32, platz: usize) -> String {
-    format!("{}/r{runde}-{}.md", b.notizen, crate::worktree::slug(&b.plaetze[platz].rolle, &platz.to_string()))
+    format!(
+        "{}/r{runde}-{}.md",
+        b.notizen,
+        crate::worktree::slug(&b.plaetze[platz].rolle, &platz.to_string())
+    )
 }
 
-const AUSGABE: &str = "Schreib dabei nur in diese Datei, nicht in die Notizen; dann beende deinen Zug.";
+const AUSGABE: &str =
+    "Schreib dabei nur in diese Datei, nicht in die Notizen; dann beende deinen Zug.";
 
 /// Ob Rot in dieser Datei nichts mehr gefunden hat.
 pub fn nichts_gefunden(inhalt: &str) -> bool {
-    let t = inhalt.trim_start_matches(|c: char| !c.is_alphanumeric()).to_uppercase();
+    let t = inhalt
+        .trim_start_matches(|c: char| !c.is_alphanumeric())
+        .to_uppercase();
     t.starts_with("NO FINDINGS") || t.starts_with("KEINE FUNDE")
 }
 
 /// Die Teile von Runde `runde`, Schritt `schritt`. `lesen(datei)` liefert den Inhalt einer Notiz.
 /// `None`: es gibt keinen solchen Schritt (weiter mit der nächsten Runde).
-pub fn teile(b: &Besprechung, runde: u32, schritt: u32, lesen: &dyn Fn(&str) -> String) -> Option<Vec<Teil>> {
+pub fn teile(
+    b: &Besprechung,
+    runde: u32,
+    schritt: u32,
+    lesen: &dyn Fn(&str) -> String,
+) -> Option<Vec<Teil>> {
     if runde > b.runden {
         return None;
     }
     let n = b.plaetze.len();
     let alle = 0..n;
     let rolle = |i: usize| b.plaetze[i].rolle.clone();
-    let teil = |platz: usize, tut: &str, datei: String, frage: String| Teil { platz, tut: tut.into(), datei, frage };
+    let teil = |platz: usize, tut: &str, datei: String, frage: String| Teil {
+        platz,
+        tut: tut.into(),
+        datei,
+        frage,
+    };
     let letzte = runde == b.runden;
     let aus = &b.ausgabe;
     Some(match b.muster {
@@ -227,22 +271,63 @@ mod tests {
 
     fn besprechung(m: Muster, rollen: &[&str], runden: u32) -> Besprechung {
         Besprechung {
-            id: "b".into(), muster: m, titel: "T".into(), auftrag: "A".into(), ausgabe: "out.md".into(),
-            plaetze: rollen.iter().map(|r| protokoll::agenten::Platz { rolle: r.to_string(), tisch: "t".into(), arbeiter: None, name: None, tokens: 0 }).collect(),
-            teile: vec!["a".into(), "b".into(), "c".into()], pr: Some(7), issue: None, provider: None, modell: None, aufwand: None,
-            runden, runde: 1, schritt: 0, zuege: vec![], budget: 1, tokens: 0, status: protokoll::agenten::BesprechungStatus::Laeuft,
-            grund: None, einberufen_von: "x".into(), begonnen_um: 0, beendet_um: None, worktree: None, notizen: ".besprechung".into(),
-            commit: None, review_url: None, review_fehler: None, vorschau: None, abgeraeumt: false,
+            id: "b".into(),
+            muster: m,
+            titel: "T".into(),
+            auftrag: "A".into(),
+            ausgabe: "out.md".into(),
+            plaetze: rollen
+                .iter()
+                .map(|r| protokoll::agenten::Platz {
+                    rolle: r.to_string(),
+                    tisch: "t".into(),
+                    arbeiter: None,
+                    name: None,
+                    tokens: 0,
+                })
+                .collect(),
+            teile: vec!["a".into(), "b".into(), "c".into()],
+            pr: Some(7),
+            issue: None,
+            provider: None,
+            modell: None,
+            aufwand: None,
+            runden,
+            runde: 1,
+            schritt: 0,
+            zuege: vec![],
+            budget: 1,
+            tokens: 0,
+            status: protokoll::agenten::BesprechungStatus::Laeuft,
+            grund: None,
+            einberufen_von: "x".into(),
+            begonnen_um: 0,
+            beendet_um: None,
+            worktree: None,
+            notizen: ".besprechung".into(),
+            commit: None,
+            review_url: None,
+            review_fehler: None,
+            vorschau: None,
+            abgeraeumt: false,
         }
     }
 
     /// (Runde, Schritt) → (Plätze, schreibt die Ausgabe)
-    fn ablauf(b: &Besprechung, lesen: &dyn Fn(&str) -> String) -> Vec<(u32, u32, Vec<usize>, bool)> {
+    fn ablauf(
+        b: &Besprechung,
+        lesen: &dyn Fn(&str) -> String,
+    ) -> Vec<(u32, u32, Vec<usize>, bool)> {
         let mut aus = vec![];
         for r in 1..=6 {
             for s in 0..3 {
                 if let Some(t) = teile(b, r, s, lesen) {
-                    aus.push((r, s, t.iter().map(|t| t.platz).collect(), t.iter().any(|t| t.datei == b.ausgabe)));
+                    aus.push((
+                        r,
+                        s,
+                        t.iter().map(|t| t.platz).collect(),
+                        t.iter().any(|t| t.datei == b.ausgabe),
+                    ));
                 }
             }
         }
@@ -253,18 +338,48 @@ mod tests {
     fn muster_ablaeufe() {
         let leer = |_: &str| String::new();
         let d = besprechung(Muster::Debatte, &["V", "P", "S"], 3);
-        assert_eq!(ablauf(&d, &leer), vec![(1, 0, vec![0, 1, 2], false), (2, 0, vec![0, 1, 2], false), (3, 0, vec![0], true)]);
+        assert_eq!(
+            ablauf(&d, &leer),
+            vec![
+                (1, 0, vec![0, 1, 2], false),
+                (2, 0, vec![0, 1, 2], false),
+                (3, 0, vec![0], true)
+            ]
+        );
         let l = besprechung(Muster::Leitung, &["L", "E1", "E2"], 3);
-        assert_eq!(ablauf(&l, &leer), vec![(1, 0, vec![0], false), (2, 0, vec![1, 2], false), (3, 0, vec![0], true)]);
+        assert_eq!(
+            ablauf(&l, &leer),
+            vec![
+                (1, 0, vec![0], false),
+                (2, 0, vec![1, 2], false),
+                (3, 0, vec![0], true)
+            ]
+        );
         let m = besprechung(Muster::MapReduce, &["Z", "B1", "B2"], 2);
-        assert_eq!(ablauf(&m, &leer), vec![(1, 0, vec![1, 2], false), (2, 0, vec![0], true)]);
-        assert!(teile(&m, 1, 0, &leer).unwrap()[0].frage.contains("- a
-- c"));
+        assert_eq!(
+            ablauf(&m, &leer),
+            vec![(1, 0, vec![1, 2], false), (2, 0, vec![0], true)]
+        );
+        assert!(teile(&m, 1, 0, &leer).unwrap()[0].frage.contains(
+            "- a
+- c"
+        ));
         let r = besprechung(Muster::Review, &["K", "S"], 2);
-        assert_eq!(ablauf(&r, &leer), vec![(1, 0, vec![0, 1], false), (2, 0, vec![0], true)]);
+        assert_eq!(
+            ablauf(&r, &leer),
+            vec![(1, 0, vec![0, 1], false), (2, 0, vec![0], true)]
+        );
         let rb = besprechung(Muster::RotBlau, &["Blau", "Rot"], 2);
         let gefunden = |_: &str| "- a.rs:1 kaputt".to_string();
-        assert_eq!(ablauf(&rb, &gefunden), vec![(1, 0, vec![1], false), (1, 1, vec![0], false), (2, 0, vec![1], false), (2, 1, vec![0], true)]);
+        assert_eq!(
+            ablauf(&rb, &gefunden),
+            vec![
+                (1, 0, vec![1], false),
+                (1, 1, vec![0], false),
+                (2, 0, vec![1], false),
+                (2, 1, vec![0], true)
+            ]
+        );
         let nichts = |_: &str| "KEINE FUNDE".to_string();
         assert!(teile(&rb, 1, 1, &nichts).unwrap()[0].datei == "out.md");
     }

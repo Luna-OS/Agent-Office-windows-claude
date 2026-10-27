@@ -33,7 +33,9 @@ pub struct Cdp {
 impl Cdp {
     /// Verbindet sich mit der Browser-Adresse `ws://127.0.0.1:<port>/devtools/browser/<id>`.
     pub async fn verbinden(url: &str) -> Result<Self> {
-        let (ws, _) = tokio_tungstenite::connect_async(url).await.with_context(|| format!("DevTools unter {url} nicht erreichbar"))?;
+        let (ws, _) = tokio_tungstenite::connect_async(url)
+            .await
+            .with_context(|| format!("DevTools unter {url} nicht erreichbar"))?;
         let (mut senden, mut empfangen) = ws.split();
         let (raus, mut rx) = mpsc::unbounded_channel::<String>();
         let offen: Offen = Arc::default();
@@ -49,7 +51,9 @@ impl Cdp {
         tokio::spawn(async move {
             while let Some(Ok(m)) = empfangen.next().await {
                 let Message::Text(t) = m else { continue };
-                let Ok(v) = serde_json::from_str::<Value>(&t) else { continue };
+                let Ok(v) = serde_json::from_str::<Value>(&t) else {
+                    continue;
+                };
                 if let Some(id) = v.get("id").and_then(Value::as_u64) {
                     if let Some(tx) = o2.lock().unwrap().remove(&id) {
                         let r = match v.get("error") {
@@ -67,16 +71,33 @@ impl Cdp {
                 }
             }
         });
-        Ok(Self { raus, offen, naechste: Arc::new(AtomicU64::new(1)), ereignisse })
+        Ok(Self {
+            raus,
+            offen,
+            naechste: Arc::new(AtomicU64::new(1)),
+            ereignisse,
+        })
     }
 
     /// Ruft `methode` auf (für eine Seite mit `sitzung`) und wartet auf die Antwort.
-    pub async fn rufen(&self, sitzung: Option<&str>, methode: &str, params: Value) -> Result<Value> {
-        self.rufen_mit_zeit(sitzung, methode, params, Duration::from_secs(30)).await
+    pub async fn rufen(
+        &self,
+        sitzung: Option<&str>,
+        methode: &str,
+        params: Value,
+    ) -> Result<Value> {
+        self.rufen_mit_zeit(sitzung, methode, params, Duration::from_secs(30))
+            .await
     }
 
     /// Wie `rufen`, mit eigener Höchstdauer (Bildschirmfotos mit Software-GPU dauern).
-    pub async fn rufen_mit_zeit(&self, sitzung: Option<&str>, methode: &str, params: Value, zeit: Duration) -> Result<Value> {
+    pub async fn rufen_mit_zeit(
+        &self,
+        sitzung: Option<&str>,
+        methode: &str,
+        params: Value,
+        zeit: Duration,
+    ) -> Result<Value> {
         let id = self.naechste.fetch_add(1, Ordering::Relaxed);
         let (tx, rx) = oneshot::channel();
         self.offen.lock().unwrap().insert(id, tx);
@@ -84,7 +105,9 @@ impl Cdp {
         if let Some(s) = sitzung {
             nachricht["sessionId"] = json!(s);
         }
-        self.raus.send(nachricht.to_string()).map_err(|_| anyhow!("Die DevTools-Verbindung ist zu"))?;
+        self.raus
+            .send(nachricht.to_string())
+            .map_err(|_| anyhow!("Die DevTools-Verbindung ist zu"))?;
         match tokio::time::timeout(zeit, rx).await {
             Ok(Ok(r)) => r,
             Ok(Err(_)) => bail!("Keine Antwort auf {methode}"),
