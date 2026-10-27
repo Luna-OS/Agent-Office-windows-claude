@@ -4,21 +4,10 @@ name: Windows app
 # the office itself, its production dependencies with their Windows native modules, a node.exe, and
 # the Electron app around them, packed by electron-builder into Agent-Office-Setup-<version>.exe.
 #
-# Every run uploads the installer as a workflow artifact. A push to main also publishes it as a
-# GitHub release, v0.1.<commits on main>, which it shares with the Mac app (.github/scripts/publish-app.sh).
+# Every run uploads the installer as a workflow artifact. Pull requests build it as a
+# check; on main, app-release.yml runs this together with the Mac app and publishes both as one release.
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'src/**'
-      - 'bin/**'
-      - 'desktop/**'
-      - 'package.json'
-      - 'package-lock.json'
-      - 'tsconfig*.json'
-      - 'vite.config.ts'
-      - '.github/workflows/windows-app.yml'
   pull_request:
     paths:
       - 'src/**'
@@ -30,6 +19,11 @@ on:
       - 'vite.config.ts'
       - '.github/workflows/windows-app.yml'
   workflow_dispatch:
+  workflow_call:
+    inputs:
+      version:
+        type: string
+        required: false
 
 permissions:
   contents: read
@@ -41,15 +35,13 @@ concurrency:
 jobs:
   installer:
     runs-on: windows-latest
-    permissions:
-      contents: write
     defaults:
       run:
         shell: bash
     steps:
       - uses: actions/checkout@v7
         with:
-          fetch-depth: 0 # the version counts the commits on main
+          fetch-depth: 0 # the tags of the earlier releases, for the version
 
       - uses: actions/setup-node@v7
         with:
@@ -70,7 +62,8 @@ jobs:
         id: version
         working-directory: desktop
         run: |
-          version="$(node -p 'require("./package.json").version.split(".").slice(0, 2).join(".")').$(git rev-list --count HEAD)"
+          version="${{ inputs.version }}"
+          [ -n "$version" ] || version="$(bash ../.github/scripts/next-version.sh)"
           npm version "$version" --no-git-tag-version --allow-same-version
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
@@ -109,9 +102,3 @@ jobs:
           name: Agent-Office-Setup-${{ steps.version.outputs.version }}
           path: desktop/release/*.exe
           if-no-files-found: error
-
-      - name: Publish
-        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: bash .github/scripts/publish-app.sh "${{ steps.version.outputs.version }}" desktop/release/*.exe

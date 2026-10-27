@@ -1,0 +1,75 @@
+name: App release
+
+# Every change to the app that lands on main is built for Windows (windows-app.yml) and the Mac
+# (mac-app.yml) and published as one GitHub release with all installers: v0.1.13, v0.1.14, ...
+# The version only ever goes up by one (.github/scripts/next-version.sh); never publish Windows
+# and Mac as separate releases.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'bin/**'
+      - 'desktop/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig*.json'
+      - 'vite.config.ts'
+      - '.github/workflows/app-release.yml'
+      - '.github/workflows/windows-app.yml'
+      - '.github/workflows/mac-app.yml'
+      - '.github/scripts/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One release at a time, so each one counts on from the one before.
+concurrency:
+  group: app-release
+  cancel-in-progress: false
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # the tags of the earlier releases
+
+      - name: Next version
+        id: version
+        run: echo "version=$(bash .github/scripts/next-version.sh)" >> "$GITHUB_OUTPUT"
+
+  windows:
+    needs: version
+    uses: ./.github/workflows/windows-app.yml
+    with:
+      version: ${{ needs.version.outputs.version }}
+
+  mac:
+    needs: version
+    uses: ./.github/workflows/mac-app.yml
+    with:
+      version: ${{ needs.version.outputs.version }}
+
+  publish:
+    needs: [version, windows, mac]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: installers
+          merge-multiple: true
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash .github/scripts/publish-app.sh "${{ needs.version.outputs.version }}" installers/*.exe installers/*.dmg

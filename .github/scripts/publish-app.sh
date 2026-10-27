@@ -1,15 +1,19 @@
 #!/usr/bin/env bash
-# Puts a desktop app's installers into the one GitHub release of this version (v0.1.<commits on main>),
-# "Agent Office 0.1.<n>", which windows-app.yml and mac-app.yml share: whichever finishes first creates
-# it, with a download table and the generated changelog, and the other adds its files to it.
+# Publishes one GitHub release with the Windows installer and both Mac disk images of a version:
+# tag v<version>, title "Agent Office <version>", a download table and the generated changelog.
 #
-#   publish-app.sh <version> <file>...      (needs GH_TOKEN and GITHUB_SHA)
+#   publish-app.sh <version> <file>...      (needs GH_TOKEN, GITHUB_SHA and GITHUB_REPOSITORY)
 set -euo pipefail
 
 version="$1"
 shift
 tag="v$version"
 downloads="https://github.com/$GITHUB_REPOSITORY/releases/download/$tag"
+
+if gh release view "$tag" > /dev/null 2>&1; then
+  echo "$tag is already released"
+  exit 0
+fi
 
 notes="$(cat <<NOTES
 ## Download
@@ -24,15 +28,5 @@ Installieren: [Windows](https://github.com/$GITHUB_REPOSITORY/blob/main/docs/win
 NOTES
 )"
 
-# The previous release of this kind, so the changelog only lists what's new since then.
-previous="$(gh release list --limit 100 --json tagName --jq '.[].tagName' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | grep -vx "$tag" | sort -V | tail -n 1 || true)"
-
-if ! gh release view "$tag" > /dev/null 2>&1; then
-  if gh release create "$tag" "$@" --target "$GITHUB_SHA" --title "Agent Office $version" \
-    --notes "$notes" --generate-notes ${previous:+--notes-start-tag "$previous"} --latest; then
-    exit 0
-  fi
-  # The other app's workflow may have created it in the meantime.
-  gh release view "$tag" > /dev/null
-fi
-gh release upload "$tag" "$@" --clobber
+gh release create "$tag" "$@" --target "$GITHUB_SHA" --title "Agent Office $version" \
+  --notes "$notes" --generate-notes --latest
