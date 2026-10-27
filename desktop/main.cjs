@@ -531,7 +531,9 @@ function createWindow() {
   win.webContents.on('will-navigate', (e, url) => {
     if (url.startsWith(APP_LINK)) {
       e.preventDefault();
-      return handleAppLink(url);
+      // Only from the app's own pages: a lobby's page never gets to switch lobbies or start the office here.
+      if (win.webContents.getURL().startsWith('data:')) handleAppLink(url);
+      return;
     }
     if (url.startsWith('data:') || isOffice(url)) return;
     e.preventDefault();

@@ -36,7 +36,7 @@ und `name:`) und einem Ordner pro App, dessen Name mit der Store-ID beginnt. Das
 
 ```bash
 git clone http://100.78.107.162:8101/nicorenezweers/nrzStore
-deploy/umbrel/publish.sh nrzStore --push
+deploy/umbrel/publish.sh nrzStore --pr
 ```
 
 Es
@@ -46,7 +46,9 @@ Es
 2. findet das neueste `x.y.z`-Image auf ghcr.io und seinen Digest,
 3. schreibt `nrzStore/<id>-agent-office/` mit dieser ID, dem Image (per Digest festgenagelt) und
    seiner Version als App-Version, und
-4. mit `--push`: committet und pusht den Store.
+4. mit `--pr`: committet auf einen neuen Branch `agent-office-<version>`, pusht ihn und zeigt den
+   Link, der den Pull Request öffnet (`<store>/compare/<branch>...agent-office-<version>`, so bei
+   Gitea wie bei GitHub). Mit `--push` stattdessen direkt auf den aktuellen Branch.
 
 Weitere Optionen: `--tag 0.1.42` (eine bestimmte Version), `--port 4601` (falls 4600 auf deinem
 Umbrel schon belegt ist), `--image` (ein anderes Image). `deploy/umbrel/publish.sh --help` listet sie.
@@ -60,10 +62,11 @@ des Stores eintragen. Danach steht **Agent Office** darin.
 
 ## Aktualisieren
 
-Jeder Push auf `main` baut ein neues Image. Dann einfach noch einmal:
+Jeder Push auf `main` baut ein neues Image. Dann einfach noch einmal (im aktualisierten Klon des Stores):
 
 ```bash
-deploy/umbrel/publish.sh nrzStore --push
+git -C nrzStore pull
+deploy/umbrel/publish.sh nrzStore --pr
 ```
 
 Die App-Version steigt mit, und der Umbrel bietet das Update an. Daten, Konten, Projekte und

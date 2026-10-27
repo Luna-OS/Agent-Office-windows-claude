@@ -4,7 +4,8 @@
 # http://100.78.107.162:8101/nicorenezweers/nrzStore.
 #
 #   git clone http://100.78.107.162:8101/nicorenezweers/nrzStore
-#   deploy/umbrel/publish.sh nrzStore --push
+#   deploy/umbrel/publish.sh nrzStore --pr      # a branch of its own, to merge as a pull request
+#   deploy/umbrel/publish.sh nrzStore --push    # or straight onto the branch you're on
 #
 # The app lands in <store>/<store id>-agent-office/ (Umbrel wants every app's id, and its folder,
 # to start with the store's id), on the newest image the "Umbrel image" workflow pushed to
@@ -13,6 +14,8 @@
 #
 # Options:
 #   --push            git add, commit and push the store afterwards
+#   --pr              the same, on a new branch agent-office-<version>, and print the link that opens
+#                     the pull request for it (Gitea and GitHub both take /compare/<base>...<branch>)
 #   --tag <version>   a particular image (default: the newest x.y.z tag)
 #   --image <repo>    another image repository (default: ghcr.io/luna-os/agent-office)
 #   --store-id <id>   the store's id, for a store without an umbrel-app-store.yml yet (one is made)
@@ -26,6 +29,7 @@ store=''
 store_id=''
 port=4600
 push=0
+pr=0
 
 die() { echo "publish.sh: $*" >&2; exit 1; }
 usage() { sed -n '2,/^set -euo/p' "${BASH_SOURCE[0]}" | sed '$d; s/^# \{0,1\}//'; exit "${1:-0}"; }
@@ -33,6 +37,7 @@ usage() { sed -n '2,/^set -euo/p' "${BASH_SOURCE[0]}" | sed '$d; s/^# \{0,1\}//'
 while (($#)); do
   case "$1" in
     --push) push=1 ;;
+    --pr) push=1 pr=1 ;;
     --tag) tag=${2:?--tag needs a version}; shift ;;
     --image) image=${2:?--image needs a repository}; shift ;;
     --store-id) store_id=${2:?--store-id needs an id}; shift ;;
@@ -102,14 +107,26 @@ grep -q "image: $ref" "$dest/docker-compose.yml" || die "couldn't set the image 
 echo "==> $dest: Agent Office $tag ($ref) on port $port"
 
 if ((push)); then
+  base=$(git -C "$store" rev-parse --abbrev-ref HEAD)
+  branch="agent-office-$tag"
+  ((pr)) && git -C "$store" checkout -q -B "$branch"
   git -C "$store" add umbrel-app-store.yml "$app_id"
   if git -C "$store" diff --cached --quiet; then
     echo "==> nothing new to commit: the store has this version already"
   else
     git -C "$store" commit -m "Agent Office $tag"
   fi
-  git -C "$store" push
-  echo "==> pushed. On the Umbrel: App Store → ⋯ → Community App Stores → add the store's URL (once), then install or update Agent Office."
+  if ((pr)); then
+    git -C "$store" push -u origin "$branch"
+    git -C "$store" checkout -q "$base"
+    # The store's page: its remote without credentials or .git (an ssh remote's host and path, over https).
+    web=$(git -C "$store" remote get-url origin | sed -E 's#^(https?://)[^/@]+@#\1#; s#^[^/@]+@([^:/]+):#https://\1/#; s#\.git$##')
+    echo "==> pushed $branch. Open the pull request: $web/compare/$base...$branch"
+    echo "    Once it's merged: on the Umbrel, App Store → ⋯ → Community App Stores → add the store's URL (once), then install or update Agent Office."
+  else
+    git -C "$store" push
+    echo "==> pushed. On the Umbrel: App Store → ⋯ → Community App Stores → add the store's URL (once), then install or update Agent Office."
+  fi
 else
   echo "==> next: git -C '$store' add -A && git -C '$store' commit -m 'Agent Office $tag' && git -C '$store' push"
 fi

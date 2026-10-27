@@ -165,6 +165,6 @@ jobs:
             echo 'Put it in your Umbrel app store with:'
             echo
             echo '```sh'
-            echo 'deploy/umbrel/publish.sh <your app store checkout> --push'
+            echo 'deploy/umbrel/publish.sh <your app store checkout> --pr'
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"

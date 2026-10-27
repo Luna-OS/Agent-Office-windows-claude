@@ -16,15 +16,18 @@ eigenen Server, mit deinem Claude-Abo oder dem deiner Mitspieler.
 Die Umbrel-App „Agent Office“ kommt aus einem Community App Store, zum Beispiel deinem
 [nrzStore](http://100.78.107.162:8101/nicorenezweers/nrzStore):
 
-1. Einmal die App in den Store legen (am Computer, mit einem Klon dieses Repositorys):
+1. Einmal die App in den Store legen (an einem Computer in deinem Tailnet, mit einem Klon dieses
+   Repositorys):
 
    ```bash
    git clone http://100.78.107.162:8101/nicorenezweers/nrzStore
-   deploy/umbrel/publish.sh nrzStore --push
+   deploy/umbrel/publish.sh nrzStore --pr
    ```
 
-   Das legt `nrz-agent-office/` (Store-ID + `-agent-office`) mit der neuesten Version des Images an
-   und pusht den Store. Mehr dazu, auch zum Aktualisieren: [docs/umbrel.md](umbrel.md).
+   Das legt `nrz-agent-office/` (Store-ID + `-agent-office`) mit der neuesten Version des Images auf
+   einem eigenen Branch an, pusht ihn und zeigt den Link, der den Pull Request im Store öffnet. Den
+   mergen, fertig (`--push` statt `--pr` committet direkt auf den aktuellen Branch). Mehr dazu, auch
+   zum Aktualisieren: [docs/umbrel.md](umbrel.md).
 2. Auf dem Umbrel: **App Store → ⋯ (oben rechts) → Community App Stores**, die Adresse des Stores
    eintragen und hinzufügen.
 3. Im Store **Agent Office** installieren. Umbrel zeigt dir auf der Seite der App das
