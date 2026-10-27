@@ -32,6 +32,7 @@
       "controller.cjs",
       "connector.cjs",
       "passthrough.cjs",
+      "local-signins.cjs",
       "preload.cjs",
       "lobby.cjs",
       "platform.cjs",

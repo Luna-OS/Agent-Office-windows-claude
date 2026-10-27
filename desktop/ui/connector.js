@@ -209,7 +209,10 @@ function card(s, which) {
     if (office && x.how !== 'office') row.append(h('button', { type: 'button', onclick: go('office') }, officeLabel(s, which)));
     body.push(row);
   } else {
-    const row = h('div.row', {}, h('button.primary', { type: 'button', onclick: go('start') }, `Mit ${NAMES[which]} anmelden`));
+    // Already signed in to GitHub on this computer: the same account, in one click.
+    const fromHere = which === 'github' && s.mine?.github?.status === 'ok' ? s.mine.github.who : null;
+    const row = h('div.row', {}, h(fromHere ? 'button' : 'button.primary', { type: 'button', onclick: go('start') }, `Mit ${NAMES[which]} anmelden`));
+    if (fromHere) row.prepend(h('button.primary', { type: 'button', onclick: click('githubFromHere') }, `${fromHere} von diesem Computer übernehmen`));
     if (office) row.append(h('button', { type: 'button', onclick: go('office') }, officeLabel(s, which)));
     const token = field(`${which}Token`, { type: 'password', placeholder: which === 'claude' ? 'sk-ant-oat01-…' : 'ghp_… oder github_pat_…', autocomplete: 'off', spellcheck: 'false', required: true });
     const details = h(
@@ -227,15 +230,55 @@ function card(s, which) {
   return h('div.card', { class: x.status }, h('div.head', {}, h('h3', {}, which === 'claude' ? '✳️ Claude' : '🐙 GitHub'), status), body);
 }
 
+/**
+ * The office on this computer, on its password: its workers run on this computer's own Claude Code
+ * and GitHub CLI. Signing in opens a console window; the card turns ✅ by itself once it's done.
+ */
+function hereCard(s, which) {
+  const x = s.mine?.[which] ?? { status: 'busy' };
+  const waiting = s.waiting?.[which] && x.status !== 'ok';
+  const open = click(which === 'claude' ? 'hereClaude' : 'hereGithub');
+  const status =
+    x.status === 'ok'
+      ? h('span.ok', {}, '✅ ', x.who)
+      : waiting
+        ? h('span', {}, '⏳ Wartet auf deine Anmeldung …')
+        : x.status === 'busy'
+          ? h('span', {}, '⏳ Einen Moment …')
+          : h('span', {}, x.missing ? 'Noch nicht installiert' : 'Nicht angemeldet');
+  const body = [];
+  if (x.status === 'ok') {
+    body.push(h('div.row', {}, h('button', { type: 'button', onclick: open }, 'Mit einem anderen Konto anmelden …')));
+  } else if (waiting) {
+    body.push(
+      h(
+        'ol',
+        {},
+        which === 'claude'
+          ? h('li', {}, 'Im Fenster, das aufgegangen ist: „Claude account with subscription“ wählen und im Browser bestätigen.')
+          : h('li', {}, 'Im Fenster, das aufgegangen ist: den Code kopieren, auf GitHub einfügen und bestätigen.'),
+        h('li', {}, 'Sobald es geklappt hat, steht hier ✅ mit deinem Konto.'),
+      ),
+      h('div.row', {}, h('button', { type: 'button', onclick: open }, 'Fenster noch einmal öffnen')),
+    );
+  } else if (x.status !== 'busy') {
+    body.push(h('div.row', {}, h('button.primary', { type: 'button', onclick: open }, x.missing ? `${NAMES[which]} installieren und anmelden` : `Mit ${NAMES[which]} anmelden`)));
+  }
+  return h('div.card', { class: waiting ? 'busy' : x.status }, h('div.head', {}, h('h3', {}, which === 'claude' ? '✳️ Claude' : '🐙 GitHub'), status), body);
+}
+
+/** Your sign-ins, first thing: the lobby's own for an account, this computer's for the office here on its password. */
 function signinsSection(s) {
+  const here = !s.signins;
   return h(
     'section',
     {},
     h('h2', {}, '🔐 Deine Anmeldungen'),
-    h('p', {}, 'Deine Worker laufen mit deinem eigenen Claude-Abo, und das Office handelt auf GitHub als du: Kommentare, Commits und Pull Requests erscheinen unter deinem Namen. Nur deine Worker nutzen sie.'),
-    s.signins.office.claude && !s.me.admin ? h('p.note', {}, '✳️ Der Host teilt sein Claude: nimm es oder dein eigenes. Laufende Worker behalten das, mit dem sie gestartet sind.') : null,
-    card(s, 'claude'),
-    card(s, 'github'),
+    here
+      ? h('p', {}, 'Das Office auf diesem Computer arbeitet mit deinem Claude-Abo und deinem GitHub, so wie du sie hier anmeldest. Einmal anmelden reicht, für alle Worker hier.')
+      : h('p', {}, 'Deine Worker laufen mit deinem eigenen Claude-Abo, und das Office handelt auf GitHub als du: Kommentare, Commits und Pull Requests erscheinen unter deinem Namen. Nur deine Worker nutzen sie.'),
+    !here && s.signins.office.claude && !s.me.admin ? h('p.note', {}, '✳️ Der Host teilt sein Claude: nimm es oder dein eigenes. Laufende Worker behalten das, mit dem sie gestartet sind.') : null,
+    here ? [hereCard(s, 'claude'), hereCard(s, 'github')] : [card(s, 'claude'), card(s, 'github')],
   );
 }
 
@@ -248,19 +291,8 @@ function ownAccount() {
     'section',
     {},
     h('h2', {}, '👤 Dein eigenes Konto'),
-    h('p', {}, 'Du bist mit dem Passwort des Office angemeldet. Mit einem eigenen Konto meldest du dich hier mit deinem eigenen Claude und GitHub an; ohne laufen deine Worker mit den Anmeldungen des Office.'),
+    h('p', {}, 'Du bist mit dem Passwort des Office angemeldet. Leg dir ein eigenes Konto an: Gleich danach meldest du dich hier mit deinem eigenen Claude und GitHub an. Ohne laufen deine Worker mit den Anmeldungen des Office.'),
     form([name, pw, again], 'Konto anlegen', (b) => act(b, 'account', { name: name.value, password: pw.value, again: again.value }).then((ok) => ok && clear('ownPw', 'ownAgain'))),
-  );
-}
-
-/** The office on this computer: its own Claude and GitHub are this computer's. */
-function hereSection() {
-  return h(
-    'section.quiet',
-    {},
-    h('h2', {}, '🖥️ Anmeldungen dieses Computers'),
-    h('p', {}, 'Das Office hier nutzt Claude Code und die GitHub CLI dieses Computers, für alle ohne eigene Anmeldung.'),
-    h('div.row', {}, h('button', { type: 'button', onclick: click('hereClaude') }, '✳️ Claude Code anmelden …'), h('button', { type: 'button', onclick: click('hereGithub') }, '🐙 GitHub CLI anmelden …')),
   );
 }
 
@@ -280,8 +312,11 @@ function inviteSection(s) {
 function homeView(s) {
   const me = s.me;
   const who = me.account ? `Angemeldet als ${me.account.name} (${me.account.role === 'admin' ? 'Admin' : 'Mitspieler'})` : 'Mit dem Office-Passwort angemeldet';
+  // First thing: what you sign in with. In a lobby on its password that takes an account of your own first.
+  const first = me.account || s.lobby.here ? signinsSection(s) : ownAccount();
   return [
     problem(s),
+    first,
     h(
       'section',
       {},
@@ -294,8 +329,6 @@ function homeView(s) {
           : 'Er öffnet das Office in deinem Browser, angemeldet als du.',
       ),
     ),
-    me.account ? signinsSection(s) : ownAccount(),
-    s.lobby.here ? hereSection() : null,
     me.admin ? inviteSection(s) : null,
     h('p.foot', {}, who, ' · ', h('button.link', { type: 'button', onclick: click('logout') }, 'Abmelden')),
   ];

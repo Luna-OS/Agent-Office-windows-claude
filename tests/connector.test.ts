@@ -17,6 +17,7 @@ const require = createRequire(import.meta.url);
 const { Lobby, linkKeyOf, sessionCookie } = require('../desktop/connector.cjs');
 const { WELL_KNOWN, startPassthrough } = require('../desktop/passthrough.cjs');
 const { createController } = require('../desktop/controller.cjs');
+const { githubToken, lookClaude, lookGithub } = require('../desktop/local-signins.cjs');
 
 const PASSWORD = 'connector-test-pw';
 let tmp = '';
@@ -190,7 +191,7 @@ function connector(start: Record<string, unknown> = {}, here: Record<string, unk
     save: (patch: Record<string, unknown>) => void (settings = { ...settings, ...patch }),
     openExternal: (url: string) => void opened.push(url),
     copy: (text: string) => void copied.push(text),
-    here: { running: () => false, stop: async () => {}, inviteBase: () => undefined, ...here },
+    here: { running: () => false, stop: async () => {}, inviteBase: () => undefined, look: async () => ({ status: 'none' }), ...here },
     onChange: (s: unknown) => void states.push(s),
   });
   const last = () => states[states.length - 1];
@@ -266,4 +267,49 @@ test('the connector: the office on this computer signs it in with its own link',
   await assert.rejects(c.run('invite', { role: 'member' }), /nur für dich offen/);
   const down = connector({}, { start: async () => Promise.reject(new Error('no node')) });
   assert.match((await down.c.do('here')).error ?? down.last().error, /startet nicht: no node/);
+});
+
+test("this computer's own sign-ins, as claude and gh tell them", async () => {
+  const says = (out: string, code = 0) => async () => ({ code, out });
+  assert.deepEqual(await lookClaude(says('{"loggedIn":true,"email":"luna@example.com","subscriptionType":"max"}')), { status: 'ok', who: 'luna@example.com · Max' });
+  assert.deepEqual(await lookClaude(says('{"loggedIn":false}', 1)), { status: 'none' });
+  assert.deepEqual(await lookClaude(says('not json', 1)), { status: 'none' });
+  assert.deepEqual(await lookClaude(async () => ({ code: 127, out: '', missing: true })), { status: 'none', missing: true });
+  assert.deepEqual(await lookGithub(says('luna-os\n')), { status: 'ok', who: '@luna-os' });
+  assert.deepEqual(await lookGithub(says('', 1)), { status: 'none' });
+  assert.equal(await githubToken(says('gho_abcdefghijklmnopqrstuvwxyz0123456789\n')), 'gho_abcdefghijklmnopqrstuvwxyz0123456789');
+  assert.equal(await githubToken(says('no oauth token found', 1)), undefined);
+});
+
+test("the connector: the office here shows this computer's sign-ins first, and sees a console sign-in finish", async (t) => {
+  const found: Record<string, { status: string; who?: string }> = { claude: { status: 'none' }, github: { status: 'ok', who: '@luna-os' } };
+  const opened: string[] = [];
+  const c = connector({}, {
+    start: async () => ({ origin: base, link: `${base}${office.signInLink()}` }),
+    look: async (which: string) => found[which],
+    claude: () => void opened.push('claude'),
+  });
+  t.after(() => c.c.close());
+  let s = await c.run('here');
+  assert.equal(s.view, 'home');
+  assert.equal(s.signins, null);
+  assert.deepEqual(s.mine, found);
+  s = await c.run('hereClaude');
+  assert.deepEqual(opened, ['claude']);
+  assert.equal(s.waiting.claude, true);
+  // Signed in in the console window: the next look says so.
+  found.claude = { status: 'ok', who: 'luna@example.com · Max' };
+  s = await c.run('refresh');
+  assert.equal(s.mine.claude.who, 'luna@example.com · Max');
+  assert.equal(s.waiting.claude, false);
+});
+
+test("the connector: a lobby account without GitHub is offered this computer's", async (t) => {
+  const c = connector({}, { look: async (which: string) => (which === 'github' ? { status: 'ok', who: '@luna-os' } : { status: 'none' }), githubToken: async () => undefined });
+  t.after(() => c.c.close());
+  await c.run('connect', { address: base });
+  const s = await c.run('login', { name: 'Mara', password: 'maras-password' });
+  assert.equal(s.signins.github.status === 'ok', false);
+  assert.deepEqual(s.mine, { github: { status: 'ok', who: '@luna-os' } });
+  await assert.rejects(c.run('githubFromHere'), /nicht angemeldet/);
 });
