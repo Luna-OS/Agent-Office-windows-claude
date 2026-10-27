@@ -1,0 +1,11 @@
+[package]
+name = "agenten"
+description = "Arbeiter-Verwaltung: PTYs, Git-Worktrees, Agent-Provider (Claude, Codex, ...), Hook-Server und die Kommunikation zwischen Agenten."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+protokoll.workspace = true
+serde.workspace = true
+serde_json.workspace = true

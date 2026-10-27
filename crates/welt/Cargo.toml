@@ -1,0 +1,11 @@
+[package]
+name = "welt"
+description = "Die 3D-Welt mit kiss3d: Gebäude, Etagen, Dachterrasse, Figuren, Bewegung."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+protokoll.workspace = true
+serde.workspace = true
+serde_json.workspace = true

@@ -8,3 +8,6 @@ __pycache__/
 desktop/staging
 desktop/staging-*
 desktop/release
+/target
+/dist
+**/node_modules

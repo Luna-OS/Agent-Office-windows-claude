@@ -1,0 +1,17 @@
+[package]
+name = "server"
+description = "Der Server von OpenAgenticOffice (axum): HTTP, WebSocket, Etagen, Anmeldung."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "open-agentic-office"
+path = "src/main.rs"
+
+[dependencies]
+protokoll.workspace = true
+agenten.workspace = true
+medien.workspace = true
+serde.workspace = true
+serde_json.workspace = true

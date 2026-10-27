@@ -1,0 +1,14 @@
+[package]
+name = "client"
+description = "Der Browser-Client (WASM): setzt Welt, Oberfläche und Medien zusammen."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+protokoll.workspace = true
+welt.workspace = true
+oberflaeche.workspace = true
+medien.workspace = true
+serde.workspace = true
+serde_json.workspace = true
