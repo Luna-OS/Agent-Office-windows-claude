@@ -104,6 +104,10 @@ jobs:
         working-directory: desktop
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+          # electron-builder skips signing in pull requests, to keep certificates away from forks. The
+          # app is only signed ad hoc ("identity": "-"), with no certificate or secret, and unsigned it
+          # fails codesign's check and won't run on Apple silicon: so pull requests sign it too.
+          CSC_FOR_PULL_REQUEST: 'true'
         run: npx electron-builder --mac dmg --arm64 --x64 --publish never
 
       - name: Check the apps
