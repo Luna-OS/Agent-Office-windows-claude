@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Deploy your own Agent Office to a Dokploy server with one command, using Dokploy's API.
+# Deploy your own OpenAgenticOffice to a Dokploy server with one command, using Dokploy's API.
 #
 #   deploy/dokploy.sh up --url https://dokploy.example.com   create the office, build it, open it
 #   deploy/dokploy.sh open                                   tunnel to the office and open it
@@ -15,7 +15,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-NAME="agent-office"
+NAME="open-agentic-office"
 URL_ARG="${DOKPLOY_URL:-}"
 API_KEY_ARG="${DOKPLOY_API_KEY:-}"
 SERVER_ARG=""
@@ -38,7 +38,7 @@ LOCAL_PORT_SET=0
 
 usage() {
   cat <<'EOF'
-Agent Office on Dokploy — one command up, one command down.
+OpenAgenticOffice on Dokploy — one command up, one command down.
 
 Usage: deploy/dokploy.sh <command> [options]
 
@@ -74,7 +74,7 @@ Commands
   reset-password     Forget the password and show a new one once in your browser
 
 Options
-  --name <name>             Office name (default: agent-office). Several offices = several projects
+  --name <name>             Office name (default: open-agentic-office). Several offices = several projects
   --url <url>               Your Dokploy, like https://dokploy.example.com (default: $DOKPLOY_URL)
   --api-key <key>           A Dokploy API key (default: $DOKPLOY_API_KEY). Leave its rate limit off:
                             the script checks on builds every few seconds.
@@ -140,9 +140,9 @@ CMD="${CMD:-help}"
 [[ "$LOCAL_PORT" =~ ^[0-9]+$ && $LOCAL_PORT -gt 0 && $LOCAL_PORT -lt 65536 ]] || die "--port must be a port number"
 [[ -z "$SSH_PORT_ARG" || ("$SSH_PORT_ARG" =~ ^[0-9]+$ && $SSH_PORT_ARG -gt 0 && $SSH_PORT_ARG -lt 65536) ]] || die "--ssh-port must be a port number"
 [[ "$API_KEY_ARG" != *[[:space:]]* ]] || die "the API key has spaces in it"
-STATE_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/agent-office/dokploy/$NAME"
+STATE_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/open-agentic-office/dokploy/$NAME"
 NAME_FLAG=""
-[[ "$NAME" != "agent-office" ]] && NAME_FLAG=" --name $NAME"
+[[ "$NAME" != "open-agentic-office" ]] && NAME_FLAG=" --name $NAME"
 KEY_FILE="$STATE_DIR/id_ed25519"
 KNOWN_HOSTS="$STATE_DIR/known_hosts"
 CLAIM_FILE="$STATE_DIR/claim-token"
@@ -296,7 +296,7 @@ ensure_project() {
     PROJECT_ID="" ENVIRONMENT_ID="" APPLICATION_ID="" APP_NAME=""
   fi
   if [[ -z "$PROJECT_ID" ]]; then
-    out=$(api POST project.create "$(mkjson '({name: v[0], description: "Agent Office (deploy/dokploy.sh)"})' "$NAME")") ||
+    out=$(api POST project.create "$(mkjson '({name: v[0], description: "OpenAgenticOffice (deploy/dokploy.sh)"})' "$NAME")") ||
       die "couldn't create the Dokploy project"
     PROJECT_ID=$(json 'j.project.projectId' <<<"$out")
     ENVIRONMENT_ID=$(json 'j.environment.environmentId' <<<"$out")
@@ -311,7 +311,7 @@ ensure_project() {
   fi
   if [[ -z "$APPLICATION_ID" ]]; then
     [[ -z "$SERVER_PICK" ]] || SERVER_ID="$SERVER_PICK"
-    out=$(api POST application.create "$(mkjson '({name: "office", appName: v[0], description: "Agent Office (deploy/dokploy.sh)", environmentId: v[1], serverId: v[2] || null})' \
+    out=$(api POST application.create "$(mkjson '({name: "office", appName: v[0], description: "OpenAgenticOffice (deploy/dokploy.sh)", environmentId: v[1], serverId: v[2] || null})' \
       "$NAME" "$ENVIRONMENT_ID" "$SERVER_ID")") ||
       die "couldn't create the office's application$([[ -n "$SERVER_ID" ]] || echo " (on Dokploy Cloud, pick one of your servers with --server <name>)")"
     APPLICATION_ID=$(json 'j.applicationId' <<<"$out")
@@ -420,7 +420,7 @@ make_zip() {
     [[ ! -f "$index" ]] || cp "$index" "$dir/index"
     export GIT_INDEX_FILE="$dir/index"
     git add -A .
-    git rm -r -q --cached --ignore-unmatch -- ':(glob)**/.env*' ':(glob)**/.claude/**' ':(glob)**/.agent-office/**' \
+    git rm -r -q --cached --ignore-unmatch -- ':(glob)**/.env*' ':(glob)**/.claude/**' ':(glob)**/.open-agentic-office/**' \
       ':(glob)**/*.pem' ':(glob)**/*.key' ':(glob)**/id_*' ':(glob)**/pw.txt'
     git archive --format=zip -o "$dir/checkout.zip" "$(git write-tree)"
   ) >&2 || die "couldn't pack this checkout"
@@ -431,7 +431,7 @@ make_zip() {
 # container's office to answer.
 deploy() {
   need git
-  git -C "$REPO_DIR" rev-parse --git-dir >/dev/null 2>&1 || die "run this from a git clone of agent-office (it uploads the checkout's files)"
+  git -C "$REPO_DIR" rev-parse --git-dir >/dev/null 2>&1 || die "run this from a git clone of open-agentic-office (it uploads the checkout's files)"
   local what zip before was out code i line id st=""
   what=$(git -C "$REPO_DIR" log -1 --format='%h %s')
   [[ -z "$(git -C "$REPO_DIR" status --porcelain)" ]] || what+=", with your uncommitted changes"
@@ -570,9 +570,9 @@ service_tunnel() {
 
 open_office() {
   local claimable path="/"
-  claimable=$(office_get /api/claim 2>/dev/null || true)
+  claimable=$(office_get /api/beanspruchen 2>/dev/null || true)
   if [[ "$claimable" == *'"claimable":true'* && -f "$CLAIM_FILE" ]]; then
-    path="/claim?t=$(cat "$CLAIM_FILE")"
+    path="/beanspruchen?t=$(cat "$CLAIM_FILE")"
     say "Opening the one-time password page — write the password down, it is never shown again"
   fi
   tunnel "$path"
@@ -580,14 +580,14 @@ open_office() {
 
 valid_member() { [[ "$1" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,38}$ ]] || die "names are letters, numbers, dots, dashes and underscores: $1"; }
 
-team_members() { remote "agent-office-team list"; } # "<name> <number of keys>" per line
+team_members() { remote "open-agentic-office-team list"; } # "<name> <number of keys>" per line
 
 # --- commands --------------------------------------------------------------------------------------
 
 cmd_up() {
   need ssh-keygen
   need git
-  [[ -f "$REPO_DIR/$DOCKERFILE" ]] || die "run this from a clone of agent-office ($DOCKERFILE is missing)"
+  [[ -f "$REPO_DIR/$DOCKERFILE" ]] || die "run this from a clone of open-agentic-office ($DOCKERFILE is missing)"
   mkdir -p "$STATE_DIR"
   chmod 700 "$STATE_DIR"
   preflight
@@ -599,7 +599,7 @@ cmd_up() {
   fi
   [[ $NO_GH_TOKEN -eq 1 ]] && gh_token=""
 
-  say "Agent Office \"$NAME\" on Dokploy ($DOKPLOY_URL)"
+  say "OpenAgenticOffice \"$NAME\" on Dokploy ($DOKPLOY_URL)"
   echo "   app:      this checkout, uploaded for Dokploy to build with $DOCKERFILE"
   echo "   data:     a Docker volume on /data: accounts, floors, projects (~/workspace), sign-ins, team keys"
   echo "   access:   SSH tunnel only (the office is never exposed), on a port of the Dokploy server"
@@ -614,7 +614,7 @@ cmd_up() {
     echo "   claude:   not signed in — log in from the first worker's terminal (or pass --claude-token)"
   fi
 
-  [[ -f "$KEY_FILE" ]] || ssh-keygen -q -t ed25519 -N '' -C "agent-office-$NAME" -f "$KEY_FILE"
+  [[ -f "$KEY_FILE" ]] || ssh-keygen -q -t ed25519 -N '' -C "open-agentic-office-$NAME" -f "$KEY_FILE"
   [[ -f "$CLAIM_FILE" ]] || (umask 077 && random_token >"$CLAIM_FILE")
 
   ensure_project
@@ -622,8 +622,8 @@ cmd_up() {
 
   # Your key gets a shell in the container; the claim link shows the generated password once;
   # teammates are told to SSH to the server's port; the office's panels suggest this script.
-  local vars=("AGENT_OFFICE_ADMIN_KEYS=$(cat "$KEY_FILE.pub")" "AGENT_OFFICE_CLAIM_TOKEN=$(cat "$CLAIM_FILE")"
-    "AGENT_OFFICE_PUBLIC_HOST=$SSH_HOST:$SSH_PORT" "AGENT_OFFICE_DEPLOY_SCRIPT=deploy/dokploy.sh$NAME_FLAG")
+  local vars=("OAO_ADMIN_KEYS=$(cat "$KEY_FILE.pub")" "OFFICE_BEANSPRUCH_TOKEN=$(cat "$CLAIM_FILE")"
+    "OFFICE_OEFFENTLICHER_HOST=$SSH_HOST:$SSH_PORT" "OFFICE_DEPLOY_SKRIPT=deploy/dokploy.sh$NAME_FLAG")
   [[ -z "$CLAUDE_TOKEN" ]] || vars+=("CLAUDE_CODE_OAUTH_TOKEN=$CLAUDE_TOKEN")
   [[ -z "$ANTHROPIC_KEY" ]] || vars+=("ANTHROPIC_API_KEY=$ANTHROPIC_KEY")
   set_env "${vars[@]}"
@@ -735,9 +735,9 @@ cmd_invite() {
   require_office
   local n fp
   # The container keeps only valid keys and restricts each one to opening the tunnel.
-  n=$(printf '%s\n' "$raw" | remote "agent-office-team add $who") || die "couldn't add $who's keys from $src"
+  n=$(printf '%s\n' "$raw" | remote "open-agentic-office-team add $who") || die "couldn't add $who's keys from $src"
   ok "$who is invited ($n key(s) from $src)"
-  fp=$(remote "agent-office-team fingerprint")
+  fp=$(remote "open-agentic-office-team fingerprint")
   echo
   echo "   Send $who this:"
   echo
@@ -755,7 +755,7 @@ cmd_uninvite() {
   local who="${POSITIONAL[0]}" out rc=0
   valid_member "$who"
   require_office
-  out=$(remote "agent-office-team remove $who" 2>&1) || rc=$?
+  out=$(remote "open-agentic-office-team remove $who" 2>&1) || rc=$?
   [[ $rc -eq 66 ]] && die "$who isn't invited (see: deploy/dokploy.sh team$NAME_FLAG)"
   [[ $rc -eq 0 ]] || die "couldn't remove the keys: $out"
   ok "$who's keys are removed and open tunnels were dropped (other teammates just reconnect)"
@@ -807,10 +807,10 @@ cmd_reset_password() {
   connect
   (umask 077 && random_token >"$CLAIM_FILE")
   say "Resetting the office password"
-  set_env "AGENT_OFFICE_CLAIM_TOKEN=$(cat "$CLAIM_FILE")"
+  set_env "OFFICE_BEANSPRUCH_TOKEN=$(cat "$CLAIM_FILE")"
   local was
   was=$(started)
-  remote "node /opt/agent-office/bin/agent-office.js --reset-password >/dev/null" || die "reset failed"
+  remote "/opt/open-agentic-office/open-agentic-office --daten ~/open-agentic-office --passwort-zuruecksetzen >/dev/null" || die "reset failed"
   # A restart, so the office starts with the new claim token (and makes the new password).
   api POST application.reload "$(mkjson '({applicationId: v[0], appName: v[1]})' "$APPLICATION_ID" "$APP_NAME")" >/dev/null ||
     die "couldn't restart the office"

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Deploy your own Agent Office to AWS with one command, using only the AWS CLI.
+# Deploy your own OpenAgenticOffice to AWS with one command, using only the AWS CLI.
 #
 #   deploy/aws.sh up        create the machine, install and start the office, open it
 #   deploy/aws.sh open      tunnel to the office and open it in your browser
@@ -9,11 +9,11 @@
 #
 # The office is never exposed to the internet: it listens on the box's loopback and everyone
 # reaches it through an SSH tunnel, or with `up --tailscale`, on your Tailscale network at
-# https://agent-office.<your-tailnet>.ts.net. Run `deploy/aws.sh help` for all commands and options.
+# https://open-agentic-office.<your-tailnet>.ts.net. Run `deploy/aws.sh help` for all commands and options.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-NAME="agent-office"
+NAME="open-agentic-office"
 INSTANCE_TYPE="t3.xlarge"
 INSTANCE_TYPE_SET=0
 DISK_GB=50
@@ -38,13 +38,13 @@ TAILSCALE_ADMIN="https://login.tailscale.com/admin"
 
 usage() {
   cat <<'EOF'
-Agent Office on AWS — one command up, one command down.
+OpenAgenticOffice on AWS — one command up, one command down.
 
 Usage: deploy/aws.sh <command> [options]
 
 The office is never on the internet. It listens on the machine's loopback, the firewall only
 opens SSH, and everyone reaches the office through an SSH tunnel on http://localhost:4600 — or,
-with `up --tailscale`, on your Tailscale network at https://agent-office.<your-tailnet>.ts.net,
+with `up --tailscale`, on your Tailscale network at https://open-agentic-office.<your-tailnet>.ts.net,
 with nothing to run.
 
 Commands
@@ -73,11 +73,11 @@ Commands
   logs               Follow the office's logs
   resize <type>      Change the machine size, e.g. t3.2xlarge (stops it for ~1-2 minutes;
                      the address stays the same). `up --instance-type <type>` does this too.
-  update             Install the latest agent-office on the machine and restart it
+  update             Install the latest open-agentic-office on the machine and restart it
   reset-password     Forget the password and show a new one once in your browser
 
 Options
-  --name <name>             Deployment name, lets you run several offices (default: agent-office)
+  --name <name>             Deployment name, lets you run several offices (default: open-agentic-office)
   --region <region>         AWS region (default: your AWS CLI region, else us-east-1)
   --profile <profile>       AWS CLI profile
   --instance-type <type>    EC2 instance type (default: t3.xlarge — 4 vCPU, 16 GiB)
@@ -88,7 +88,7 @@ Options
   --project <owner/repo>    Also clone this GitHub repo as the office's first floor. Without it
                             the office opens on its elevator, which lists every repo your GitHub
                             token can see: pick one there. Projects go in ~/workspace on the box
-  --app-repo <url>          agent-office repo to install (default: this checkout's GitHub origin)
+  --app-repo <url>          open-agentic-office repo to install (default: this checkout's GitHub origin)
   --app-ref <ref>           Branch or tag to install (default: main)
   --github-token <token>    GitHub token for private repos + the issue/PR boards
                             (default: your local `gh auth token`)
@@ -148,17 +148,17 @@ done
 
 [[ "$NAME" =~ ^[a-zA-Z0-9-]+$ ]] || die "--name may only contain letters, numbers and dashes"
 [[ "$LOCAL_PORT" =~ ^[0-9]+$ && $LOCAL_PORT -gt 0 && $LOCAL_PORT -lt 65536 ]] || die "--port must be a port number"
-RESOURCE="agent-office-$NAME"
-[[ "$NAME" == "agent-office" ]] && RESOURCE="agent-office"
-STATE_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/agent-office/aws/$NAME"
+RESOURCE="open-agentic-office-$NAME"
+[[ "$NAME" == "open-agentic-office" ]] && RESOURCE="open-agentic-office"
+STATE_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/open-agentic-office/aws/$NAME"
 NAME_FLAG=""
-[[ "$NAME" != "agent-office" ]] && NAME_FLAG=" --name $NAME"
+[[ "$NAME" != "open-agentic-office" ]] && NAME_FLAG=" --name $NAME"
 KEY_FILE="$STATE_DIR/id_ed25519"
 KNOWN_HOSTS="$STATE_DIR/known_hosts"
 CLAIM_FILE="$STATE_DIR/claim-token"
 
 need() { command -v "$1" >/dev/null 2>&1 || die "$1 is required (${2:-install it first})"; }
-# Its machine name on the tailnet: agent-office, or agent-office-<name>.
+# Its machine name on the tailnet: open-agentic-office, or open-agentic-office-<name>.
 ts_name() { printf '%s' "$RESOURCE" | tr '[:upper:]' '[:lower:]' | cut -c1-63; }
 aws_() { aws --output text "$@"; }
 
@@ -201,20 +201,20 @@ open_url() {
 
 find_instance() {
   aws_ ec2 describe-instances \
-    --filters "Name=tag:agent-office,Values=$NAME" "Name=instance-state-name,Values=pending,running,stopping,stopped" \
+    --filters "Name=tag:open-agentic-office,Values=$NAME" "Name=instance-state-name,Values=pending,running,stopping,stopped" \
     --query 'Reservations[].Instances[0].InstanceId | [0]' | sed 's/^None$//'
 }
 
 instance_field() { aws_ ec2 describe-instances --instance-ids "$1" --query "Reservations[0].Instances[0].$2" | sed 's/^None$//'; }
 
 find_sg() {
-  aws_ ec2 describe-security-groups --filters "Name=group-name,Values=$RESOURCE" "Name=tag:agent-office,Values=$NAME" \
+  aws_ ec2 describe-security-groups --filters "Name=group-name,Values=$RESOURCE" "Name=tag:open-agentic-office,Values=$NAME" \
     --query 'SecurityGroups[0].GroupId' 2>/dev/null | sed 's/^None$//'
 }
 
 find_eip() {
   # prints: <allocation-id> <association-id|None> <public-ip>
-  aws_ ec2 describe-addresses --filters "Name=tag:agent-office,Values=$NAME" \
+  aws_ ec2 describe-addresses --filters "Name=tag:open-agentic-office,Values=$NAME" \
     --query 'Addresses[0].[AllocationId,AssociationId,PublicIp]' 2>/dev/null | sed 's/^None$//'
 }
 
@@ -224,7 +224,7 @@ ensure_eip() {
   read -r alloc assoc ip <<<"$(find_eip)"
   if [[ -z "$alloc" || "$alloc" == "None" ]]; then
     read -r alloc ip <<<"$(aws_ ec2 allocate-address --domain vpc \
-      --tag-specifications "ResourceType=elastic-ip,Tags=[{Key=agent-office,Value=$NAME},{Key=Name,Value=$RESOURCE}]" \
+      --tag-specifications "ResourceType=elastic-ip,Tags=[{Key=open-agentic-office,Value=$NAME},{Key=Name,Value=$RESOURCE}]" \
       --query '[AllocationId,PublicIp]')"
     ok "Elastic IP $ip"
   fi
@@ -300,7 +300,7 @@ remote() {
 allow_cidr() {
   local sg="$1" cidr="$2" out
   if ! out=$(aws ec2 authorize-security-group-ingress --group-id "$sg" \
-    --ip-permissions "IpProtocol=tcp,FromPort=22,ToPort=22,IpRanges=[{CidrIp=$cidr,Description=agent-office}]" 2>&1); then
+    --ip-permissions "IpProtocol=tcp,FromPort=22,ToPort=22,IpRanges=[{CidrIp=$cidr,Description=open-agentic-office}]" 2>&1); then
     [[ "$out" == *InvalidPermission.Duplicate* ]] || die "could not allow $cidr: $out"
   fi
 }
@@ -316,8 +316,8 @@ allowed_cidrs() {
 
 office_get() { remote "curl -fs --max-time 4 http://127.0.0.1:$OFFICE_PORT$1"; }
 
-# The office's name on your tailnet (agent-office.tail1234.ts.net), if it's on one.
-tailnet_host() { remote "cat /etc/agent-office/tailscale 2>/dev/null" 2>/dev/null | tr -d '[:space:]' || true; }
+# The office's name on your tailnet (open-agentic-office.tail1234.ts.net), if it's on one.
+tailnet_host() { remote "cat /etc/open-agentic-office/tailscale 2>/dev/null" 2>/dev/null | tr -d '[:space:]' || true; }
 
 # Can this computer reach it there? (Tailscale on, signed in to the same tailnet.)
 tailnet_reachable() { curl -fs -o /dev/null --max-time 20 "https://$1/api/health" 2>/dev/null; }
@@ -427,9 +427,9 @@ service_tunnel() {
 
 open_office() {
   local claimable path="/" ts
-  claimable=$(office_get /api/claim 2>/dev/null || true)
+  claimable=$(office_get /api/beanspruchen 2>/dev/null || true)
   if [[ "$claimable" == *'"claimable":true'* && -f "$CLAIM_FILE" ]]; then
-    path="/claim?t=$(cat "$CLAIM_FILE")"
+    path="/beanspruchen?t=$(cat "$CLAIM_FILE")"
     say "Opening the one-time password page — write the password down, it is never shown again"
   fi
   ts=$(tailnet_host)
@@ -448,12 +448,12 @@ open_office() {
 
 valid_member() { [[ "$1" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,38}$ ]] || die "names are letters, numbers, dots, dashes and underscores: $1"; }
 
-# Teammates' keys are managed on the box by agent-office-team (installed by provision.sh).
+# Teammates' keys are managed on the box by open-agentic-office-team (installed by provision.sh).
 require_team() {
-  remote "test -x /usr/local/bin/agent-office-team" 2>/dev/null || die "this office predates team access — run: deploy/aws.sh up$NAME_FLAG"
+  remote "test -x /usr/local/bin/open-agentic-office-team" 2>/dev/null || die "this office predates team access — run: deploy/aws.sh up$NAME_FLAG"
 }
 
-team_members() { remote "agent-office-team list"; } # "<name> <number of keys>" per line
+team_members() { remote "open-agentic-office-team list"; } # "<name> <number of keys>" per line
 
 # --- commands --------------------------------------------------------------------------------------
 
@@ -475,7 +475,7 @@ cmd_up() {
   # What to install. The office starts with no project (never the checkout this script is in):
   # everyone picks theirs in its elevator, unless --project names a first one.
   if [[ -z "$APP_REPO" ]]; then
-    APP_REPO=$(github_https "$(git -C "$SCRIPT_DIR/.." remote get-url origin 2>/dev/null || true)" || echo "https://github.com/AgentSystemLabs/agent-office")
+    APP_REPO=$(github_https "$(git -C "$SCRIPT_DIR/.." remote get-url origin 2>/dev/null || true)" || echo "https://github.com/Luna-OS/OpenAgenticOffice")
   fi
   local project_repo=""
   if [[ -n "$PROJECT" ]]; then
@@ -494,7 +494,7 @@ cmd_up() {
   local a
   for a in "${EXTRA_ALLOW[@]+"${EXTRA_ALLOW[@]}"}"; do cidrs+=("$(to_cidr "$a")"); done
 
-  say "Agent Office \"$NAME\" in $AWS_REGION (account $ACCOUNT)"
+  say "OpenAgenticOffice \"$NAME\" in $AWS_REGION (account $ACCOUNT)"
   echo "   machine:  $INSTANCE_TYPE, ${DISK_GB} GiB disk, Ubuntu 24.04"
   echo "   app:      $APP_REPO @ $APP_REF"
   echo "   projects: ${project_repo:+$project_repo, then }pick them in the office's elevator (cloned into ~/workspace)"
@@ -530,7 +530,7 @@ cmd_up() {
   fi
   if ! aws ec2 describe-key-pairs --key-names "$RESOURCE" >/dev/null 2>&1; then
     aws ec2 import-key-pair --key-name "$RESOURCE" --public-key-material "fileb://$KEY_FILE.pub" \
-      --tag-specifications "ResourceType=key-pair,Tags=[{Key=agent-office,Value=$NAME}]" >/dev/null
+      --tag-specifications "ResourceType=key-pair,Tags=[{Key=open-agentic-office,Value=$NAME}]" >/dev/null
     ok "SSH key pair $RESOURCE"
   fi
 
@@ -541,8 +541,8 @@ cmd_up() {
   sg=$(find_sg)
   if [[ -z "$sg" ]]; then
     sg=$(aws_ ec2 create-security-group --group-name "$RESOURCE" --vpc-id "$vpc" \
-      --description "Agent Office $NAME - SSH from allowed IPs only" \
-      --tag-specifications "ResourceType=security-group,Tags=[{Key=agent-office,Value=$NAME},{Key=Name,Value=$RESOURCE}]" \
+      --description "OpenAgenticOffice $NAME - SSH from allowed IPs only" \
+      --tag-specifications "ResourceType=security-group,Tags=[{Key=open-agentic-office,Value=$NAME},{Key=Name,Value=$RESOURCE}]" \
       --query GroupId)
     ok "Security group $sg"
   fi
@@ -567,8 +567,8 @@ cmd_up() {
       --key-name "$RESOURCE" --security-group-ids "$sg" \
       --block-device-mappings "DeviceName=/dev/sda1,Ebs={VolumeSize=$DISK_GB,VolumeType=gp3,DeleteOnTermination=true}" \
       --metadata-options "HttpTokens=required,HttpEndpoint=enabled" \
-      --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=$RESOURCE},{Key=agent-office,Value=$NAME}]" \
-      "ResourceType=volume,Tags=[{Key=Name,Value=$RESOURCE},{Key=agent-office,Value=$NAME}]" \
+      --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=$RESOURCE},{Key=open-agentic-office,Value=$NAME}]" \
+      "ResourceType=volume,Tags=[{Key=Name,Value=$RESOURCE},{Key=open-agentic-office,Value=$NAME}]" \
       --query 'Instances[0].InstanceId')
   elif [[ $INSTANCE_TYPE_SET -eq 1 && "$(instance_field "$INSTANCE_ID" InstanceType)" != "$INSTANCE_TYPE" ]]; then
     resize_instance "$INSTANCE_ID" "$INSTANCE_TYPE"
@@ -591,7 +591,7 @@ cmd_up() {
 
   [[ -f "$CLAIM_FILE" ]] || (umask 077 && random_token >"$CLAIM_FILE")
 
-  say "Provisioning (Node, git, gh, Claude Code, agent-office) — a few minutes on first run"
+  say "Richte ein (git, gh, Claude Code, open-agentic-office) — a few minutes on first run"
   local git_name git_email
   git_name=$(git config user.name 2>/dev/null || true)
   git_email=$(git config user.email 2>/dev/null || true)
@@ -736,7 +736,7 @@ cmd_invite() {
   require_team
   local n
   # The box keeps only valid keys and restricts each one to opening the tunnel.
-  n=$(printf '%s\n' "$raw" | remote "agent-office-team add $who") || die "couldn't add $who's keys from $src"
+  n=$(printf '%s\n' "$raw" | remote "open-agentic-office-team add $who") || die "couldn't add $who's keys from $src"
   ok "$who is invited ($n key(s) from $src)"
 
   local sg a fp
@@ -769,7 +769,7 @@ cmd_uninvite() {
   valid_member "$who"
   require_instance
   require_team
-  out=$(remote "agent-office-team remove $who" 2>&1) || rc=$?
+  out=$(remote "open-agentic-office-team remove $who" 2>&1) || rc=$?
   [[ $rc -eq 66 ]] && die "$who isn't invited (see: deploy/aws.sh team$NAME_FLAG)"
   [[ $rc -eq 0 ]] || die "couldn't remove the keys: $out"
   ok "$who's keys are removed and open tunnels were dropped (other teammates just reconnect)"
@@ -800,7 +800,7 @@ cmd_logs() {
   preflight
   require_instance
   # shellcheck disable=SC2046
-  exec ssh $(ssh_opts) -t "$SSH_USER@$IP" 'sudo journalctl -u agent-office -n 100 -f'
+  exec ssh $(ssh_opts) -t "$SSH_USER@$IP" 'sudo journalctl -u open-agentic-office -n 100 -f'
 }
 
 cmd_resize() {
@@ -854,20 +854,16 @@ cmd_resume() {
 cmd_update() {
   preflight
   require_instance
-  say "Updating agent-office on $IP"
+  say "Aktualisiere open-agentic-office auf $IP"
   remote "set -e
-    ref=\$(git -C /opt/agent-office rev-parse --abbrev-ref HEAD)
-    git -C /opt/agent-office fetch --depth 1 origin \"\$ref\" -q
-    git -C /opt/agent-office reset --hard FETCH_HEAD -q
-    echo \"   at \$(git -C /opt/agent-office log -1 --format='%h %s')\"
-    cd /opt/agent-office && npm install --no-audit --no-fund --loglevel=error >/dev/null
+    open-agentic-office-update
     # Offices provisioned before KillMode=process: without it the restart stops every worker too.
-    if [ \"\$(systemctl show --property=KillMode --value agent-office)\" != process ]; then
-      sudo mkdir -p /etc/systemd/system/agent-office.service.d
-      printf '[Service]\nKillMode=process\n' | sudo tee /etc/systemd/system/agent-office.service.d/keep-workers.conf >/dev/null
+    if [ \"\$(systemctl show --property=KillMode --value open-agentic-office)\" != process ]; then
+      sudo mkdir -p /etc/systemd/system/open-agentic-office.service.d
+      printf '[Service]\nKillMode=process\n' | sudo tee /etc/systemd/system/open-agentic-office.service.d/keep-workers.conf >/dev/null
       sudo systemctl daemon-reload
     fi
-    sudo systemctl restart agent-office" || die "update failed"
+    sudo systemctl restart open-agentic-office" || die "update failed"
   wait_healthy || die "the office didn't come back — check: deploy/aws.sh logs"
   ok "Updated and restarted (workers carry on through it)"
 }
@@ -878,12 +874,10 @@ cmd_reset_password() {
   (umask 077 && random_token >"$CLAIM_FILE")
   say "Resetting the office password"
   remote "set -e
-    # An office from before ~/agent-office keeps its data in its project (/etc/agent-office/dir).
-    if [ -f /etc/agent-office/dir ]; then set -- \"\$(cat /etc/agent-office/dir)\"; else set -- --home \"\$(cat /etc/agent-office/home)\"; fi
-    sudo sed -i 's/^AGENT_OFFICE_CLAIM_TOKEN=.*/AGENT_OFFICE_CLAIM_TOKEN=\"$(cat "$CLAIM_FILE")\"/' /etc/agent-office/env
-    sudo systemctl stop agent-office
-    node /opt/agent-office/bin/agent-office.js \"\$@\" --reset-password >/dev/null
-    sudo systemctl start agent-office" || die "reset failed"
+    sudo sed -i 's/^OFFICE_BEANSPRUCH_TOKEN=.*/OFFICE_BEANSPRUCH_TOKEN=\"$(cat "$CLAIM_FILE")\"/' /etc/open-agentic-office/env
+    sudo systemctl stop open-agentic-office
+    sudo -u \"\$(systemctl show -p User --value open-agentic-office)\" /opt/open-agentic-office/open-agentic-office --daten \"\$(cat /etc/open-agentic-office/home)\" --passwort-zuruecksetzen >/dev/null
+    sudo systemctl start open-agentic-office" || die "reset failed"
   wait_healthy || die "the office didn't come back — check: deploy/aws.sh logs"
   ok "Everyone has been signed out"
   open_office

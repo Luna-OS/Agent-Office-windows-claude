@@ -5,7 +5,45 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 
+[features]
+default = []
+# axum-Routen und Zustand für den Server (Bildschirm teilen, Leinwand, Jukebox).
+server = ["dep:axum", "dep:tokio", "dep:tokio-stream", "dep:bytes"]
+# Browser-Seite über wasm-bindgen/web-sys (Voice, Teilen, MJPEG, YouTube, Klänge).
+client = ["dep:wasm-bindgen", "dep:wasm-bindgen-futures", "dep:js-sys", "dep:web-sys"]
+
 [dependencies]
 protokoll.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+
+axum = { version = "0.8", optional = true }
+tokio = { version = "1", features = ["sync", "time", "fs", "rt"], optional = true }
+tokio-stream = { version = "0.1", features = ["sync"], optional = true }
+bytes = { version = "1", optional = true }
+
+wasm-bindgen = { version = "0.2", optional = true }
+wasm-bindgen-futures = { version = "0.4", optional = true }
+js-sys = { version = "0.3", optional = true }
+web-sys = { version = "0.3", optional = true, features = [
+  "Window", "Document", "Element", "HtmlElement", "HtmlIFrameElement", "HtmlImageElement",
+  "HtmlVideoElement", "HtmlMediaElement", "HtmlAudioElement", "HtmlCanvasElement",
+  "CanvasRenderingContext2d", "ImageData", "CssStyleDeclaration", "Navigator", "MediaDevices",
+  "MediaStream", "MediaStreamTrack", "MediaStreamConstraints", "DisplayMediaStreamConstraints",
+  "MessageEvent", "Blob", "BlobPropertyBag", "Request", "RequestInit", "RequestCredentials", "Response", "Headers",
+  "RtcPeerConnection", "RtcConfiguration", "RtcIceServer", "RtcSessionDescription",
+  "RtcSessionDescriptionInit", "RtcSdpType", "RtcIceCandidate", "RtcIceCandidateInit",
+  "RtcPeerConnectionIceEvent", "RtcTrackEvent", "RtcRtpSender", "RtcSignalingState",
+  "RtcIceConnectionState", "AudioContext", "BaseAudioContext", "AudioNode", "AudioParam",
+  "AudioDestinationNode", "OscillatorNode", "OscillatorType", "GainNode", "BiquadFilterNode",
+  "BiquadFilterType", "AudioBuffer", "AudioBufferSourceNode", "StereoPannerNode", "AnalyserNode",
+  "MediaStreamAudioSourceNode", "AudioScheduledSourceNode", "AudioContextState", "Location",
+  "DomRect", "Event", "EventTarget", "KeyboardEvent",
+] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net"] }
+
+[[example]]
+name = "bildschirm_test"
+required-features = ["server"]

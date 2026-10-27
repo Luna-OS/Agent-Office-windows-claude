@@ -1,15 +1,15 @@
-# Only what the image builds from (deploy/railway.sh uploads with .gitignore applied too, and
-# deploy/fly.sh hands this file to Fly's builder).
-node_modules
+# Nur das, woraus das Image baut (deploy/railway.sh lädt mit angewandter .gitignore hoch, und
+# deploy/fly.sh gibt diese Datei an Flys Builder).
+target
 dist
-.agent-office
 .git
 *.log
-# The build's `COPY . .` would take anything else in the checkout, so keep local secrets out of the
-# image: env files, Claude Code's project settings, keys, the dev password file.
+node_modules
+# Das `COPY . .` des Builds nähme sonst alles im Checkout mit, also bleiben lokale Geheimnisse aus
+# dem Image: env-Dateien, Claude Codes Projekteinstellungen, Schlüssel, die Dev-Passwortdatei.
 **/.env*
 **/.claude
-**/.agent-office
+**/.open-agentic-office
 **/*.pem
 **/*.key
 **/id_*

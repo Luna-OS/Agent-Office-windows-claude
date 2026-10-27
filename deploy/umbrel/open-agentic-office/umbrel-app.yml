@@ -1,0 +1,42 @@
+manifestVersion: 1.1
+# deploy/umbrel/publish.sh kopiert diesen Ordner als <Store-ID>-open-agentic-office in einen Community-App-Store
+# und setzt ID, Version und Image auf die des Stores und des neuesten Builds.
+id: open-agentic-office
+category: developer
+name: OpenAgenticOffice
+version: "0.1.0"
+tagline: Eine Online-Lobby für dein Team und seine Coding-Agenten, in 3D
+description: >-
+  OpenAgenticOffice ist ein 3D-Büro, das dein Team mit seinen Coding-Agenten teilt. Claude Code, Codex,
+  OpenCode und andere Arbeiter sitzen an Schreibtischen, jeder mit seinem Live-Terminal auf dem Laptop
+  vor sich, und alle im Büro können zusehen oder hineintippen. Jedes GitHub-Repository ist eine Etage
+  des Gebäudes.
+
+
+  Auf deinem Umbrel ist das Office eine Online-Lobby: Die Arbeiter laufen hier, nicht auf den Computern
+  der Mitspieler, und alle treten über die OpenAgenticOffice-App für Windows oder macOS oder aus einem
+  Browser bei. Sprecht per Sprachchat, schreibt im Chat, teilt den Bildschirm auf dem Fernseher in der
+  Lounge, hört YouTube auf der Dachterrasse und zeichnet gemeinsam auf dem Whiteboard.
+
+
+  Jeder Spieler kann seine Arbeiter mit dem eigenen Claude-Abo laufen lassen oder, sobald ein Admin es
+  freigibt, mit dem des Hosts: der Claude-Anmeldung der Office-Maschine.
+
+
+  Das Passwort steht unten. Öffne das Office, melde dich damit an und lege dann allen ein eigenes Konto
+  an, unter ☰ → 🔑 Konten.
+releaseNotes: >-
+  Gehostete Lobby für die OpenAgenticOffice-Desktop-Apps: das Office und seine Arbeiter laufen auf dem Umbrel.
+developer: Luna-OS
+website: https://github.com/Luna-OS/OpenAgenticOffice
+dependencies: []
+repo: https://github.com/Luna-OS/OpenAgenticOffice
+support: https://github.com/Luna-OS/OpenAgenticOffice/issues
+port: 4600
+gallery: []
+path: ""
+defaultUsername: ""
+deterministicPassword: true
+icon: https://raw.githubusercontent.com/Luna-OS/OpenAgenticOffice/main/desktop/build/icon.png
+submitter: Luna-OS
+submission: https://github.com/Luna-OS/OpenAgenticOffice

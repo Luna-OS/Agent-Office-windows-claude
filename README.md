@@ -1,397 +1,268 @@
 > [!TIP]
-> **Ein Connector für Windows und Mac, das Office im Browser.** Diese Version gibt es als Windows-Installer
-> (`Agent-Office-Setup-<version>.exe` unter *Releases*) und als Mac-Disk-Image (`Agent-Office-<version>-mac-arm64.dmg`
-> bzw. `-x64.dmg`). Die App ist ein **Connector**: Sie verbindet dich mit einer Lobby, meldet **jeden Spieler mit seinem
-> eigenen Claude und GitHub** an und öffnet das Office in deinem normalen Browser, angemeldet als du, mit Sprache und
-> Bildschirm teilen. Alles dazu: [docs/connector.md](docs/connector.md), installieren: [Windows](docs/windows-app.md),
-> [Mac](docs/mac-app.md).
+> **Ein Connector für Windows und Mac, das Office im Browser.** Die Desktop-App (eine kleine Rust-Hülle) gibt es als
+> Windows-Installer und als Mac-Disk-Image unter *Releases*. Sie verbindet dich mit einer Lobby, meldet **jeden Spieler mit
+> seinem eigenen Claude und GitHub** an und öffnet das Office im Browser, angemeldet als du, mit Sprache und Bildschirm teilen.
+> Alles dazu: [docs/connector.md](docs/connector.md), installieren: [Windows](docs/windows-app.md), [Mac](docs/mac-app.md).
 >
-> **Online-Lobby auf deinem Umbrel.** Die Lobby läuft als Umbrel-App, und dort laufen auch alle Worker, nicht auf deinem PC.
-> Deine Mitspieler treten mit ihrem Connector (oder im Browser) bei. Jeder nutzt sein eigenes Claude-Abo, oder das des Hosts,
-> wenn der es teilt. Anleitung: [docs/online-lobby.md](docs/online-lobby.md), die Umbrel-App selbst: [docs/umbrel.md](docs/umbrel.md).
-> Ohne Server geht es auch: Der Connector startet das Office dann auf deinem Computer.
+> **Online-Lobby auf deinem Umbrel.** Dort laufen auch alle Arbeiter, nicht auf deinem PC. Deine Mitspieler treten mit dem
+> Connector (oder im Browser) bei: [docs/online-lobby.md](docs/online-lobby.md), [docs/umbrel.md](docs/umbrel.md).
 
 > [!WARNING]
-> **Work in progress.** Agent Office is built for one person's workflow — mine — and it changes fast as I iterate on it.
-> Expect breaking changes between releases: keys that move, screens that get redrawn, features that come and go
-> without notice. If it's close to what you want, fork or clone it and bend it into what you need it to be.
+> **In Arbeit.** OpenAgenticOffice ist ein kompletter Neubau des Agent-Office in Rust und ändert sich schnell. Rechne mit
+> Brüchen zwischen Versionen: Tasten, die wandern, Fenster, die neu gezeichnet werden, Funktionen, die kommen und gehen.
+> Wenn es fast passt, forke es und biege es dir zurecht.
 
 <div align="center">
 
-*"Whatever you do, work heartily, as for the Lord and not for men."* — Colossians 3:23 (ESV)
+*„Was ihr tut, das tut von Herzen, als dem Herrn und nicht den Menschen.“* — Kolosser 3,23
 
-# 🏢 Agent Office
+# 🏢 OpenAgenticOffice
 
-**A 3D office your team shares with its coding agents.**
+**Ein 3D-Büro, das dein Team mit seinen Coding-Agenten teilt – komplett in Rust.**
 
-Sit **Claude Code**, **Codex**, **OpenCode**, **Grok**, **Muse** and **DeepSeek Harness** workers at desks, watch each one's terminal on the laptop in front of it,
-and jump into any of them together. Every GitHub repo is a floor of the building.
+Setz **Claude Code**, **Codex**, **OpenCode**, **Gemini**, **Grok** und **Pi** als Arbeiter an Schreibtische, sieh dir ihr Terminal auf dem
+Laptop vor ihnen an und spring gemeinsam in jedes davon hinein. Jedes GitHub-Repo ist eine Etage des Gebäudes.
 
-[![Release](https://img.shields.io/github/v/release/AgentSystemLabs/agent-office?style=flat-square&color=e8c547&label=release)](https://github.com/AgentSystemLabs/agent-office/releases)
-[![Build](https://img.shields.io/github/actions/workflow/status/AgentSystemLabs/agent-office/release.yml?style=flat-square&label=build)](https://github.com/AgentSystemLabs/agent-office/actions)
-[![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE)
-[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey?style=flat-square)](#run-locally)
-[![Built with TypeScript](https://img.shields.io/badge/built%20with-TypeScript-3178c6?style=flat-square)](https://www.typescriptlang.org)
+[![Lizenz](https://img.shields.io/badge/lizenz-MIT-blue?style=flat-square)](LICENSE)
+[![Gebaut mit Rust](https://img.shields.io/badge/gebaut%20mit-Rust-dea584?style=flat-square)](https://www.rust-lang.org)
+[![Plattform](https://img.shields.io/badge/plattform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey?style=flat-square)](#lokal-starten)
 
-[**Run locally**](#run-locally) · [**Online lobby on Umbrel**](docs/online-lobby.md) · [**Deploy to AWS**](#deploy-to-aws-ec2) · [**Azure**](#deploy-to-azure) · [**Railway**](#deploy-to-railway) · [**Fly.io**](#deploy-to-flyio) · [**Dokploy**](#deploy-to-dokploy) · [**Any server**](#deploy-to-any-ubuntu-or-debian-server) · [**Add users**](#add-users) · [**Controls**](#controls) · [**Features**](docs/features.md) · [**How it works**](docs/how-it-works.md)
+[**Lokal starten**](#lokal-starten) · [**Online-Lobby auf Umbrel**](docs/online-lobby.md) · [**AWS**](#auf-aws-ec2-bereitstellen) · [**Azure**](#auf-azure-bereitstellen) · [**Railway**](#auf-railway-bereitstellen) · [**Fly.io**](#auf-flyio-bereitstellen) · [**Dokploy**](#auf-dokploy-bereitstellen) · [**Eigener Server**](#auf-einem-beliebigen-ubuntu--oder-debian-server-bereitstellen) · [**Nutzer hinzufügen**](#nutzer-hinzufügen) · [**Steuerung**](#steuerung) · [**Funktionen**](docs/features.md) · [**Funktionsweise**](docs/how-it-works.md)
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/AgentSystemLabs/agent-office/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Luna-OS/OpenAgenticOffice/main/install.sh | bash
 ```
 
 </div>
 
 ---
 
-## What it is
+## Was es ist
 
-- **A floor per project.** Ride the elevator, pick one of your GitHub repos, and the office clones it (showing how far along it is) and opens a floor for it. Every worker, board and queue on that floor works in that checkout.
-- **Workers at desks.** Walk up to an empty desk, press **E**, and pick Claude Code, Codex, OpenCode, Grok, Muse, DeepSeek Harness or Pi. The agent's live terminal shows on its laptop, and anyone can open it and type.
-- **You can see who needs you.** A worker that needs input or has finished jumps up and down and dings. Press **N** to go straight to the one that has waited longest.
-- **From your phone, too.** `/lite` is the office in 2D: every worker and what it's waiting on, its terminal with the keys a phone keyboard lacks, and the boards. The 3D office offers it on a phone or a slow computer.
-- **GitHub on the walls.** Issues and pull requests hang on cork boards. Hand an issue to a worker, queue tasks, give a worker its own git worktree and open its PR with one key (if one gets deleted behind the office's back, the worker waits at its desk until you rebuild it). One task can span several projects: the worker gets a worktree of each, and a PR in each that links the others.
-- **Agents that manage agents.** Every worker can list, hire, message and send home the others, through an `agent-office` MCP server (Claude Code, Codex, OpenCode) or the `office-workers` command. Ask one to "send everyone whose PR merged home" and it does, deleting their worktrees and branches unless they hold unpushed work.
-- **Together.** Voice, chat, screen sharing on the lounge TV and a shared whiteboard.
+- **Eine Etage pro Projekt.** Fahr mit dem Aufzug, wähl eines deiner GitHub-Repos, und das Office klont es (mit Fortschrittsanzeige) und öffnet eine Etage dafür. Alle Arbeiter, Tafeln und Warteschlangen dieser Etage arbeiten in diesem Checkout.
+- **Arbeiter an Schreibtischen.** Geh an einen leeren Schreibtisch, drück **E** und wähl Claude Code, Codex, OpenCode, Gemini, Grok, Pi oder einen eigenen Befehl. Das Live-Terminal des Agenten läuft auf seinem Laptop, und jeder kann es öffnen und mittippen.
+- **Du siehst, wer dich braucht.** Ein Arbeiter, der eine Eingabe braucht oder fertig ist, hüpft und bimmelt. **N** springt zu dem, der am längsten wartet.
+- **Agent-zu-Agent-Kommunikation.** Die Arbeiter wissen voneinander: ein Nachrichten-Bus pro Etage (direkt und an alle), ein Status-Feed (wer arbeitet woran), das gemeinsame Aufgabenboard. Für die Agenten erreichbar über die kleine CLI `office-agenten` (`wer`, `senden`, `posteingang`, `status`, `aufgaben`), für dich sichtbar im Office.
+- **GitHub an den Wänden.** Issues und Pull Requests hängen an Pinnwänden. Gib einem Arbeiter ein Issue, stell Aufgaben in die Warteschlange, gib jedem Arbeiter einen eigenen Git-Worktree und öffne seinen PR mit einer Taste.
+- **Zusammen.** Sprache, Chat, **Bildschirm teilen über HTTP** auf dem Lounge-Fernseher und ein gemeinsames Whiteboard.
+- **Dachterrasse mit YouTube.** Oben auf dem Dach hängt eine große Leinwand: Link einfügen, und alle auf dem Dach sehen dasselbe Video, zeitgleich, mit Lautstärke nach Entfernung – dazu eine Bar, Dart, Axtwerfen und mehr.
 
-- **Other maps.** Turn the whole building into a castle: sit on a throne of iron blades while your workers line up before you when they're done, send new ones off through the Hand of the King, and watch their beards grow long and grey as they toil. Send one home and the Kingsguard runs up from the dungeon, marches it down the stairs and throws it in a cell, where it starves, dies and rots down to a skeleton. Or make a map of your own, with its own way of seeing workers off in JSON ([docs/maps.md](docs/maps.md)).
+Dazu kommt noch viel mehr (Bürohund, Spielautomat, Basketball, Sportwagen in der Garage, Tag und Nacht mit Wetter): siehe [docs/features.md](docs/features.md).
 
-There's a lot more (a rooftop bar, an office dog, an arcade, supercars in the garage to drive round a scenic loop past a farm, pines, mountains and a beach): see [docs/features.md](docs/features.md).
+## Voraussetzungen
 
-## Requirements
+Auf dem Rechner, der das Office betreibt:
 
-On the machine that runs the office:
+- mindestens ein Agenten-CLI, angemeldet als der Benutzer, der das Office betreibt: **Claude Code** (`claude`), **Codex** (`codex`), **OpenCode** (`opencode`), **Gemini** (`gemini`), **Grok** (`grok`) oder **Pi** (`pi`). Mit [Konten](#nutzer-hinzufügen) kann sich jeder im Office bei seinem eigenen Claude anmelden.
+- **git** und die **GitHub CLI** (`gh auth login`) zum Klonen der Repos und für die Issue- und PR-Tafeln
 
-- **Node.js 20+**
-- At least one agent CLI, signed in as the user that runs the office: **Claude Code** (`claude`), **Codex** (`codex`), **OpenCode** (`opencode`), **Grok** (`grok`), **Muse** (`muse`), **DeepSeek Harness** (`dsh`) or **Pi** (`pi`, 0.87.1+). With [accounts](#add-users), everyone can sign in to their own Claude from the office instead.
-- **git**, and the **GitHub CLI** (`gh auth login`) for cloning repos and the issue and PR boards
+Kein Node.js nötig: Server, Client und Werkzeuge sind Rust. Zum Selbstbauen brauchst du zusätzlich die Rust-Toolchain (siehe `rust-toolchain.toml`) und [Trunk](https://trunkrs.dev).
 
-## Run locally
+## Lokal starten
 
-On Windows and macOS, the easiest way is the app, a connector: install `Agent-Office-Setup-<version>.exe`
-([docs/windows-app.md](docs/windows-app.md)) or the Mac disk image ([docs/mac-app.md](docs/mac-app.md)). It joins an
-[online lobby](docs/online-lobby.md) on your Umbrel or a server, so the workers run there and not on your computer,
-signs each player in with their own Claude and GitHub, and opens the office in the browser
-([docs/connector.md](docs/connector.md)). It can also start the office on this computer, with its own Node.js and Claude
-Code on your Claude subscription, no API key needed.
+Unter Windows und macOS ist die App der einfachste Weg, ein Connector: Installiere den Windows-Installer ([docs/windows-app.md](docs/windows-app.md)) oder das Mac-Disk-Image ([docs/mac-app.md](docs/mac-app.md)). Sie tritt einer [Online-Lobby](docs/online-lobby.md) bei, meldet jeden Spieler mit eigenem Claude und GitHub an und öffnet das Office im Browser ([docs/connector.md](docs/connector.md)). Sie kann das Office auch auf diesem Computer starten.
 
-Install the latest release and start the office:
+Neueste Version installieren und starten:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/AgentSystemLabs/agent-office/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Luna-OS/OpenAgenticOffice/main/install.sh | bash
 ```
 
-On Windows, in PowerShell:
+Unter Windows in PowerShell:
 
 ```powershell
-irm https://raw.githubusercontent.com/AgentSystemLabs/agent-office/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/Luna-OS/OpenAgenticOffice/main/install.ps1 | iex
 ```
 
-This puts an `agent-office` command on your PATH, so next time just run `agent-office`. Run the install line again to update. The installer's settings (a particular release, install without starting) are listed at the top of [`install.sh`](install.sh) and [`install.ps1`](install.ps1).
+Das legt den Befehl `open-agentic-office` in deinen PATH. Beim nächsten Mal startest du einfach `open-agentic-office`; zum Aktualisieren führst du die Installationszeile erneut aus. Die Einstellungen des Installers (eine bestimmte Version, installieren ohne Start) stehen am Anfang von [`install.sh`](install.sh) und [`install.ps1`](install.ps1).
 
-The first time it starts, it walks you through setting up, right in the terminal:
+Das Office öffnet sich im Browser, **schon angemeldet**, über einen Link, der nur einmal funktioniert. Das Terminal gibt außerdem das Office-Passwort aus, mit dem du dich in einem anderen Browser anmeldest. Geh an einen leeren Schreibtisch, drück **E** und stell einen Arbeiter ein.
 
-1. **Where to clone your projects.** It suggests a code folder you already have (`~/Workspace`, `~/code`…), else `~/agent-office`. Each project goes in `<folder>/<owner>/<repo>`.
-2. **GitHub.** If the GitHub CLI isn't signed in, it offers to run `gh auth login` for you.
-3. **Your first project.** Pick one of your repos by number, or type `owner/name`, and the office clones it as the first floor.
-
-Press Enter to skip a step: the elevator in the office asks for your first project too. Then the office opens in your browser, **already signed in**, with a link that works once. The terminal also prints the office password, for signing in from another browser (it's saved in `~/agent-office/.agent-office/config.json`).
-
-Walk to an empty desk, press **E** and hire a worker.
-
-Common options:
+Häufige Optionen:
 
 ```bash
-agent-office ~/code/my-project              # use a project you already have as the first floor
-agent-office --password 'correct horse'     # choose the password
-agent-office --port 4700
-agent-office --agent pi                     # default agent: claude, codex, opencode, grok, muse, dsh or pi
-agent-office --no-open                      # print the sign-in link instead of opening a browser
-agent-office setup                          # the first-start walkthrough again (office stopped)
+open-agentic-office ~/code/mein-projekt        # ein vorhandenes Projekt als erste Etage
+open-agentic-office --passwort 'correct horse' # das Passwort selbst wählen
+open-agentic-office --port 4700
+open-agentic-office --no-open                  # den Anmelde-Link ausgeben statt den Browser zu öffnen
 ```
 
-Every option is in [docs/configuration.md](docs/configuration.md). Choosing models and providers per worker is in [docs/agents.md](docs/agents.md).
+Alle Optionen stehen in [docs/configuration.md](docs/configuration.md), Anbieter und Modelle pro Arbeiter in [docs/agents.md](docs/agents.md).
 
-To run it from a clone instead:
+Aus einem Klon starten:
 
 ```bash
-git clone https://github.com/AgentSystemLabs/agent-office && cd agent-office
-npm install          # also builds the client and server
-npm install -g .     # puts `agent-office` on your PATH
-agent-office
+git clone https://github.com/Luna-OS/OpenAgenticOffice && cd OpenAgenticOffice
+cd crates/client && trunk build --release && cd ../..   # baut den Browser-Client nach dist/
+cargo run --release -p server
 ```
 
-> Only your computer can reach the office: it listens on `127.0.0.1`. `--host 0.0.0.0` lets your network in, but over plain http, where voice and screen sharing don't work. To share the office with a team, put it on a server: [AWS](#deploy-to-aws-ec2), [Azure](#deploy-to-azure), [Railway](#deploy-to-railway), [Fly.io](#deploy-to-flyio), [Dokploy](#deploy-to-dokploy) or [any Ubuntu or Debian machine](#deploy-to-any-ubuntu-or-debian-server).
+> Nur dein Computer erreicht das Office: Es hört auf `127.0.0.1`. `--host 0.0.0.0` lässt dein Netzwerk herein, aber über reines http, wo Sprache und Bildschirm teilen nicht funktionieren. Um das Office mit einem Team zu teilen, stell es auf einen Server: [AWS](#auf-aws-ec2-bereitstellen), [Azure](#auf-azure-bereitstellen), [Railway](#auf-railway-bereitstellen), [Fly.io](#auf-flyio-bereitstellen), [Dokploy](#auf-dokploy-bereitstellen) oder [jeden Ubuntu- oder Debian-Rechner](#auf-einem-beliebigen-ubuntu--oder-debian-server-bereitstellen).
 
-## Deploy to AWS (EC2)
+## Auf AWS (EC2) bereitstellen
 
-One script, using only the AWS CLI. You need the **AWS CLI signed in** (`aws configure` or `aws sso login`), `ssh`, `curl` and a clone of this repo:
+Ein Skript, nur mit der AWS CLI. Du brauchst die **angemeldete AWS CLI** (`aws configure` oder `aws sso login`), `ssh`, `curl` und einen Klon dieses Repos:
 
 ```bash
-git clone https://github.com/AgentSystemLabs/agent-office && cd agent-office
-deploy/aws.sh up --project your-org/your-repo --claude-token "$(claude setup-token)"
+git clone https://github.com/Luna-OS/OpenAgenticOffice && cd OpenAgenticOffice
+deploy/aws.sh up --project dein-org/dein-repo --claude-token "$(claude setup-token)"
 ```
 
-In about two minutes, `up`:
+In etwa zwei Minuten:
 
-1. Launches a **t3.xlarge** (4 vCPU, 16 GiB) Ubuntu 24.04 instance with a 50 GiB disk and a fixed Elastic IP.
-2. Creates a security group that opens **only SSH, only to your IP**. The office listens on `127.0.0.1:4600` on the machine and is never on the internet. Everyone reaches it through an SSH tunnel, so there are no certificates to manage, and voice and screen sharing work.
-3. Runs [`deploy/provision.sh`](deploy/provision.sh) on it: Node 22, git, the GitHub CLI, Claude Code and the office, under systemd, so it comes back after a crash or reboot and workers keep running through a restart.
-4. Opens a tunnel and your browser at http://localhost:4600. **The first page shows the office password once. Write it down.**
+1. startet `up` eine **t3.xlarge** (4 vCPU, 16 GiB) mit Ubuntu 24.04, 50-GiB-Platte und fester Elastic IP,
+2. legt eine Sicherheitsgruppe an, die **nur SSH und nur für deine IP** öffnet. Das Office hört auf `127.0.0.1:4600` und ist nie im Internet; alle erreichen es über einen SSH-Tunnel, also ohne Zertifikate, und Sprache und Bildschirm teilen funktionieren,
+3. führt [`deploy/provision.sh`](deploy/provision.sh) darauf aus: git, GitHub CLI, Claude Code und das Office unter systemd, sodass es nach Absturz oder Neustart zurückkommt,
+4. öffnet einen Tunnel und deinen Browser auf http://localhost:4600. **Die erste Seite zeigt das Office-Passwort einmal. Schreib es auf.**
 
-`--project` is optional: it clones that repo as the first floor. Leave it out and pick projects in the elevator.
-
-**Signing in the agents.** `--claude-token` uses your Claude subscription; `--anthropic-api-key <key>` uses an API key instead. Leave both out and run `/login` in the first worker's terminal. Codex and OpenCode aren't installed by the script: `deploy/aws.sh ssh` and install them yourself.
-
-**GitHub.** Your local `gh auth token` is copied to the machine so the office can clone private repos, show the boards and push PRs. Anyone in the office can use it, so pass `--github-token <fine-grained token>` or `--no-github-token` to limit that.
-
-**On Tailscale, no tunnels.** If your team uses [Tailscale](https://tailscale.com), add `--tailscale`:
+Im Alltag:
 
 ```bash
-deploy/aws.sh up --tailscale --project your-org/your-repo --claude-token "$(claude setup-token)"
+deploy/aws.sh open                # Tunnel + Office öffnen (Strg-C schließt den Tunnel)
+deploy/aws.sh status              # Maschine, Adresse, läuft das Office, wer ist eingeladen
+deploy/aws.sh logs                # Logs des Office verfolgen
+deploy/aws.sh ssh                 # eine Shell auf der Maschine
+deploy/aws.sh update              # das neueste Office installieren und neu starten
+deploy/aws.sh resize t3.2xlarge   # größere oder kleinere Maschine, gleiche Adresse
+deploy/aws.sh pause               # Maschine anhalten; nur Platte und IP kosten
+deploy/aws.sh resume              # wieder starten und öffnen
+deploy/aws.sh destroy             # alles löschen, was es angelegt hat (fragt vorher)
 ```
 
-The machine joins your tailnet, and Tailscale Serve puts the office on `https://agent-office.<your-tailnet>.ts.net` with a real certificate. Anyone on your tailnet just opens that link: no terminal to keep open, no SSH keys, no IPs to allow, and voice and screen sharing work. `up` opens Tailscale's page to add the machine (or pass `--tailscale-auth-key tskey-auth-…`) and, the first time, the page that turns on HTTPS for your tailnet. SSH stays open to your IP only, for `deploy/aws.sh` itself. More in [docs/aws.md](docs/aws.md#tailscale).
+Mit **Tailscale** statt Tunnel: `--tailscale`. Alle Optionen: `deploy/aws.sh help`, Einzelheiten in [docs/aws.md](docs/aws.md).
 
-Day to day:
+## Auf Azure bereitstellen
+
+Dasselbe auf einer Azure-VM, nur mit der Azure CLI (`az login`):
 
 ```bash
-deploy/aws.sh open                # tunnel + open the office (Ctrl-C closes the tunnel)
-deploy/aws.sh status              # machine, address, is the office up, who's invited
-deploy/aws.sh logs                # follow the office's logs
-deploy/aws.sh ssh                 # a shell on the machine
-deploy/aws.sh update              # install the latest agent-office and restart
-deploy/aws.sh resize t3.2xlarge   # bigger or smaller machine, same address
-deploy/aws.sh pause               # stop the machine; only the disk and IP are billed
-deploy/aws.sh resume              # start it again and open it
-deploy/aws.sh destroy             # delete everything it created (asks first)
+deploy/azure.sh up --project dein-org/dein-repo --claude-token "$(claude setup-token)"
 ```
 
-You can also upgrade from inside the office: **☰ → ⬆️ Upgrade the office**. Other flags (`--region`, `--instance-type`, `--disk`, `--name` for several offices) are in `deploy/aws.sh help`, and the details are in [docs/aws.md](docs/aws.md).
+`up` legt eine eigene Ressourcengruppe `open-agentic-office` an und startet eine **Standard_D4as_v5** (4 vCPU, 16 GiB) mit Ubuntu 24.04, 64-GiB-Premium-SSD und statischer IP; die Firewall öffnet nur SSH für deine IP. Alle Befehle des AWS-Skripts gibt es auch hier. Einzelheiten: [docs/azure.md](docs/azure.md).
 
-## Deploy to Azure
+## Auf Railway bereitstellen
 
-The same thing on an Azure VM, using only the Azure CLI. You need the **Azure CLI signed in** (`az login`), `ssh`, `curl` and a clone of this repo:
-
-```bash
-git clone https://github.com/AgentSystemLabs/agent-office && cd agent-office
-deploy/azure.sh up --project your-org/your-repo --claude-token "$(claude setup-token)"
-```
-
-`up` puts everything in a resource group of its own, `agent-office`, and launches a **Standard_D4as_v5** VM (4 vCPU and 16 GiB, like the t3.xlarge on AWS, at about the same price) with Ubuntu 24.04, a 64 GiB Premium SSD and a static IP. Its firewall opens **only SSH, only to your IP**. Then it runs the same [`deploy/provision.sh`](deploy/provision.sh) and opens the office through an SSH tunnel at http://localhost:4600. **The first page shows the office password once. Write it down.**
-
-Every command from the AWS script works the same, with `deploy/azure.sh` in its place: `open`, `status`, `logs`, `ssh`, `update`, `invite`, `allow`, `service`, `resize Standard_D8as_v5`, `pause` (deallocates the VM, so only the disk and IP are billed), `resume` and `destroy` (deletes the resource group). One more, `connect`, lets a second computer manage the office. `--location` picks the region (default: your `az` default location, else `eastus`), `--subscription` the subscription and `--size` the VM size. The details are in [docs/azure.md](docs/azure.md).
-
-## Deploy to Railway
-
-No machine to look after: one script, using the Railway CLI. You need the **Railway CLI 5 or newer, logged in** (`railway login`), `ssh`, `curl`, Node.js and a clone of this repo:
+Keine Maschine zu pflegen: ein Skript mit der Railway CLI (5 oder neuer, `railway login`):
 
 ```bash
-git clone https://github.com/AgentSystemLabs/agent-office && cd agent-office
 deploy/railway.sh up --claude-token "$(claude setup-token)"
 ```
 
-In about five minutes, `up`:
+Es baut den Container aus [`deploy/container/Dockerfile`](deploy/container/Dockerfile) (Rust-Multi-Stage-Build), hängt ein **Volume auf `/data`** an und öffnet nur SSH über Railways TCP-Proxy; das Office erreichst du über einen SSH-Tunnel. Einzelheiten: [docs/railway.md](docs/railway.md).
 
-1. Creates a Railway project with one service, built from this checkout with [`deploy/container/Dockerfile`](deploy/container/Dockerfile): Node 22, git, the GitHub CLI and sshd, with Claude Code installed on first start.
-2. Adds a **volume on `/data`** for everything the office keeps: the password, accounts, floors and settings, the projects, Claude's and GitHub's sign-ins, teammates' keys and the SSH host key. Restarts and redeploys replace the container, never the volume.
-3. Puts Railway's **TCP proxy** in front of the container's SSH, and nothing else. The office listens on `127.0.0.1:4600` inside the container and has no public URL: everyone reaches it through an SSH tunnel, as on AWS.
-4. Opens a tunnel and your browser at http://localhost:4600. **The first page shows the office password once. Write it down.**
+## Auf Fly.io bereitstellen
 
-The agents and GitHub sign in as on AWS: `--claude-token`, `--anthropic-api-key`, `--github-token` or `--no-github-token`.
+Derselbe Container auf einer [Fly.io](https://fly.io)-Maschine (`fly auth login`):
 
 ```bash
-deploy/railway.sh open              # tunnel + open the office (Ctrl-C closes the tunnel)
-deploy/railway.sh status            # deployment, SSH address, volume, is the office up, who's invited
-deploy/railway.sh invite octocat    # let a teammate tunnel in with their GitHub SSH keys
-deploy/railway.sh logs              # follow the office's logs (ssh: a shell in the container)
-deploy/railway.sh update            # build this checkout again and redeploy it
-deploy/railway.sh destroy           # delete the project and its volume (asks first)
-```
-
-The details, and what's on the volume, are in [docs/railway.md](docs/railway.md).
-
-## Deploy to Fly.io
-
-The same container on a [Fly.io](https://fly.io) machine, using flyctl. You need **flyctl logged in** (`fly auth login`), `ssh`, `curl`, Node.js and a clone of this repo:
-
-```bash
-git clone https://github.com/AgentSystemLabs/agent-office && cd agent-office
 deploy/fly.sh up --claude-token "$(claude setup-token)"
 ```
 
-In a few minutes, `up`:
+Einzelheiten und Maschinengrößen: [docs/fly.md](docs/fly.md).
 
-1. Creates a Fly app with one machine, a `shared-cpu-4x` with 8 GB in the region nearest you, built from this checkout with the same [`deploy/container/Dockerfile`](deploy/container/Dockerfile) as on Railway.
-2. Adds a **volume on `/data`** for everything the office keeps, so restarts, redeploys and resizes lose none of it.
-3. Gives the app a **dedicated IPv4 address** with SSH on a random port, and nothing else. The office listens on `127.0.0.1:4600` inside the machine and has no public URL: everyone reaches it through an SSH tunnel, as on AWS.
-4. Opens a tunnel and your browser at http://localhost:4600. **The first page shows the office password once. Write it down.**
+## Auf Dokploy bereitstellen
 
-The agents and GitHub sign in as on AWS: `--claude-token`, `--anthropic-api-key`, `--github-token` or `--no-github-token`.
+Du hast schon einen [Dokploy](https://dokploy.com)-Server? Ein Skript stellt das Office über dessen API darauf:
 
 ```bash
-deploy/fly.sh open                    # tunnel + open the office (Ctrl-C closes the tunnel)
-deploy/fly.sh status                  # machine, SSH address, volume, is the office up, who's invited
-deploy/fly.sh invite octocat          # let a teammate tunnel in with their GitHub SSH keys
-deploy/fly.sh logs                    # follow the office's logs (ssh: a shell in the machine)
-deploy/fly.sh update                  # build this checkout again and redeploy it
-deploy/fly.sh resize performance-2x   # another machine size, same address and volume
-deploy/fly.sh pause                   # stop the machine (resume starts it again)
-deploy/fly.sh destroy                 # delete the app and its volume (asks first)
-```
-
-`--region`, `--org`, `--vm-size`, `--memory`, `--disk` and `--name` (for several offices) are in `deploy/fly.sh help`. The details, and what's on the volume, are in [docs/fly.md](docs/fly.md).
-
-## Deploy to Dokploy
-
-Already run a [Dokploy](https://dokploy.com) server? One script puts the office on it, through Dokploy's API. You need an **API key** (Dokploy: **Settings → Profile → API/CLI Keys**, with rate limiting off), `ssh`, `curl`, `git`, Node.js and a clone of this repo:
-
-```bash
-git clone https://github.com/AgentSystemLabs/agent-office && cd agent-office
-export DOKPLOY_API_KEY=<your key>
+export DOKPLOY_API_KEY=<dein Schlüssel>
 deploy/dokploy.sh up --url https://dokploy.example.com --claude-token "$(claude setup-token)"
 ```
 
-In about five minutes, `up`:
+Einzelheiten: [docs/dokploy.md](docs/dokploy.md).
 
-1. Creates a Dokploy project with one application, and uploads this checkout for Dokploy to build with [`deploy/container/Dockerfile`](deploy/container/Dockerfile), the same image as on Railway.
-2. Mounts a **Docker volume on `/data`** for everything the office keeps. Deploys and restarts replace the container, never the volume.
-3. Publishes the container's SSH on **port 2222 of the server** (`--ssh-port` picks another), and nothing else: no domain, and the office listens on `127.0.0.1:4600` inside the container. Everyone reaches it through an SSH tunnel, as on AWS. A firewall in front of the server has to let that port through.
-4. Opens a tunnel and your browser at http://localhost:4600. **The first page shows the office password once. Write it down.**
+## Auf einem beliebigen Ubuntu- oder Debian-Server bereitstellen
 
-The agents and GitHub sign in as on AWS: `--claude-token`, `--anthropic-api-key`, `--github-token` or `--no-github-token`. `--server <name>` runs it on one of Dokploy's remote servers.
+Eine Zeile auf dem Server, als root oder als Benutzer mit sudo:
 
 ```bash
-deploy/dokploy.sh open              # tunnel + open the office (Ctrl-C closes the tunnel)
-deploy/dokploy.sh status            # its page in Dokploy, last deployment, SSH address, who's invited
-deploy/dokploy.sh invite octocat    # let a teammate tunnel in with their GitHub SSH keys
-deploy/dokploy.sh logs              # follow the office's logs (ssh: a shell in the container)
-deploy/dokploy.sh update            # upload this checkout again, build it and redeploy it
-deploy/dokploy.sh destroy           # delete the application and its volume (asks first)
+curl -fsSL https://raw.githubusercontent.com/Luna-OS/OpenAgenticOffice/main/deploy/provision.sh | bash
 ```
 
-The details, and what's on the volume, are in [docs/dokploy.md](docs/dokploy.md).
+Das installiert git, die GitHub CLI, Claude Code und das Office als systemd-Dienst. Als root legt es einen Benutzer `agentoffice` an, damit Arbeiter nie als root laufen. Das Office hört nur auf `127.0.0.1:4600`; am Ende gibt das Skript den SSH-Tunnel-Befehl aus. Dieselbe Zeile noch einmal aktualisiert. Für HTTPS auf deiner Domain: `bash -s -- --domain office.example.com` (Caddy), für Tailscale: `bash -s -- --tailscale`. Mehr in [docs/self-hosting.md](docs/self-hosting.md).
 
-## Deploy to any Ubuntu or Debian server
+## Nutzer hinzufügen
 
-Another cloud, or your own machine? Run one line on the server, as root or as a user with sudo:
+Jeder bekommt ein eigenes Konto, damit sein Name an seiner Figur, im Chat und an jedem Terminal steht, in das er tippt.
+
+**1. Auf einem Server zuerst hereinlassen.** Auf einem Tailscale-Office kann jeder in deinem Tailnet schon hinein. Sonst ist das Office nur über einen SSH-Tunnel erreichbar, also braucht ein Teammitglied seinen SSH-Schlüssel auf der Maschine: Im Office **☰ → 👥 Team einladen** und den GitHub-Namen eintippen, oder im Terminal:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/AgentSystemLabs/agent-office/main/deploy/provision.sh | bash
+deploy/aws.sh invite octocat        # installiert die Schlüssel von github.com/octocat.keys
+deploy/aws.sh allow 203.0.113.7     # ihre IP ("allow anywhere" öffnet SSH für alle)
 ```
 
-It installs Node 22, git, the GitHub CLI, Claude Code and the office as a systemd service. Run as root, it creates an `agentoffice` user to run the office, so workers never run as root. The office listens on `127.0.0.1:4600` only, and the script ends by printing the SSH tunnel command and a link that shows the office password once. Run the same line again to update.
+Mit Railway, Fly.io und Dokploy geht es genauso (`deploy/railway.sh invite …`). Es gibt den Befehl aus, den du schickst; sie lassen ihn laufen und öffnen http://localhost:4600:
 
-For HTTPS on your own domain, point a DNS record at the server and add `bash -s -- --domain office.example.com`: it sets up Caddy, which gets the certificate by itself. To put it on your Tailscale network instead, add `bash -s -- --tailscale`. The details, and setting it up by hand behind Caddy or nginx, are in [docs/self-hosting.md](docs/self-hosting.md).
+```
+ssh -L 4600:localhost:4600 office@<deine-office-ip>
+```
 
-## Add users
-
-Everyone gets their own account, so their name is on their character, in chat and on every terminal they type into.
-
-**1. On a server, let them in first.** On a [Tailscale](docs/aws.md#tailscale) office, everyone on your tailnet can already open it. For someone who isn't, share the machine with them from Tailscale's Machines page: **☰ → 👥 Invite teammates** says how. Skip to step 2.
-
-Otherwise the office is only reachable through an SSH tunnel, so a teammate needs their SSH key on the machine. In the office, open **☰ → 👥 Invite teammates** and type their GitHub username. On AWS, Railway, Fly.io or Dokploy you can also do it from your terminal:
+**2. Ein Konto anlegen.** **☰ → 🔑 Konten** öffnen und einen Einladungslink erzeugen (Name vorgeben oder wählen lassen; *Mitglied* oder *Admin*). Der Link gilt einmal, 7 Tage, und die Person wählt ihr Passwort selbst (`/beitreten#…`). Leg auch dir selbst eins an, als Admin. Dasselbe geht im Terminal der Office-Maschine, auch während es läuft:
 
 ```bash
-deploy/aws.sh invite octocat        # installs the keys from github.com/octocat.keys
-deploy/aws.sh allow 203.0.113.7     # their IP ("allow anywhere" opens SSH to every IP)
-deploy/railway.sh invite octocat    # on Railway, SSH answers every IP already
-deploy/fly.sh invite octocat        # and on Fly.io
-deploy/dokploy.sh invite octocat    # and on Dokploy
+open-agentic-office konten liste                # Konten und offene Einladungen
+open-agentic-office konten einladen ada --admin # gibt einen einmaligen /beitreten#…-Link aus
+open-agentic-office konten rolle ada mitglied
+open-agentic-office konten entziehen ada        # in Sekunden abgemeldet
 ```
 
-It prints the command to send them. They leave it running and open http://localhost:4600:
+**Eigenes Claude und GitHub.** Mit Konten laufen die Arbeiter jedes Einzelnen auf seinem eigenen Claude-Abo, und das Office handelt auf GitHub als er: Kommentare, Merges, Labels, Pushes und PRs erscheinen unter seinem Namen. Beim ersten Beitritt öffnet sich **🔐 Deine Anmeldungen** (auch im ☰-Menü): *Mit Claude anmelden* und *Mit GitHub anmelden* (Einmalcode für github.com/login/device), oder ein Token einfügen. Admins können das Claude des Hosts mit allen teilen. Die Anmeldungen jedes Kontos liegen getrennt unter `homes/<konto>/` im Datenordner; das Konto zu entziehen löscht sie.
 
-```
-ssh -L 4600:localhost:4600 office@<your-office-ip>
-```
+**3. Das gemeinsame Passwort abschalten.** Bis dahin kommt jeder, der das Office-Passwort kennt, als Admin hinein. Sind alle angelegt, schalte es in **🔑 Konten** aus oder mit `open-agentic-office konten passwort aus`.
 
-(On Railway and Fly.io the address carries a port of its own, like `ssh://office@zephyr.proxy.rlwy.net:17738`. On Dokploy it's the server's SSH port for the office: `ssh://office@203.0.113.7:2222`.)
+**Jemanden entfernen.** Das Konto in **🔑 Konten** entziehen und auf einem Server zusätzlich in **👥 Team einladen** entfernen (`deploy/aws.sh uninvite <name>`), damit seine SSH-Schlüssel verschwinden. Ist das gemeinsame Passwort noch an, ändere es mit `deploy/aws.sh reset-password`.
 
-Their key logs in as a locked-down `office` user that can only forward to the office port: no shell, no other ports. Running the office on your own computer, or on your own domain over HTTPS? Skip this step.
+## Steuerung
 
-**2. Make them an account.** Open **☰ → 🔑 Accounts** and make an invite link. Name it (or let them pick) and make them a *Member* or an *Admin*. The link works once, for 7 days, and they choose their own password. Make one for yourself too, as an admin.
-
-The same works from a terminal on the office's machine, even while it runs:
-
-```bash
-agent-office accounts                      # accounts and open invites
-agent-office accounts invite ada --admin   # prints a single-use /join#… link
-agent-office accounts role ada member
-agent-office accounts revoke ada           # signed out within seconds
-```
-
-On the EC2 machine, run it through `deploy/aws.sh ssh` (on Azure, `deploy/azure.sh ssh`):
-
-```bash
-deploy/aws.sh ssh 'node /opt/agent-office/bin/agent-office.js accounts invite ada --dir "$(cat /etc/agent-office/home)"'
-deploy/railway.sh ssh 'node /opt/agent-office/bin/agent-office.js accounts invite ada'   # on Railway
-deploy/fly.sh ssh 'node /opt/agent-office/bin/agent-office.js accounts invite ada'       # on Fly.io
-deploy/dokploy.sh ssh 'node /opt/agent-office/bin/agent-office.js accounts invite ada'   # on Dokploy
-```
-
-**Their own Claude and GitHub.** With accounts, everyone's workers run on their own Claude plan, and the office acts on GitHub as them: comments, merges, labels, pushes and pull requests show up under their name. Or share the host's: in **🔑 Accounts**, **✳️ The office’s own Claude → Share it with everyone** lets every member pick **Use the host’s Claude** in **🔐 Your sign-ins** instead of their own, and switch back any time. The first time someone comes in, **🔐 Your sign-ins** opens (it's in the **☰** menu too). *Sign in with Claude* gives them Claude's sign-in page and takes back the code it shows. *Sign in with GitHub* shows a one-time code for github.com/login/device. They can paste a token from `claude setup-token`, or a GitHub token, instead. A 🐚 shell they open at a desk runs as them, so `claude auth login` and `gh auth login` typed there work too. Admins can use the office machine's own sign-ins instead. Each account's sign-ins live in `.agent-office/homes/<account>/`, and revoking the account deletes them. The boards are read with the machine's own `gh`, so that account needs read access to the repos. Running it just for yourself, with no accounts, none of this applies.
-
-**3. Turn off the shared password.** Until you do, anyone who knows the office password can get in, as an admin. Once everyone has an account, switch it off in **🔑 Accounts** (signed in with your own admin account), or `agent-office accounts password off`.
-
-**Removing someone.** Revoke their account in **🔑 Accounts** (or `agent-office accounts revoke <name>`), and on a server also remove them in **👥 Invite teammates** (on AWS, `deploy/aws.sh uninvite <name>`; on Railway, `deploy/railway.sh uninvite <name>`; on Fly.io, `deploy/fly.sh uninvite <name>`; on Dokploy, `deploy/dokploy.sh uninvite <name>`) to take away their SSH keys and drop open tunnels (other teammates just reconnect). If the shared password is still on, change it with `deploy/aws.sh reset-password` (or `deploy/railway.sh reset-password`, `deploy/fly.sh reset-password` or `deploy/dokploy.sh reset-password`).
-
-## Controls
-
-| Key | Action |
+| Taste | Aktion |
 | --- | --- |
-| W A S D | Walk (hold Shift to run) |
-| Space | Jump |
-| Mouse drag / wheel | Orbit / zoom the camera |
-| E | Interact: hire a worker, open its terminal, read a board, sit down, ride the elevator |
-| P | Give a task to a new worker, or to the one at this desk |
-| C | See a worker's changes: diff, commit, open a PR |
-| N | Go to the next worker that's waiting on you |
-| X | Send a worker home |
-| L | Hang a sign over a desk ("Operations", "Code cleanup") |
+| W A S D | Laufen (mit Shift rennen) |
+| Leertaste | Springen |
+| Maus | Umsehen (Klick ins Bild fängt die Maus) |
+| E / Klick | Benutzen: Arbeiter einstellen, Terminal öffnen, Tafel lesen, hinsetzen, Aufzug fahren |
+| P | Einem neuen Arbeiter oder dem an diesem Schreibtisch eine Aufgabe geben |
+| C | Änderungen eines Arbeiters ansehen: Diff, Commit, PR öffnen |
+| N | Zum nächsten Arbeiter gehen, der auf dich wartet |
+| X | Einen Arbeiter nach Hause schicken |
+| L | Ein Schild über einen Schreibtisch hängen |
 | T / Enter | Chat |
-| V | Join voice; then hold V to talk |
-| M | Mute / unmute in voice |
-| Tab | The ☰ menu: every window |
-| Esc | Close any window |
-| Ctrl + [ | Send Esc to a terminal, to close a menu like Claude's `/skills` or interrupt Claude (or **⎋ Esc** in its header) |
+| V | Sprache betreten; dann V halten zum Sprechen |
+| M | In der Sprache stumm / laut |
+| Tab | Das ☰-Menü: alle Fenster |
+| Strg + K | Befehlspalette |
+| Esc | Jedes Fenster schließen – du bist sofort zurück in der Maus-Steuerung |
+| Strg + [ | Esc an ein Terminal schicken (oder **⎋ Esc** in dessen Kopf) |
 
-The full list is in [docs/controls.md](docs/controls.md).
+Die vollständige Liste steht in [docs/controls.md](docs/controls.md).
 
-## Development
+## Entwicklung
 
 ```bash
-npm install
-npm run dev          # Vite with hot reload on :5173, the server on :4600 (password: dev)
-npm run typecheck
-npm test
+cargo check --workspace
+cargo test --workspace
+cargo clippy --workspace
+cd crates/client && trunk serve      # Browser-Client mit Neuladen, Ziel wasm32-unknown-unknown
+cargo run -p server                  # der Server auf :4600
 ```
 
-Server edits restart the server, not the workers. After changing `ptyhost.ts`, bump `PTY_PROTOCOL` in `ptys.ts` so the next server replaces the PTY host.
+Damit parallele Builds sich nicht blockieren, baut jeder mit eigenem Zielordner (`CARGO_TARGET_DIR=target/<label>`). [docs/code-layout.md](docs/code-layout.md) sagt, wo der Code liegt und wo die Teile eines neuen Features hingehören. `cargo test -p pruefungen` hält die Dateigrößen (höchstens 600 Zeilen), „nur Rust“ und die Struktur der `main.rs`-Dateien ein. CI: [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
 
-[docs/code-layout.md](docs/code-layout.md) says where the code lives, and where a new feature's pieces go.
+## Mehr
 
-Every change to the app that lands on `main` is published as a GitHub release by [`.github/workflows/release.yml`](.github/workflows/release.yml), and `install.sh` installs the newest one. Bump `package.json`'s version to start a new minor.
+- [Connector](docs/connector.md): die App für Windows und macOS: einer Lobby beitreten, mit eigenem Claude und GitHub anmelden, das Office im Browser
+- [Windows-App](docs/windows-app.md) und [Mac-App](docs/mac-app.md): die Installer
+- [Online-Lobby](docs/online-lobby.md): das Office auf deinem Umbrel
+- [Umbrel-App](docs/umbrel.md): woraus die App besteht und wie du sie in deinen Community-App-Store bringst
+- [Funktionen](docs/features.md): alles im Office, Raum für Raum
+- [Agenten](docs/agents.md): Anbieter, Modelle, Agent-zu-Agent-Kommunikation und die Prompts des Office
+- [Konfiguration](docs/configuration.md): jede Kommandozeilenoption, Umgebungsvariablen und wo die Daten liegen
+- [Steuerung](docs/controls.md): alle Tasten
+- [AWS](docs/aws.md) · [Azure](docs/azure.md) · [Railway](docs/railway.md) · [Fly.io](docs/fly.md) · [Dokploy](docs/dokploy.md) · [Eigener Server](docs/self-hosting.md)
+- [Funktionsweise](docs/how-it-works.md): die Architektur und Sicherheitshinweise
+- [Code-Aufbau](docs/code-layout.md): Crates, Register, ein Feature oder einen Anbieter hinzufügen, der Größen-Wächter
 
-## More
-
-- [Connector](docs/connector.md): the app for Windows and macOS: join a lobby, sign in with your own Claude and GitHub, the office in your browser
-- [Windows app](docs/windows-app.md): the Windows installer, and Claude Code on your Claude subscription without an API key
-- [Mac app](docs/mac-app.md): the same app for macOS (Apple silicon and Intel)
-- [Online lobby](docs/online-lobby.md): the office on your Umbrel, joined from the connector, with the host's AI or each player's own
-- [Umbrel app](docs/umbrel.md): what the Umbrel app is made of, and putting it in your community app store with `deploy/umbrel/publish.sh`
-- [Features](docs/features.md): everything in the office, room by room
-- [Agents](docs/agents.md): Claude Code, Codex and OpenCode, models and effort, and the office's prompts
-- [Configuration](docs/configuration.md): every command-line option, and where the office keeps its data
-- [Maps](docs/maps.md): the castle, and making a map of your own
-- [AWS reference](docs/aws.md): Tailscale, service tunnels, upgrades, and everything `deploy/aws.sh` does
-- [Railway reference](docs/railway.md): what `deploy/railway.sh` sets up, and what the volume keeps
-- [Fly.io reference](docs/fly.md): what `deploy/fly.sh` sets up, machine sizes, pausing and what the volume keeps
-- [Dokploy reference](docs/dokploy.md): what `deploy/dokploy.sh` sets up on your Dokploy, and what the volume keeps
-- [Your own server](docs/self-hosting.md): the one-line setup for any Ubuntu or Debian server, or by hand behind Caddy or nginx
-- [Azure reference](docs/azure.md): picking a VM size, pausing, and everything `deploy/azure.sh` does
-- [How it works](docs/how-it-works.md): the architecture, and security notes
-- [Code layout](docs/code-layout.md): where the code lives, adding a feature or an agent provider, and the size guard
-
-## License
+## Lizenz
 
 [MIT](LICENSE)

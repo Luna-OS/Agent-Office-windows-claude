@@ -9,9 +9,28 @@ license.workspace = true
 name = "open-agentic-office"
 path = "src/main.rs"
 
+[lib]
+name = "server"
+path = "src/lib.rs"
+
 [dependencies]
 protokoll.workspace = true
-agenten.workspace = true
-medien.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+anyhow = "1"
+axum = { version = "0.8", features = ["ws"] }
+tokio = { version = "1", features = ["full"] }
+tower-http = { version = "0.6", features = ["fs"] }
+futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+rand = "0.9"
+hmac = "0.12"
+sha2 = "0.10"
+scrypt = { version = "0.11", default-features = false }
+base64 = "0.22"
+open = "5"
+
+[dev-dependencies]
+tempfile = "3"
+tokio-tungstenite = "0.27"

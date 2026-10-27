@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Deploy your own Agent Office to Railway with one command, using the Railway CLI.
+# Deploy your own OpenAgenticOffice to Railway with one command, using the Railway CLI.
 #
 #   deploy/railway.sh up        create the project, build and start the office, open it
 #   deploy/railway.sh open      tunnel to the office and open it in your browser
@@ -14,7 +14,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-NAME="agent-office"
+NAME="open-agentic-office"
 WORKSPACE=""
 GH_TOKEN_ARG=""
 NO_GH_TOKEN=0
@@ -32,7 +32,7 @@ LOCAL_PORT_SET=0
 
 usage() {
   cat <<'EOF'
-Agent Office on Railway — one command up, one command down.
+OpenAgenticOffice on Railway — one command up, one command down.
 
 Usage: deploy/railway.sh <command> [options]
 
@@ -63,7 +63,7 @@ Commands
   reset-password     Forget the password and show a new one once in your browser
 
 Options
-  --name <name>             Office name (default: agent-office). Several offices = several projects
+  --name <name>             Office name (default: open-agentic-office). Several offices = several projects
   --workspace <name|id>     Railway workspace for a new project (needed if you're in more than one)
   --port <n>                Local port for the tunnel (default: 4600, or the next free one)
   --github-token <token>    GitHub token for private repos + the issue/PR boards
@@ -117,9 +117,9 @@ CMD="${CMD:-help}"
 
 [[ "$NAME" =~ ^[a-zA-Z0-9-]+$ ]] || die "--name may only contain letters, numbers and dashes"
 [[ "$LOCAL_PORT" =~ ^[0-9]+$ && $LOCAL_PORT -gt 0 && $LOCAL_PORT -lt 65536 ]] || die "--port must be a port number"
-STATE_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/agent-office/railway/$NAME"
+STATE_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/open-agentic-office/railway/$NAME"
 NAME_FLAG=""
-[[ "$NAME" != "agent-office" ]] && NAME_FLAG=" --name $NAME"
+[[ "$NAME" != "open-agentic-office" ]] && NAME_FLAG=" --name $NAME"
 KEY_FILE="$STATE_DIR/id_ed25519"
 KNOWN_HOSTS="$STATE_DIR/known_hosts"
 CLAIM_FILE="$STATE_DIR/claim-token"
@@ -395,9 +395,9 @@ service_tunnel() {
 
 open_office() {
   local claimable path="/"
-  claimable=$(office_get /api/claim 2>/dev/null || true)
+  claimable=$(office_get /api/beanspruchen 2>/dev/null || true)
   if [[ "$claimable" == *'"claimable":true'* && -f "$CLAIM_FILE" ]]; then
-    path="/claim?t=$(cat "$CLAIM_FILE")"
+    path="/beanspruchen?t=$(cat "$CLAIM_FILE")"
     say "Opening the one-time password page — write the password down, it is never shown again"
   fi
   tunnel "$path"
@@ -405,14 +405,14 @@ open_office() {
 
 valid_member() { [[ "$1" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,38}$ ]] || die "names are letters, numbers, dots, dashes and underscores: $1"; }
 
-team_members() { remote "agent-office-team list"; } # "<name> <number of keys>" per line
+team_members() { remote "open-agentic-office-team list"; } # "<name> <number of keys>" per line
 
 # --- commands --------------------------------------------------------------------------------------
 
 cmd_up() {
   preflight
   need ssh-keygen
-  [[ -f "$REPO_DIR/$DOCKERFILE" ]] || die "run this from a clone of agent-office ($DOCKERFILE is missing)"
+  [[ -f "$REPO_DIR/$DOCKERFILE" ]] || die "run this from a clone of open-agentic-office ($DOCKERFILE is missing)"
 
   local gh_token="$GH_TOKEN_ARG"
   if [[ -z "$gh_token" && $NO_GH_TOKEN -eq 0 ]] && command -v gh >/dev/null 2>&1; then
@@ -420,7 +420,7 @@ cmd_up() {
   fi
   [[ $NO_GH_TOKEN -eq 1 ]] && gh_token=""
 
-  say "Agent Office \"$NAME\" on Railway ($(railway whoami --json 2>/dev/null | json 'j.name || j.email' || true))"
+  say "OpenAgenticOffice \"$NAME\" on Railway ($(railway whoami --json 2>/dev/null | json 'j.name || j.email' || true))"
   echo "   app:      this checkout, built with $DOCKERFILE"
   echo "   data:     a volume on /data: accounts, floors, projects (~/workspace), sign-ins, team keys"
   echo "   access:   SSH tunnel only (the office is never exposed), through Railway's TCP proxy"
@@ -437,7 +437,7 @@ cmd_up() {
 
   mkdir -p "$STATE_DIR"
   chmod 700 "$STATE_DIR"
-  [[ -f "$KEY_FILE" ]] || ssh-keygen -q -t ed25519 -N '' -C "agent-office-$NAME" -f "$KEY_FILE"
+  [[ -f "$KEY_FILE" ]] || ssh-keygen -q -t ed25519 -N '' -C "open-agentic-office-$NAME" -f "$KEY_FILE"
   [[ -f "$CLAIM_FILE" ]] || (umask 077 && random_token >"$CLAIM_FILE")
 
   ensure_project
@@ -448,8 +448,8 @@ cmd_up() {
   # office's panels suggest this script's commands. (The container finds its SSH address in the
   # variables Railway sets for the TCP proxy.)
   rw variable set $(svc) --skip-deploys "RAILWAY_DOCKERFILE_PATH=$DOCKERFILE" \
-    "AGENT_OFFICE_ADMIN_KEYS=$(cat "$KEY_FILE.pub")" "AGENT_OFFICE_CLAIM_TOKEN=$(cat "$CLAIM_FILE")" \
-    "AGENT_OFFICE_DEPLOY_SCRIPT=deploy/railway.sh$NAME_FLAG" </dev/null >/dev/null || die "couldn't set the service's variables"
+    "OAO_ADMIN_KEYS=$(cat "$KEY_FILE.pub")" "OFFICE_BEANSPRUCH_TOKEN=$(cat "$CLAIM_FILE")" \
+    "OFFICE_DEPLOY_SKRIPT=deploy/railway.sh$NAME_FLAG" </dev/null >/dev/null || die "couldn't set the service's variables"
   [[ -z "$CLAUDE_TOKEN" ]] || printf '%s' "$CLAUDE_TOKEN" | rw variable set $(svc) --skip-deploys --stdin CLAUDE_CODE_OAUTH_TOKEN >/dev/null
   [[ -z "$ANTHROPIC_KEY" ]] || printf '%s' "$ANTHROPIC_KEY" | rw variable set $(svc) --skip-deploys --stdin ANTHROPIC_API_KEY >/dev/null
   # Railway's default only restarts a crashed office a few times.
@@ -558,9 +558,9 @@ cmd_invite() {
   require_office
   local n fp
   # The container keeps only valid keys and restricts each one to opening the tunnel.
-  n=$(printf '%s\n' "$raw" | remote "agent-office-team add $who") || die "couldn't add $who's keys from $src"
+  n=$(printf '%s\n' "$raw" | remote "open-agentic-office-team add $who") || die "couldn't add $who's keys from $src"
   ok "$who is invited ($n key(s) from $src)"
-  fp=$(remote "agent-office-team fingerprint")
+  fp=$(remote "open-agentic-office-team fingerprint")
   echo
   echo "   Send $who this:"
   echo
@@ -578,7 +578,7 @@ cmd_uninvite() {
   local who="${POSITIONAL[0]}" out rc=0
   valid_member "$who"
   require_office
-  out=$(remote "agent-office-team remove $who" 2>&1) || rc=$?
+  out=$(remote "open-agentic-office-team remove $who" 2>&1) || rc=$?
   [[ $rc -eq 66 ]] && die "$who isn't invited (see: deploy/railway.sh team$NAME_FLAG)"
   [[ $rc -eq 0 ]] || die "couldn't remove the keys: $out"
   ok "$who's keys are removed and open tunnels were dropped (other teammates just reconnect)"
@@ -615,10 +615,10 @@ cmd_reset_password() {
   require_office
   (umask 077 && random_token >"$CLAIM_FILE")
   say "Resetting the office password"
-  rw variable set $(svc) --skip-deploys "AGENT_OFFICE_CLAIM_TOKEN=$(cat "$CLAIM_FILE")" >/dev/null || die "couldn't set the new claim token"
+  rw variable set $(svc) --skip-deploys "OFFICE_BEANSPRUCH_TOKEN=$(cat "$CLAIM_FILE")" >/dev/null || die "couldn't set the new claim token"
   local was
   was=$(started)
-  remote "node /opt/agent-office/bin/agent-office.js --reset-password >/dev/null" || die "reset failed"
+  remote "/opt/open-agentic-office/open-agentic-office --daten ~/open-agentic-office --passwort-zuruecksetzen >/dev/null" || die "reset failed"
   # A redeploy, so the office starts with the new claim token (and makes the new password).
   rw redeploy $(svc) --yes --json </dev/null >/dev/null || die "couldn't redeploy the office"
   wait_replaced "$was" || die "the office didn't come back — check: deploy/railway.sh logs$NAME_FLAG"

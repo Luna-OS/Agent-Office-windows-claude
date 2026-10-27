@@ -1,33 +1,29 @@
 name: Windows app
 
-# Builds the Agent Office Windows installer (desktop/, see docs/windows-app.md) on a Windows runner:
-# the office itself, its production dependencies with their Windows native modules, a node.exe, and
-# the Electron app around them, packed by electron-builder into Agent-Office-Setup-<version>.exe.
+# Baut die Windows-App (desktop/, siehe docs/windows-app.md) auf einem Windows-Runner: die Desktop-Hülle
+# (Rust, tao + wry), den Server, die Agenten-CLI, den Browser-Client (dist/), die GitHub CLI und die
+# Claude-Code-Verknüpfung, gepackt mit NSIS zu OpenAgenticOffice-Setup-<version>.exe.
 #
-# Every run uploads the installer as a workflow artifact. A push to main also publishes it as a
-# GitHub release (windows-v0.1.<commits on main>), so the newest one is always on the releases page.
+# Jeder Lauf lädt den Installer als Workflow-Artefakt hoch. Ein Push auf main veröffentlicht ihn
+# zusätzlich als GitHub-Release (windows-v0.1.<Commits auf main>), neben dem mac-v…-Release der Mac-App.
 
 on:
   push:
     branches: [main]
     paths:
-      - 'src/**'
-      - 'bin/**'
+      - 'crates/**'
       - 'desktop/**'
-      - 'package.json'
-      - 'package-lock.json'
-      - 'tsconfig*.json'
-      - 'vite.config.ts'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'rust-toolchain.toml'
       - '.github/workflows/windows-app.yml'
   pull_request:
     paths:
-      - 'src/**'
-      - 'bin/**'
+      - 'crates/**'
       - 'desktop/**'
-      - 'package.json'
-      - 'package-lock.json'
-      - 'tsconfig*.json'
-      - 'vite.config.ts'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'rust-toolchain.toml'
       - '.github/workflows/windows-app.yml'
   workflow_dispatch:
 
@@ -47,77 +43,70 @@ jobs:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # the version counts the commits on main
+          fetch-depth: 0 # die Version zählt die Commits auf main
 
-      - uses: actions/setup-node@v7
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: |
-            package-lock.json
-            desktop/package-lock.json
+          targets: wasm32-unknown-unknown
 
-      - name: Build the office
-        run: npm ci # its prepare script builds the client and the server
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            .
+            desktop
 
-      - name: Install the app's build tools
-        working-directory: desktop
-        run: npm ci
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: trunk
+
+      - name: Browser-Client bauen
+        working-directory: crates/client
+        run: trunk build --release
+
+      - name: Server und Agenten-CLI bauen
+        run: cargo build --release --locked -p server -p agenten
+
+      - name: Desktop-Hülle bauen
+        run: cargo build --release --locked --manifest-path desktop/Cargo.toml
 
       - name: Version
         id: version
-        working-directory: desktop
         run: |
-          version="$(node -p 'require("./package.json").version.split(".").slice(0, 2).join(".")').$(git rev-list --count HEAD)"
-          npm version "$version" --no-git-tag-version --allow-same-version
-          echo "version=$version" >> "$GITHUB_OUTPUT"
+          basis="$(grep -m1 '^version' desktop/Cargo.toml | sed -E 's/version *= *"([0-9]+\.[0-9]+).*/\1/')"
+          echo "version=$basis.$(git rev-list --count HEAD)" >> "$GITHUB_OUTPUT"
 
-      - name: Stage the office, node.exe and gh.exe
-        working-directory: desktop
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
+      - name: Ordner zusammenstellen
         run: |
-          npm run stage
-          ./staging/gh/gh.exe --version
+          s=desktop/staging
+          mkdir -p "$s/werkzeuge"
+          cp desktop/target/release/open-agentic-office-desktop.exe "$s/"
+          cp target/release/open-agentic-office.exe "$s/"
+          cp target/release/office-agenten.exe "$s/" 2>/dev/null || echo "Hinweis: keine office-agenten-CLI gebaut"
+          cp -R dist "$s/dist"
+          cp -R desktop/claude desktop/tools "$s/"
+          cp "$(which gh)" "$s/werkzeuge/gh.exe"
 
-      - name: Start the staged office once
-        working-directory: desktop/staging
+      - name: Installer packen
         run: |
-          home="$RUNNER_TEMP/office-home"
-          mkdir -p "$home"
-          ./node/node.exe office/bin/agent-office.js --home "$home" --host 127.0.0.1 --port 4700 --password ci --no-open > "$RUNNER_TEMP/office.log" 2>&1 &
-          office=$!
-          for _ in $(seq 60); do
-            code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:4700/login.html || true)
-            [ "$code" = 200 ] && break
-            sleep 1
-          done
-          cat "$RUNNER_TEMP/office.log"
-          kill "$office" || true
-          [ "$code" = 200 ] || { echo "the staged office didn't answer (last status: $code)"; exit 1; }
-
-      - name: Build the installer
-        working-directory: desktop
-        env:
-          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
-        run: npx electron-builder --win nsis --x64 --publish never
+          mkdir -p desktop/release
+          makensis //DVERSION=${{ steps.version.outputs.version }} //DQUELLE=desktop\\staging desktop/build/installer.nsi
 
       - uses: actions/upload-artifact@v4
         with:
-          name: Agent-Office-Setup-${{ steps.version.outputs.version }}
-          path: desktop/release/*.exe
+          name: OpenAgenticOffice-Setup
+          path: desktop/release/OpenAgenticOffice-Setup-*.exe
           if-no-files-found: error
 
-      - name: Publish
+      - name: Veröffentlichen
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: windows-v${{ steps.version.outputs.version }}
         run: |
           if gh release view "$TAG" > /dev/null 2>&1; then
-            echo "$TAG is already released"
+            echo "$TAG ist schon veröffentlicht"
             exit 0
           fi
-          gh release create "$TAG" desktop/release/*.exe --target "$GITHUB_SHA" --title "Agent Office für Windows $TAG" --generate-notes --latest
+          gh release create "$TAG" desktop/release/OpenAgenticOffice-Setup-*.exe --target "$GITHUB_SHA" --title "Windows-App $TAG" --generate-notes --latest=false

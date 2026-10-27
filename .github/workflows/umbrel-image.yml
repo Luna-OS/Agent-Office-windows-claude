@@ -1,35 +1,31 @@
 name: Umbrel image
 
-# Builds the office's container (deploy/container/Dockerfile) for the Umbrel app (deploy/umbrel, see
-# docs/umbrel.md): for amd64 (an Umbrel Home, any PC) and arm64 (a Raspberry Pi), each on a runner of
-# its own kind, so nothing is emulated. A push to main publishes both as one image,
-# ghcr.io/<owner>/agent-office:0.1.<commits on main> and :latest, which deploy/umbrel/publish.sh
-# puts in an Umbrel app store. A pull request builds both and pushes nothing.
+# Baut den Container des Office (deploy/container/Dockerfile, Rust-Mehrstufen-Build) für die Umbrel-App
+# (deploy/umbrel, siehe docs/umbrel.md): für amd64 (ein Umbrel Home, jeder PC) und arm64 (ein Raspberry Pi),
+# jeweils auf einem Runner der eigenen Art, also ohne Emulation. Ein Push auf main veröffentlicht beide als
+# ein Image, ghcr.io/<owner>/open-agentic-office:0.1.<Commits auf main> und :latest, das deploy/umbrel/publish.sh
+# in einen Umbrel-App-Store legt. Ein Pull Request baut beide und veröffentlicht nichts.
 
 on:
   push:
     branches: [main]
     paths:
-      - 'src/**'
-      - 'bin/**'
+      - 'crates/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'rust-toolchain.toml'
       - 'deploy/container/**'
       - 'deploy/provision.sh'
-      - 'package.json'
-      - 'package-lock.json'
-      - 'tsconfig*.json'
-      - 'vite.config.ts'
       - '.github/workflows/umbrel-image.yml'
   pull_request:
     paths:
-      - 'src/**'
-      - 'bin/**'
+      - 'crates/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'rust-toolchain.toml'
       - 'deploy/container/**'
       - 'deploy/provision.sh'
       - 'deploy/umbrel/**'
-      - 'package.json'
-      - 'package-lock.json'
-      - 'tsconfig*.json'
-      - 'vite.config.ts'
       - '.github/workflows/umbrel-image.yml'
   workflow_dispatch:
 
@@ -58,12 +54,12 @@ jobs:
       contents: read
       packages: write
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v4
 
-      - name: Image name
+      - name: Image-Name
         id: name
         run: |
-          echo "image=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/agent-office" >> "$GITHUB_OUTPUT"
+          echo "image=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/open-agentic-office" >> "$GITHUB_OUTPUT"
           echo "arch=${PLATFORM#linux/}" >> "$GITHUB_OUTPUT"
         env:
           PLATFORM: ${{ matrix.platform }}
@@ -77,8 +73,8 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ github.token }}
 
-      # On main, pushed by digest only: the merge job below tags both platforms' as one image.
-      - name: Build
+      # Auf main nur per Digest gepusht: der Job „publish“ unten taggt beide Plattformen als ein Image.
+      - name: Bauen
         id: build
         uses: docker/build-push-action@v6
         with:
@@ -87,30 +83,30 @@ jobs:
           platforms: ${{ matrix.platform }}
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
-            org.opencontainers.image.description=Agent Office, the 3D office your team shares with its coding agents (the Umbrel app's container)
+            org.opencontainers.image.description=OpenAgenticOffice, das 3D-Office, das dein Team mit seinen Coding-Agenten teilt (Container der Umbrel-App)
             org.opencontainers.image.licenses=MIT
-          outputs: ${{ env.PUBLISH == 'true' && format('type=image,name={0},push-by-digest=true,name-canonical=true,push=true', steps.name.outputs.image) || 'type=docker,name=agent-office:ci,dest=/tmp/office-image.tar' }}
+          outputs: ${{ env.PUBLISH == 'true' && format('type=image,name={0},push-by-digest=true,name-canonical=true,push=true', steps.name.outputs.image) || 'type=docker,name=open-agentic-office:ci,dest=/tmp/office-image.tar' }}
           cache-from: type=gha,scope=umbrel-${{ steps.name.outputs.arch }}
           cache-to: type=gha,mode=max,scope=umbrel-${{ steps.name.outputs.arch }}
 
-      # The image as the Umbrel runs it: no sshd, on 0.0.0.0 behind the app proxy, with its password.
-      - name: Start it the way the Umbrel app does
+      # Das Image so gestartet, wie die Umbrel es startet: auf 0.0.0.0 hinter dem App-Proxy, mit Passwort.
+      - name: Starten wie die Umbrel-App
         if: env.PUBLISH != 'true'
         run: |
           docker load -i /tmp/office-image.tar
           mkdir -p "$RUNNER_TEMP/data"
           docker run -d --name office -p 4600:4600 -v "$RUNNER_TEMP/data:/data" \
-            -e AGENT_OFFICE_SSHD=off -e AGENT_OFFICE_HOST=0.0.0.0 -e AGENT_OFFICE_TRUST_PROXY=1 -e AGENT_OFFICE_PASSWORD=ci-password agent-office:ci
+            -e OFFICE_HOST=0.0.0.0 -e OFFICE_PASSWORT=ci-passwort open-agentic-office:ci
+          code=000
           for _ in $(seq 120); do
-            code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:4600/login.html || true)
-            [ "$code" = 200 ] && break
+            code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:4600/ || true)
+            [ "$code" != 000 ] && break
             sleep 2
           done
           docker logs office
-          [ "$code" = 200 ] || { echo "the office didn't answer on 4600 (last status: $code)"; exit 1; }
-          ! docker exec office pgrep -x sshd || { echo "sshd runs although AGENT_OFFICE_SSHD=off"; exit 1; }
+          [ "$code" != 000 ] || { echo "Das Office hat auf Port 4600 nicht geantwortet"; exit 1; }
 
-      - name: Keep the digest
+      - name: Digest merken
         if: env.PUBLISH == 'true'
         run: |
           mkdir -p "$RUNNER_TEMP/digests"
@@ -134,9 +130,9 @@ jobs:
       contents: read
       packages: write
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # the version counts the commits on main
+          fetch-depth: 0 # die Version zählt die Commits auf main
 
       - uses: actions/download-artifact@v4
         with:
@@ -152,19 +148,20 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ github.token }}
 
-      - name: Tag both platforms as one image
+      - name: Beide Plattformen als ein Image taggen
         working-directory: ${{ runner.temp }}/digests
         run: |
-          image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/agent-office"
-          version="$(node -p 'require(process.env.GITHUB_WORKSPACE + "/package.json").version.split(".").slice(0, 2).join(".")').$(git -C "$GITHUB_WORKSPACE" rev-list --count HEAD)"
+          image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/open-agentic-office"
+          basis="$(grep -m1 '^version' "$GITHUB_WORKSPACE/Cargo.toml" | sed -E 's/version *= *"([0-9]+\.[0-9]+).*/\1/')"
+          version="$basis.$(git -C "$GITHUB_WORKSPACE" rev-list --count HEAD)"
           docker buildx imagetools create -t "$image:$version" -t "$image:latest" $(printf "$image@sha256:%s " *)
           docker buildx imagetools inspect "$image:$version"
           {
             echo "### $image:$version"
             echo
-            echo 'Put it in your Umbrel app store with:'
+            echo 'In deinen Umbrel-App-Store legst du es so:'
             echo
             echo '```sh'
-            echo 'deploy/umbrel/publish.sh <your app store checkout> --pr'
+            echo 'deploy/umbrel/publish.sh <dein App-Store-Checkout> --pr'
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"

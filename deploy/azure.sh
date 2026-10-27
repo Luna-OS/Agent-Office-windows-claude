@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Deploy your own Agent Office to Azure with one command, using only the Azure CLI.
+# Deploy your own OpenAgenticOffice to Azure with one command, using only the Azure CLI.
 #
 #   deploy/azure.sh up        create the VM, install and start the office, open it
 #   deploy/azure.sh open      tunnel to the office and open it in your browser
@@ -7,14 +7,14 @@
 #   deploy/azure.sh resume    start it again
 #   deploy/azure.sh destroy   delete everything it created (asks first)
 #
-# Everything goes in one resource group of its own (agent-office, or agent-office-<name>), so
+# Everything goes in one resource group of its own (open-agentic-office, or open-agentic-office-<name>), so
 # destroy is a single `az group delete`. The office is never exposed to the internet: it listens on
 # the VM's loopback and everyone reaches it through an SSH tunnel. Run `deploy/azure.sh help` for all
 # commands and options. It's deploy/aws.sh for Azure: same commands, same deploy/provision.sh.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-NAME="agent-office"
+NAME="open-agentic-office"
 # 4 vCPU and 16 GiB, like the t3.xlarge deploy/aws.sh uses, at about its price. Not the burstable
 # B4s_v2: a t3 on AWS bursts without limit by default, while a B-series VM that runs out of CPU
 # credits (under an hour of busy workers) slows to 40%.
@@ -39,11 +39,11 @@ TEAM_USER="office"   # teammates' keys log in as this user, which can only tunne
 OFFICE_PORT=4600     # where the office listens on the VM (127.0.0.1 only)
 LOCAL_PORT=4600
 LOCAL_PORT_SET=0
-SSH_RULE="agent-office-ssh" # the network security group's one inbound rule
+SSH_RULE="open-agentic-office-ssh" # the network security group's one inbound rule
 
 usage() {
   cat <<'EOF'
-Agent Office on Azure — one command up, one command down.
+OpenAgenticOffice on Azure — one command up, one command down.
 
 Usage: deploy/azure.sh <command> [options]
 
@@ -76,12 +76,12 @@ Commands
   logs               Follow the office's logs
   resize <size>      Change the VM size, e.g. Standard_D8as_v5 (stops it for a few minutes; the
                      address stays the same). `up --size <size>` does this too.
-  update             Install the latest agent-office on the VM and restart it
+  update             Install the latest open-agentic-office on the VM and restart it
   reset-password     Forget the password and show a new one once in your browser
 
 Options
-  --name <name>             Deployment name, lets you run several offices (default: agent-office).
-                            Each goes in a resource group of its own: agent-office-<name>
+  --name <name>             Deployment name, lets you run several offices (default: open-agentic-office).
+                            Each goes in a resource group of its own: open-agentic-office-<name>
   --location <region>       Azure region for a new office, e.g. westeurope (default: your az CLI's
                             default location, else eastus). An office stays in the region it was
                             created in. --region works too
@@ -95,7 +95,7 @@ Options
   --project <owner/repo>    Also clone this GitHub repo as the office's first floor. Without it
                             the office opens on its elevator, which lists every repo your GitHub
                             token can see: pick one there. Projects go in ~/workspace on the VM
-  --app-repo <url>          agent-office repo to install (default: this checkout's GitHub origin)
+  --app-repo <url>          open-agentic-office repo to install (default: this checkout's GitHub origin)
   --app-ref <ref>           Branch or tag to install (default: main)
   --github-token <token>    GitHub token for private repos + the issue/PR boards
                             (default: your local `gh auth token`)
@@ -161,16 +161,16 @@ NAME=$(printf '%s' "$NAME" | tr '[:upper:]' '[:lower:]')
 [[ "$LOCAL_PORT" =~ ^[0-9]+$ && $LOCAL_PORT -gt 0 && $LOCAL_PORT -lt 65536 ]] || die "--port must be a port number"
 [[ "$DISK_GB" =~ ^[0-9]+$ && $DISK_GB -ge 30 && $DISK_GB -le 4095 ]] || die "--disk must be a size in GiB, from 30 to 4095"
 [[ "$SIZE" =~ ^[A-Za-z0-9_]+$ ]] || die "not a VM size: $SIZE (e.g. $DEFAULT_SIZE)"
-RESOURCE="agent-office-$NAME"
-[[ "$NAME" == "agent-office" ]] && RESOURCE="agent-office"
+RESOURCE="open-agentic-office-$NAME"
+[[ "$NAME" == "open-agentic-office" ]] && RESOURCE="open-agentic-office"
 RG="$RESOURCE"
 VM="$RESOURCE"
 NSG="$RESOURCE-nsg"
 PIP="$RESOURCE-ip"
 VNET="$RESOURCE-vnet"
-STATE_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/agent-office/azure/$NAME"
+STATE_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/open-agentic-office/azure/$NAME"
 NAME_FLAG=""
-[[ "$NAME" != "agent-office" ]] && NAME_FLAG=" --name $NAME"
+[[ "$NAME" != "open-agentic-office" ]] && NAME_FLAG=" --name $NAME"
 # RSA, which every Azure path takes (ED25519 support is newer, and not everywhere).
 KEY_FILE="$STATE_DIR/id_rsa"
 KNOWN_HOSTS="$STATE_DIR/known_hosts"
@@ -250,11 +250,11 @@ load_group() {
   LOCATION=""
   exists=$(azv group exists -n "$RG") || die "couldn't look up the resource group $RG (above)"
   [[ "$exists" == "true" ]] || return 0
-  row=$(azc group show -n "$RG" --query '[[location, tags."agent-office"]]' -o tsv | words) ||
+  row=$(azc group show -n "$RG" --query '[[location, tags."open-agentic-office"]]' -o tsv | words) ||
     die "couldn't read the resource group $RG (above)"
   read -r LOCATION tag <<<"$row"
   [[ "$tag" == "$NAME" ]] ||
-    die "the resource group $RG wasn't made by deploy/azure.sh (it has no agent-office=$NAME tag) — pick another --name"
+    die "the resource group $RG wasn't made by deploy/azure.sh (it has no open-agentic-office=$NAME tag) — pick another --name"
 }
 
 require_group() {
@@ -478,7 +478,7 @@ set_ssh_sources() {
     azc network nsg rule create -g "$RG" --nsg-name "$NSG" -n "$SSH_RULE" --priority 1000 \
       --direction Inbound --access Allow --protocol Tcp --source-address-prefixes "$@" --source-port-ranges '*' \
       --destination-address-prefixes '*' --destination-port-ranges 22 \
-      --description "Agent Office: SSH from allowed IPs only" -o none
+      --description "OpenAgenticOffice: SSH from allowed IPs only" -o none
   fi
 }
 
@@ -626,9 +626,9 @@ service_tunnel() {
 
 open_office() {
   local claimable path="/"
-  claimable=$(office_get /api/claim 2>/dev/null || true)
+  claimable=$(office_get /api/beanspruchen 2>/dev/null || true)
   if [[ "$claimable" == *'"claimable":true'* && -f "$CLAIM_FILE" ]]; then
-    path="/claim?t=$(cat "$CLAIM_FILE")"
+    path="/beanspruchen?t=$(cat "$CLAIM_FILE")"
     say "Opening the one-time password page — write the password down, it is never shown again"
   fi
   tunnel "$path"
@@ -636,12 +636,12 @@ open_office() {
 
 valid_member() { [[ "$1" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,38}$ ]] || die "names are letters, numbers, dots, dashes and underscores: $1"; }
 
-# Teammates' keys are managed on the VM by agent-office-team (installed by provision.sh).
+# Teammates' keys are managed on the VM by open-agentic-office-team (installed by provision.sh).
 require_team() {
-  remote "test -x /usr/local/bin/agent-office-team" 2>/dev/null || die "this office predates team access — run: deploy/azure.sh up$NAME_FLAG"
+  remote "test -x /usr/local/bin/open-agentic-office-team" 2>/dev/null || die "this office predates team access — run: deploy/azure.sh up$NAME_FLAG"
 }
 
-team_members() { remote "agent-office-team list"; } # "<name> <number of keys>" per line
+team_members() { remote "open-agentic-office-team list"; } # "<name> <number of keys>" per line
 
 # --- commands --------------------------------------------------------------------------------------
 
@@ -663,7 +663,7 @@ cmd_up() {
   # What to install. The office starts with no project (never the checkout this script is in):
   # everyone picks theirs in its elevator, unless --project names a first one.
   if [[ -z "$APP_REPO" ]]; then
-    APP_REPO=$(github_https "$(git -C "$SCRIPT_DIR/.." remote get-url origin 2>/dev/null || true)" || echo "https://github.com/AgentSystemLabs/agent-office")
+    APP_REPO=$(github_https "$(git -C "$SCRIPT_DIR/.." remote get-url origin 2>/dev/null || true)" || echo "https://github.com/Luna-OS/OpenAgenticOffice")
   fi
   local project_repo=""
   if [[ -n "$PROJECT" ]]; then
@@ -716,7 +716,7 @@ cmd_up() {
     fi
   fi
 
-  say "Agent Office \"$NAME\" in $LOCATION (subscription $SUB_NAME)"
+  say "OpenAgenticOffice \"$NAME\" in $LOCATION (subscription $SUB_NAME)"
   echo "   machine:  $machine"
   echo "   app:      $APP_REPO @ $APP_REF"
   echo "   projects: ${project_repo:+$project_repo, then }pick them in the office's elevator (cloned into ~/workspace)"
@@ -743,7 +743,7 @@ cmd_up() {
 
   # One resource group holds everything, tagged so destroy knows it's the office's to delete.
   if [[ $new_group -eq 1 ]]; then
-    azc group create -n "$RG" -l "$LOCATION" --tags "agent-office=$NAME" -o none
+    azc group create -n "$RG" -l "$LOCATION" --tags "open-agentic-office=$NAME" -o none
     ok "Resource group $RG"
   fi
 
@@ -751,7 +751,7 @@ cmd_up() {
   local nsg_id pip_id
   nsg_id=$(find_resource nsg "$NSG")
   if [[ -z "$nsg_id" ]]; then
-    azc network nsg create -g "$RG" -n "$NSG" -l "$LOCATION" --tags "agent-office=$NAME" -o none
+    azc network nsg create -g "$RG" -n "$NSG" -l "$LOCATION" --tags "open-agentic-office=$NAME" -o none
     ok "Network security group $NSG"
   fi
   change_ssh_sources "${cidrs[@]}"
@@ -763,7 +763,7 @@ cmd_up() {
     # Azure drops a connection that's quiet for --idle-timeout minutes (4 by default), and a
     # teammate's tunnel doesn't send keepalives.
     azc network public-ip create -g "$RG" -n "$PIP" -l "$LOCATION" --sku Standard --allocation-method Static --version IPv4 \
-      --idle-timeout 30 --tags "agent-office=$NAME" -o none
+      --idle-timeout 30 --tags "open-agentic-office=$NAME" -o none
   fi
   IP=$(public_ip)
   [[ -n "$IP" ]] || die "the public IP $PIP has no address"
@@ -784,7 +784,7 @@ cmd_up() {
     azc vm create -g "$RG" -n "$VM" -l "$LOCATION" --image "$image" --size "$SIZE" \
       --admin-username "$SSH_USER" --authentication-type ssh --ssh-key-values "$KEY_FILE.pub" \
       --vnet-name "$VNET" --subnet default --nsg "$NSG" --nsg-rule NONE --public-ip-address "$PIP" \
-      --os-disk-size-gb "$DISK_GB" --storage-sku "$disk_sku" --tags "agent-office=$NAME" -o none ||
+      --os-disk-size-gb "$DISK_GB" --storage-sku "$disk_sku" --tags "open-agentic-office=$NAME" -o none ||
       die "couldn't create the VM (Azure's reason is above). If it's a quota, ask for more vCPUs for that
    size's family (Azure portal → Quotas → Compute), or run up again with another --size. Another region
    (--location) needs a fresh start: deploy/azure.sh destroy$NAME_FLAG first"
@@ -804,7 +804,7 @@ cmd_up() {
 
   [[ -f "$CLAIM_FILE" ]] || (umask 077 && random_token >"$CLAIM_FILE")
 
-  say "Provisioning (Node, git, gh, Claude Code, agent-office) — a few minutes on first run"
+  say "Richte ein (git, gh, Claude Code, open-agentic-office) — a few minutes on first run"
   local git_name git_email
   git_name=$(git config user.name 2>/dev/null || true)
   git_email=$(git config user.email 2>/dev/null || true)
@@ -960,7 +960,7 @@ cmd_invite() {
   require_team
   local n
   # The VM keeps only valid keys and restricts each one to opening the tunnel.
-  n=$(printf '%s\n' "$raw" | remote "agent-office-team add $who") || die "couldn't add $who's keys from $src"
+  n=$(printf '%s\n' "$raw" | remote "open-agentic-office-team add $who") || die "couldn't add $who's keys from $src"
   ok "$who is invited ($n key(s) from $src)"
 
   local a cidrs=() fp
@@ -995,7 +995,7 @@ cmd_uninvite() {
   valid_member "$who"
   require_vm
   require_team
-  out=$(remote "agent-office-team remove $who" 2>&1) || rc=$?
+  out=$(remote "open-agentic-office-team remove $who" 2>&1) || rc=$?
   [[ $rc -eq 66 ]] && die "$who isn't invited (see: deploy/azure.sh team$NAME_FLAG)"
   [[ $rc -eq 0 ]] || die "couldn't remove the keys: $out"
   ok "$who's keys are removed and open tunnels were dropped (other teammates just reconnect)"
@@ -1024,7 +1024,7 @@ cmd_ssh() {
 cmd_logs() {
   preflight
   require_vm
-  exec ssh "${SSH_OPTS[@]}" -t "$SSH_USER@$IP" 'sudo journalctl -u agent-office -n 100 -f'
+  exec ssh "${SSH_OPTS[@]}" -t "$SSH_USER@$IP" 'sudo journalctl -u open-agentic-office -n 100 -f'
 }
 
 cmd_resize() {
@@ -1080,14 +1080,10 @@ cmd_resume() {
 cmd_update() {
   preflight
   require_vm
-  say "Updating agent-office on $IP"
+  say "Aktualisiere open-agentic-office auf $IP"
   remote "set -e
-    ref=\$(git -C /opt/agent-office rev-parse --abbrev-ref HEAD)
-    git -C /opt/agent-office fetch --depth 1 origin \"\$ref\" -q
-    git -C /opt/agent-office reset --hard FETCH_HEAD -q
-    echo \"   at \$(git -C /opt/agent-office log -1 --format='%h %s')\"
-    cd /opt/agent-office && npm install --no-audit --no-fund --loglevel=error >/dev/null
-    sudo systemctl restart agent-office" || die "update failed"
+    open-agentic-office-update
+    sudo systemctl restart open-agentic-office" || die "update failed"
   wait_healthy || die "the office didn't come back — check: deploy/azure.sh logs$NAME_FLAG"
   ok "Updated and restarted (workers carry on through it)"
 }
@@ -1098,10 +1094,10 @@ cmd_reset_password() {
   (umask 077 && random_token >"$CLAIM_FILE")
   say "Resetting the office password"
   remote "set -e
-    sudo sed -i 's/^AGENT_OFFICE_CLAIM_TOKEN=.*/AGENT_OFFICE_CLAIM_TOKEN=\"$(cat "$CLAIM_FILE")\"/' /etc/agent-office/env
-    sudo systemctl stop agent-office
-    node /opt/agent-office/bin/agent-office.js --home \"\$(cat /etc/agent-office/home)\" --reset-password >/dev/null
-    sudo systemctl start agent-office" || die "reset failed"
+    sudo sed -i 's/^OFFICE_BEANSPRUCH_TOKEN=.*/OFFICE_BEANSPRUCH_TOKEN=\"$(cat "$CLAIM_FILE")\"/' /etc/open-agentic-office/env
+    sudo systemctl stop open-agentic-office
+    sudo -u \"\$(systemctl show -p User --value open-agentic-office)\" /opt/open-agentic-office/open-agentic-office --daten \"\$(cat /etc/open-agentic-office/home)\" --passwort-zuruecksetzen >/dev/null
+    sudo systemctl start open-agentic-office" || die "reset failed"
   wait_healthy || die "the office didn't come back — check: deploy/azure.sh logs$NAME_FLAG"
   ok "Everyone has been signed out"
   open_office
