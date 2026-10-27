@@ -25,8 +25,18 @@ pub fn fahren(kx: &mut Kontext, etage: &str) {
         return;
     }
     FAEHRT.set(true);
+    crate::api::klang(crate::api::Klang::Aufzug { pos: [AUFZUG_X, 1.2, crate::grundriss::AUFZUG_ANKUNFT.1] });
     // Wer außerhalb der Kabine wählt, kommt trotzdem drin an: der Server setzt den Ort.
     kx.senden(ClientNachricht::Etagen(E::Gehen { etage: etage.to_string(), an: None }));
+}
+
+/// Auf dem Dach angekommen: ein paar Schritte aus dem Aufzug, Blick zur Leinwand über der Bühne.
+pub fn dach_ankunft(kx: &mut Kontext) {
+    use crate::grundriss::dach::LEINWAND;
+    let (x, z) = (2.5, -3.0);
+    let blick = (LEINWAND.x - x).atan2(LEINWAND.z - z);
+    kx.spieler.versetzen(x, 0.0, z, blick);
+    kx.spieler.neigung = 0.12;
 }
 
 pub fn installieren(reg: &mut Register<Kontext>) {
@@ -40,6 +50,8 @@ pub fn installieren(reg: &mut Register<Kontext>) {
     reg.tick(Phase::Umgebung, move |kx: &mut Kontext, dt| {
         if kx.neu_gebaut {
             FAEHRT.set(false);
+            // Angekommen: die Türen stehen schon offen.
+            offen.set(1.0);
         }
         let p = kx.spieler.pos();
         let nah = (p[0] - AUFZUG_X).abs() < 1.6 && p[2] > AUFZUG_KABINE.min_z && p[2] < AUFZUG_VORNE + 2.2 && p[1].abs() < 1.0;

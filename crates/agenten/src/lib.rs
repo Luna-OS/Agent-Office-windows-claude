@@ -16,11 +16,15 @@ pub mod worktree;
 mod aenderungen;
 mod anleitung;
 mod arbeiter;
+mod besprechung;
 mod browser;
 mod dienste;
 mod etage;
+mod kerker;
+mod meldungen;
 mod github;
 mod hooks;
+mod http;
 mod kommunikation;
 mod cli_api;
 mod server;
@@ -29,6 +33,7 @@ mod nach_merge;
 mod nutzung;
 mod prompts;
 mod start;
+mod stationen;
 mod steuerung;
 mod verbrauch;
 mod wache;
@@ -41,6 +46,7 @@ use protokoll::{ClientNachricht, ServerNachricht};
 use tokio::sync::broadcast;
 
 use crate::etage::Etage;
+pub use crate::meldungen::{DiensteBeobachter, Meldung, MeldungArt, MeldungsEmpfaenger};
 
 /// Wie das Agenten-Modul startet.
 #[derive(Debug, Clone, Default)]
@@ -106,6 +112,8 @@ pub(crate) struct Innen {
     beenden: tokio::sync::Notify,
     selbst: std::sync::Weak<Innen>,
     pub(crate) konto_umgebung: Mutex<Option<KontoUmgebung>>,
+    pub(crate) meldungen: Mutex<Option<MeldungsEmpfaenger>>,
+    pub(crate) dienste_beobachter: Mutex<Option<DiensteBeobachter>>,
 }
 
 #[derive(Default)]
@@ -183,11 +191,14 @@ impl Agenten {
             beenden: tokio::sync::Notify::new(),
             selbst: selbst.clone(),
             konto_umgebung: Mutex::new(None),
+            meldungen: Mutex::new(None),
+            dienste_beobachter: Mutex::new(None),
         });
         let agenten = Agenten { innen };
         server::hook_server_starten(agenten.clone(), listener);
         wache::starten(&agenten);
         dienste::starten(&agenten);
+        besprechung::pumpe_starten(&agenten);
         tracing::info!("Hook-Server lauscht auf {}", agenten.innen.hook_url);
         Ok(agenten)
     }
@@ -206,6 +217,21 @@ impl Agenten {
     pub fn tische_setzen(&self, etage: &str, tische: Vec<String>) {
         if let Some(e) = self.innen.zustand().etagen.get_mut(etage) {
             e.tische = tische;
+        }
+    }
+
+    /// Die Stühle am Besprechungstisch einer Etage (Sitz-IDs der Welt), der Kopf des Tisches zuerst.
+    /// Ohne Aufruf heißen sie wie in der Welt `meeting-1` … `meeting-5`.
+    pub fn besprechung_stuehle_setzen(&self, etage: &str, stuehle: Vec<String>) {
+        if let Some(e) = self.innen.zustand().etagen.get_mut(etage) {
+            e.besprechung_stuehle = stuehle;
+        }
+    }
+
+    /// Ob die Karte dieser Etage heimgeschickte Arbeiter in den Kerker sperrt.
+    pub fn kerker_aktiv_setzen(&self, etage: &str, aktiv: bool) {
+        if let Some(e) = self.innen.zustand().etagen.get_mut(etage) {
+            e.kerker_aktiv = aktiv;
         }
     }
 
@@ -239,9 +265,9 @@ impl Agenten {
         use protokoll::arbeiter::ArbeiterStatus as S;
         let z = self.innen.zustand();
         let Some(e) = z.etagen.get(etage) else { return (0, 0, 0) };
-        let status = || e.arbeiter.values().map(|a| a.info.status);
+        let status = || e.arbeiter.values().filter(|a| a.info.station.is_none()).map(|a| a.info.status);
         (
-            e.arbeiter.len(),
+            status().count(),
             status().filter(|s| matches!(s, S::Startet | S::Arbeitet)).count(),
             status().filter(|s| *s == S::Wartet).count(),
         )
@@ -258,9 +284,24 @@ impl Agenten {
         steuerung::verbindung_weg(self, verbindung);
     }
 
+    /// Meldungen für den Team-Webhook (wartet, fertig, PR gemergt, heimgegangen).
+    pub fn benachrichtigung_setzen(&self, f: MeldungsEmpfaenger) {
+        *self.innen.meldungen.lock().unwrap_or_else(|e| e.into_inner()) = Some(f);
+    }
+
+    /// Alle Dienste (Server, die Arbeiter gestartet haben) auf allen Etagen.
+    pub fn dienste(&self) -> Vec<protokoll::agenten::Dienst> {
+        self.innen.zustand().etagen.values().flat_map(|e| e.dienste.clone()).collect()
+    }
+
+    /// Wird mit allen Dienst-Ports aufgerufen, sobald sich die Dienste ändern.
+    pub fn dienste_beobachten(&self, f: DiensteBeobachter) {
+        *self.innen.dienste_beobachter.lock().unwrap_or_else(|e| e.into_inner()) = Some(f);
+    }
+
     /// HTTP-Routen für den Hauptserver (unter `/api/agenten/...`).
     pub fn router(&self) -> axum::Router {
-        server::haupt_router(self.clone())
+        http::router(self.clone())
     }
 
     /// Beim Herunterfahren: alles speichern, Terminals beenden.

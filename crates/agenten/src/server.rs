@@ -59,24 +59,9 @@ pub fn hook_router(ag: Agenten) -> Router {
         .route("/office/status", post(crate::cli_api::status))
         .route("/office/aufgaben", get(crate::cli_api::aufgaben).post(crate::cli_api::aufgabe_neu))
         .route("/office/aufgaben/{id}", post(crate::cli_api::aufgabe_aendern))
+        .route("/office/aufgaben/{id}/weg", post(crate::cli_api::aufgabe_weg))
         .route("/office/anlegen", post(crate::cli_api::anlegen))
         .with_state(ag)
-}
-
-/// Routen für den Hauptserver (hinter dessen Anmeldung).
-pub fn haupt_router(ag: Agenten) -> Router {
-    Router::new()
-        .route("/api/agenten/provider", get(|| async { Json(crate::provider::uebersicht()) }))
-        .route("/api/agenten/etagen/{etage}/board", get(board_lesen))
-        .with_state(ag)
-}
-
-async fn board_lesen(State(ag): State<Agenten>, Pfad(etage): Pfad<String>) -> Response {
-    let z = ag.innen.zustand();
-    match z.etagen.get(&etage) {
-        Some(e) => Json(e.board.board.clone()).into_response(),
-        None => fehler(StatusCode::NOT_FOUND, "Diese Etage gibt es nicht"),
-    }
 }
 
 pub fn fehler(code: StatusCode, text: impl Into<String>) -> Response {

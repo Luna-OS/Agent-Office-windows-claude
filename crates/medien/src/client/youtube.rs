@@ -28,17 +28,23 @@ struct Zustand {
     /// Server-Uhr minus eigene Uhr in ms (aus Ping/Pong der Präsenz).
     versatz_ms: f64,
     geladen: Option<String>,
+    /// Das iframe hat die YouTube-Seite geladen (vorher läuft jede Nachricht ins Leere).
+    seite_da: bool,
     bereit: bool,
     stelle_s: f64,
     laeuft: bool,
     lautstaerke: Option<u8>,
     sichtbar: bool,
+    /// Für dieses Video schon gemeldeter Fehler (damit er nur einmal kommt).
+    fehler_gemeldet: Option<String>,
+    bei_fehler: Option<Rc<dyn Fn(String)>>,
 }
 
 struct Teile {
     huelle: HtmlElement,
     rahmen: HtmlIFrameElement,
     _lauscher: Lauscher,
+    _laden: Lauscher,
     _takt: Takt,
 }
 
@@ -79,7 +85,15 @@ impl LeinwandPlayer {
         });
         let i3 = ich.clone();
         let takt = Takt::neu(1000, move || i3.abgleich());
-        *ich.teile.borrow_mut() = Some(Teile { huelle, rahmen, _lauscher: lauscher, _takt: takt });
+        let i4 = ich.clone();
+        let laden = Lauscher::neu(&rahmen, "load", move |_| {
+            let da = i4.z.borrow().geladen.is_some();
+            i4.z.borrow_mut().seite_da = da;
+            if da {
+                i4.anmelden();
+            }
+        });
+        *ich.teile.borrow_mut() = Some(Teile { huelle, rahmen, _lauscher: lauscher, _laden: laden, _takt: takt });
         Ok(ich)
     }
 
@@ -87,6 +101,12 @@ impl LeinwandPlayer {
     pub fn zustand_setzen(&self, zustand: LeinwandZustand) {
         self.z.borrow_mut().soll = zustand;
         self.abgleich();
+    }
+
+    /// Wird mit einer deutschen Meldung gerufen, wenn YouTube das Video nicht abspielen will
+    /// (gesperrt fürs Einbetten, gelöscht, privat …).
+    pub fn bei_fehler(&self, f: impl Fn(String) + 'static) {
+        self.z.borrow_mut().bei_fehler = Some(Rc::new(f));
     }
 
     /// Server-Uhr minus eigene Uhr in ms.
@@ -113,6 +133,10 @@ impl LeinwandPlayer {
     /// Wie [`platzieren`](Self::platzieren), aber mit den vier projizierten Ecken (l-o, r-o, r-u, l-u):
     /// das iframe wird schräg mitgezogen (affine Näherung über drei Ecken).
     pub fn platzieren_ecken(&self, ecken: [[f32; 2]; 4], sichtbar: bool, abstand: f32) {
+        if let Some(t) = self.teile.borrow().as_ref() {
+            let _ = t.huelle.set_attribute("data-abstand", &format!("{abstand:.1}"));
+            let _ = t.huelle.set_attribute("data-im-blick", if sichtbar { "ja" } else { "nein" });
+        }
         let zeigen = sichtbar && abstand < LEINWAND_FERN && self.z.borrow().soll.video_id.is_some();
         self.lautstaerke(leinwand_lautstaerke(abstand, LEINWAND_NAH, LEINWAND_FERN));
         let teile = self.teile.borrow();
@@ -150,6 +174,9 @@ impl LeinwandPlayer {
     }
 
     fn befehl(&self, func: &str, args: &str) {
+        if !self.z.borrow().bereit {
+            return;
+        }
         let teile = self.teile.borrow();
         let Some(t) = teile.as_ref() else { return };
         if let Some(w) = t.rahmen.content_window() {
@@ -160,13 +187,16 @@ impl LeinwandPlayer {
 
     /// Bringt den Player auf den Stand des Servers.
     fn abgleich(&self) {
+        self.zustand_zeigen();
         let (soll, jetzt, geladen, laeuft, stelle, bereit) = {
             let z = self.z.borrow();
             (z.soll.clone(), server_jetzt(z.versatz_ms), z.geladen.clone(), z.laeuft, z.stelle_s, z.bereit)
         };
         if !bereit && geladen.is_some() {
             // Der Player meldet sich erst, wenn man ihm sagt, dass man zuhört.
-            self.anmelden();
+            if self.z.borrow().seite_da {
+                self.anmelden();
+            }
             return;
         }
         for schritt in abgleichen(&soll, jetzt as u64, geladen.as_deref(), laeuft, stelle) {
@@ -178,6 +208,19 @@ impl LeinwandPlayer {
                 Abgleich::Pausieren => self.befehl("pauseVideo", "[]"),
                 Abgleich::Leeren => self.leeren(),
             }
+        }
+    }
+
+    /// Der eigene Stand als `data-*`-Attribute an der Hülle (für Tests und die Entwicklerwerkzeuge).
+    fn zustand_zeigen(&self) {
+        let z = self.z.borrow();
+        if let Some(t) = self.teile.borrow().as_ref() {
+            let h = &t.huelle;
+            let _ = h.set_attribute("data-video", z.geladen.as_deref().unwrap_or(""));
+            let _ = h.set_attribute("data-bereit", if z.bereit { "ja" } else { "nein" });
+            let _ = h.set_attribute("data-laeuft", if z.laeuft { "ja" } else { "nein" });
+            let _ = h.set_attribute("data-stelle", &format!("{:.1}", z.stelle_s));
+            let _ = h.set_attribute("data-soll", &format!("{:.1}", z.soll.position_um(server_jetzt(z.versatz_ms) as u64)));
         }
     }
 
@@ -195,6 +238,7 @@ impl LeinwandPlayer {
         }
         let mut z = self.z.borrow_mut();
         z.geladen = Some(id.into());
+        z.seite_da = false;
         z.bereit = false;
         z.laeuft = abspielen;
         z.stelle_s = ab_s;
@@ -208,6 +252,7 @@ impl LeinwandPlayer {
         }
         let mut z = self.z.borrow_mut();
         z.geladen = None;
+        z.seite_da = false;
         z.bereit = false;
         z.sichtbar = false;
     }
@@ -227,7 +272,12 @@ impl LeinwandPlayer {
         let Some(text) = e.data().as_string() else { return };
         let Ok(wert) = serde_json::from_str::<serde_json::Value>(&text) else { return };
         let mut z = self.z.borrow_mut();
-        match wert.get("event").and_then(|v| v.as_str()) {
+        let ereignis = wert.get("event").and_then(|v| v.as_str());
+        if !z.bereit && matches!(ereignis, Some("onReady" | "infoDelivery" | "initialDelivery")) {
+            // Jetzt hört der Player zu: die Lautstärke beim nächsten Frame neu schicken.
+            z.lautstaerke = None;
+        }
+        match ereignis {
             Some("onReady") => z.bereit = true,
             Some("infoDelivery" | "initialDelivery") => {
                 z.bereit = true;
@@ -241,6 +291,18 @@ impl LeinwandPlayer {
                     }
                 }
             }
+            Some("onError") => {
+                let code = wert.get("info").and_then(|v| v.as_i64()).unwrap_or(0);
+                let video = z.geladen.clone();
+                if z.fehler_gemeldet != video {
+                    z.fehler_gemeldet = video;
+                    let f = z.bei_fehler.clone();
+                    drop(z);
+                    if let Some(f) = f {
+                        f(youtube_fehler(code).into());
+                    }
+                }
+            }
             Some("onStateChange") => {
                 if let Some(s) = wert.get("info").and_then(|v| v.as_i64()) {
                     z.laeuft = matches!(s, 1 | 3);
@@ -248,6 +310,17 @@ impl LeinwandPlayer {
             }
             _ => {}
         }
+    }
+}
+
+/// Die Fehlercodes der YouTube-IFrame-API in Worten.
+fn youtube_fehler(code: i64) -> &'static str {
+    match code {
+        2 => "YouTube: ungültige Video-ID",
+        5 => "YouTube: das Video lässt sich in diesem Browser nicht abspielen",
+        100 => "YouTube: das Video gibt es nicht (mehr) oder es ist privat",
+        101 | 150 | 153 => "YouTube: dieses Video darf nicht eingebettet werden – bitte ein anderes wählen",
+        _ => "YouTube: das Video lässt sich nicht abspielen",
     }
 }
 

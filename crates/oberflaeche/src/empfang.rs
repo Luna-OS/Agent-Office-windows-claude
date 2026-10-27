@@ -18,8 +18,13 @@ pub fn empfangen(n: &ServerNachricht) {
         ServerNachricht::Konten(m) => konten(m),
         ServerNachricht::Github(m) => crate::fenster::github::empfangen(m),
         ServerNachricht::Medien(m) => medien(m),
+        ServerNachricht::Spielzeug(m) => {
+            crate::fenster::whiteboard::empfangen(m);
+            crate::fenster::arcade::empfangen(m);
+        }
         ServerNachricht::Dach(m) => dach(m),
         ServerNachricht::Fehler { text } => melden(text.clone(), praesenz::Stufe::Fehler),
+        #[allow(unreachable_patterns)]
         _ => {}
     }
 }
@@ -138,6 +143,8 @@ fn agenten(m: &agenten::Server) {
         S::Limits { stand } => z.limits.set(Some(stand.clone())),
         S::Prompts { liste } => z.prompts.set(liste.clone()),
         S::Dienste { liste } => z.dienste.set(liste.clone()),
+        S::Besprechung { stand } => z.besprechung.set(stand.clone()),
+        S::Kerker { stand } => z.kerker.set(stand.clone()),
         #[allow(unreachable_patterns)]
         _ => {}
     }
@@ -179,6 +186,11 @@ fn konten(m: &konten::Server) {
             crate::modal::oeffnen(crate::modal::Fenster::Konten);
         }
         S::Link { pfad } => crate::fenster::konten::link_erhalten(pfad),
+        S::Team { stand } => z.team_ssh.set(Some(stand.clone())),
+        S::TeamEingeladen { github, fehler, .. } => match fehler {
+            Some(f) => melden(f.clone(), praesenz::Stufe::Fehler),
+            None => melden(format!("{github} hat jetzt SSH-Zugang."), praesenz::Stufe::Info),
+        },
         #[allow(unreachable_patterns)]
         _ => {}
     }

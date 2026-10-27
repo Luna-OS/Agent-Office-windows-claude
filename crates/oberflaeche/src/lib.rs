@@ -14,6 +14,7 @@ mod http;
 mod hud;
 pub mod lite;
 pub mod lokal;
+pub mod markdown;
 pub mod modal;
 mod seitenleiste;
 mod tasten;

@@ -37,6 +37,11 @@ pub enum Fenster {
     BildAufhaengen,
     Prompts,
     Dienste,
+    Bar,
+    Buecher,
+    Whiteboard,
+    Arcade,
+    Station(String),
     Anlegen(String),
     Repos,
 }

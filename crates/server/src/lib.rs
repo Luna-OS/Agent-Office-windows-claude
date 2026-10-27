@@ -13,6 +13,7 @@ pub mod konten_cli;
 pub mod office;
 pub mod speicher;
 pub mod spielzeug;
+pub mod tailnet;
 pub mod team;
 pub mod webhook;
 pub mod ws;
@@ -150,6 +151,7 @@ pub async fn starten(konfig: Konfig) -> Result<()> {
     let lauscher = tokio::net::TcpListener::bind(adresse).await.with_context(|| format!("Port {} ist belegt oder nicht erlaubt", adresse.port()))?;
     let echt = lauscher.local_addr()?;
     hintergrund(&g.office);
+    tailnet::starten(&g.office);
     let o = g.office.clone();
     tokio::spawn(async move { einrichtung::projekt_beim_start(&o).await });
 

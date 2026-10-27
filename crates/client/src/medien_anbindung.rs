@@ -73,6 +73,8 @@ struct Medien {
     personen: HashMap<String, (Option<String>, bool)>,
     /// Server-Uhr minus eigene Uhr.
     versatz_ms: f64,
+    /// Die zuletzt gemeldeten Motoren je Auto, und wann (Date.now()).
+    motoren: HashMap<u32, (medien::client::klang::Motor, f64)>,
     _takte: Vec<i32>,
     _rueckrufe: Vec<Closure<dyn FnMut()>>,
 }
@@ -112,7 +114,7 @@ pub fn starten(senden: Rc<dyn Fn(ClientNachricht)>) {
     }
     let mut takte = Vec::new();
     let mut rueckrufe = Vec::new();
-    for (ms, f) in [(TV_TAKT_MS, tv_bild as fn()), (PING_MS, ping as fn()), (500, einstellungen as fn())] {
+    for (ms, f) in [(TV_TAKT_MS, tv_bild as fn()), (PING_MS, ping as fn()), (500, einstellungen as fn()), (100, motoren_takt as fn())] {
         let c = Closure::<dyn FnMut()>::new(f);
         if let Some(w) = web_sys::window()
             && let Ok(id) = w.set_interval_with_callback_and_timeout_and_arguments_0(c.as_ref().unchecked_ref(), ms)
@@ -134,6 +136,7 @@ pub fn starten(senden: Rc<dyn Fn(ClientNachricht)>) {
         etage: None,
         personen: HashMap::new(),
         versatz_ms: 0.0,
+        motoren: HashMap::new(),
         _takte: takte,
         _rueckrufe: rueckrufe,
     };
@@ -155,6 +158,7 @@ fn welt_haken() {
     welt::bei_abstaende(|a| {
         mit(|m| m.sprache.abstaende(a));
     });
+    welt::bei_klang(klang_aus_der_welt);
     welt::bei_hoerer(|h| {
         use medien::client::klang::Wo;
         let wo = match h.umgebung {
@@ -175,6 +179,49 @@ fn welt_haken() {
 #[cfg(not(feature = "welt3d"))]
 fn welt_haken() {}
 
+/// Ein Geräusch aus der Welt (Spielsachen, Hund, Autos …) als Rezept.
+#[cfg(feature = "welt3d")]
+fn klang_aus_der_welt(k: welt::Klang) {
+    use medien::client::klang::{BallKlang, GolfKlang, Gong, Motor, WurfKlang};
+    use welt::Klang as K;
+    let o = |[x, y, z]: [f32; 3]| Ort { x, y, z };
+    mit(|m| {
+        let kl = &m.klang;
+        match k {
+            K::BallAufprall { pos } => kl.ball(BallKlang::Aufprall, o(pos), 5.0),
+            K::BallRing { pos } => kl.ball(BallKlang::Ring, o(pos), 5.0),
+            K::BallKorb { pos } => kl.ball(BallKlang::Treffer, o(pos), 5.0),
+            K::Golfschlag { pos } => kl.golf(GolfKlang::Schlag, Some(o(pos)), 30.0),
+            K::GolfLoch { pos } => kl.golf(GolfKlang::Loch, Some(o(pos)), 2.0),
+            K::Bellen { pos } => kl.bellen(pos[0], pos[2], 2),
+            K::Hupe { pos } => kl.hupen(o(pos), false),
+            // Meldet die Welt einen Motor nicht mehr, verklingt er (siehe motoren_takt).
+            K::Motor { auto, pos, tempo } => {
+                let motor = Motor { auto, ort: o(pos), tempo, gas: (tempo.abs() / 10.0).min(1.0) };
+                m.motoren.insert(auto, (motor, js_sys::Date::now()));
+            }
+            K::Gong { pos } => kl.gong(Gong::Schlag, o(pos)),
+            K::Kaffee { .. } => kl.kaffee(),
+            K::Dart { pos } => kl.werfen(WurfKlang::Dart, o(pos)),
+            K::Axt { pos } => kl.werfen(WurfKlang::Axt, o(pos)),
+            K::Lufthorn { .. } => m.dj.horn(),
+            K::Aufzug { pos } => kl.aufzug(o(pos)),
+            #[allow(unreachable_patterns)]
+            _ => {}
+        }
+    });
+}
+
+/// Motoren, von denen die Welt eine Weile nichts mehr gesagt hat, gehen aus.
+fn motoren_takt() {
+    mit(|m| {
+        let jetzt = js_sys::Date::now();
+        m.motoren.retain(|_, (_, um)| jetzt - *um < 300.0);
+        let laufend: Vec<_> = m.motoren.values().map(|(motor, _)| *motor).collect();
+        m.klang.motoren_setzen(&laufend);
+    });
+}
+
 /// Jeder Frame vom Server; nimmt sich, was Medien angeht.
 pub fn nachricht(n: &ServerNachricht) {
     match n {
@@ -185,6 +232,9 @@ pub fn nachricht(n: &ServerNachricht) {
             mit(|m| {
                 if m.leinwand.is_none() {
                     m.leinwand = LeinwandPlayer::neu().ok();
+                    if let Some(l) = &m.leinwand {
+                        l.bei_fehler(warnen);
+                    }
                 }
                 if let Some(l) = &m.leinwand {
                     l.uhr_versatz_setzen(m.versatz_ms);
@@ -358,6 +408,16 @@ fn ping() {
 fn einstellungen() {
     let (lautstaerke, stumm, _) = audio();
     mit(|m| {
+        // Der Voice-Stand für Tests und Entwicklerwerkzeuge: <html data-voice="…">.
+        let stand = serde_json::json!({
+            "aktiv": m.sprache.aktiv(),
+            "stumm": m.sprache.stumm(),
+            "eigen": m.sprache.pegel(&m.du),
+            "verbindungen": m.sprache.diagnose(),
+        });
+        if let Some(html) = web_sys::window().and_then(|w| w.document()).and_then(|d| d.document_element()) {
+            let _ = html.set_attribute("data-voice", &stand.to_string());
+        }
         m.klang.lautstaerke_setzen(lautstaerke, stumm);
         m.jukebox.lautstaerke_setzen(lautstaerke, stumm);
         m.dj.lautstaerke_setzen(lautstaerke, stumm);

@@ -147,6 +147,17 @@ pub struct ArbeiterInfo {
     pub verbrauch: Option<Verbrauch>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub letzte_eingabe: Option<LetzteEingabe>,
+    /// Ein Board-Agent: an welchem Board (`issues`, `pulls`, `aufgaben`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub station: Option<String>,
+    /// Die Besprechung, zu der er am Besprechungstisch sitzt.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub besprechung: Option<String>,
+    /// Wie lange er schon gearbeitet hat (ms, abgeschlossene Strecken) und seit wann die laufende geht.
+    #[serde(default)]
+    pub gearbeitet_ms: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub arbeitet_seit: Option<u64>,
     /// Das Konto, das ihn angelegt hat (seine Anmeldungen bei Claude/GitHub nutzt er).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub konto: Option<String>,
@@ -284,6 +295,9 @@ pub enum Client {
     Groesse { arbeiter: String, spalten: u16, zeilen: u16 },
     /// Liste der Provider anfordern; Antwort `Server::Provider`.
     ProviderAbfragen,
+    /// Eine Bitte an den Board-Agenten am Pult `tisch` (`station-issues`, `station-pulls`,
+    /// `station-queue`): getippt, geweckt oder – ist keiner da – dafür angelegt.
+    StationAuftrag { tisch: String, text: String },
     /// Arbeiter, deren Pull Request gemergt ist, gehen von selbst heim (für das ganze Office).
     NachMergeGehen { an: bool },
     /// Was hat er geändert? Antwort `Server::Aenderungen`.

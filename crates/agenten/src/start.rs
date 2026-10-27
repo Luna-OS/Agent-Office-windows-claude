@@ -29,6 +29,12 @@ pub struct Wunsch {
     pub aufwand: Option<String>,
     /// Das Konto, auf dessen Anmeldungen er läuft.
     pub konto: Option<String>,
+    /// Ein schon vorhandener Worktree, den er mit anderen teilt (Besprechung); er legt keinen eigenen an.
+    pub worktree_vorgegeben: Option<protokoll::arbeiter::Worktree>,
+    /// Die Besprechung, zu der er sich an den Tisch setzt.
+    pub besprechung: Option<String>,
+    /// Ein Board-Agent an diesem Board.
+    pub station: Option<String>,
 }
 
 /// Legt einen Arbeiter an und startet ihn. Gibt seine ID zurück oder sagt auf Deutsch, was fehlt.
@@ -81,7 +87,7 @@ pub async fn anlegen(ag: &Agenten, etage: &str, von: &str, w: Wunsch) -> Result<
             angelegt_von: von.to_string(),
             angelegt_um: jetzt_ms(),
             prompt: w.prompt.clone(),
-            worktree: None,
+            worktree: w.worktree_vorgegeben.clone(),
             pr: None,
             pr_oeffnet: false,
             titel: None,
@@ -95,6 +101,10 @@ pub async fn anlegen(ag: &Agenten, etage: &str, von: &str, w: Wunsch) -> Result<
             aufgabe: w.prompt.as_deref().and_then(crate::arbeiter::aufgabe_aus_prompt),
             verbrauch: None,
             letzte_eingabe: None,
+            station: w.station.clone(),
+            besprechung: w.besprechung.clone(),
+            gearbeitet_ms: 0,
+            arbeitet_seit: None,
             konto: w.konto.clone(),
             hinweis: None,
         };
@@ -103,7 +113,9 @@ pub async fn anlegen(ag: &Agenten, etage: &str, von: &str, w: Wunsch) -> Result<
         ag.innen.arbeiter_melden(e, &id);
         (id, e.verzeichnis.clone(), name)
     };
-    let will_worktree = w.art == ArbeiterArt::Agent && w.worktree.unwrap_or(true) && worktree::ist_repo(&verzeichnis).await;
+    let will_worktree = w.worktree_vorgegeben.is_none()
+        && w.art == ArbeiterArt::Agent
+        && w.worktree.unwrap_or(true) && worktree::ist_repo(&verzeichnis).await;
     if will_worktree {
         match worktree::erstellen(&verzeichnis, &worktree::slug(&name, &id)).await {
             Ok(wt) => {

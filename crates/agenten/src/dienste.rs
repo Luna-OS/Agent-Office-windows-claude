@@ -101,15 +101,22 @@ fn runde(ag: &Agenten, system: &mut System) {
     };
     let mut z = ag.innen.zustand();
     let jetzt = jetzt_ms();
+    let mut geaendert = false;
     for e in z.etagen.values_mut() {
         let mut neu: Vec<Dienst> = gefunden.iter().filter(|(et, _)| *et == e.id).map(|(_, d)| d.clone()).collect();
         for d in neu.iter_mut() {
             d.seit = e.dienste.iter().find(|alt| alt.port == d.port && alt.arbeiter == d.arbeiter).map_or(jetzt, |alt| alt.seit);
         }
         if neu != e.dienste {
+            geaendert |= neu.iter().map(|d| d.port).ne(e.dienste.iter().map(|d| d.port));
             e.dienste = neu;
             ag.innen.senden(Ziel::Etage(e.id.clone()), ServerNachricht::Agenten(AgSrv::Dienste { liste: e.dienste.clone() }));
         }
+    }
+    if geaendert {
+        let ports = z.etagen.values().flat_map(|e| e.dienste.iter().map(|d| d.port)).collect();
+        drop(z);
+        ag.innen.dienste_geaendert(ports);
     }
 }
 

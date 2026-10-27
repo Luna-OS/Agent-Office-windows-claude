@@ -77,10 +77,38 @@ pub fn knopf(arbeiter: &str, e: &web_sys::MouseEvent, flaeche: NodeRef<Div>, ged
     super::eingeben(arbeiter, sequenz(knopf, s, z, gedrueckt, kod));
 }
 
-/// Eine Datei auf das Terminal gezogen: ihr Name wird eingetippt (der Inhalt bleibt auf diesem Rechner).
+/// Dateien auf das Terminal gezogen (oder ein Bild eingefügt): sie gehen in den Arbeitsordner des
+/// Arbeiters, und ihr Pfad wird eingetippt, damit der Agent sie lesen kann.
+pub fn dateien_ablegen(arbeiter: &str, dateien: web_sys::FileList) {
+    for i in 0..dateien.length() {
+        let Some(datei) = dateien.item(i) else { continue };
+        let a = arbeiter.to_string();
+        leptos::task::spawn_local(async move {
+            let name = js_sys::encode_uri_component(&datei.name());
+            let pfad = format!("/api/agenten/arbeiter/{}/ablegen?name={name}", js_sys::encode_uri_component(&a));
+            match crate::http::hochladen(&pfad, &datei).await {
+                Ok(r) if r.ok() => {
+                    if let Some(e) = r.json.get("eingabe").and_then(|e| e.as_str()) {
+                        super::eingeben(&a, format!("{e} "));
+                    }
+                }
+                Ok(r) => crate::zustand::fehler(r.fehler()),
+                Err(f) => crate::zustand::fehler(f),
+            }
+        });
+    }
+}
+
+/// Etwas auf das Terminal gezogen: Dateien hochladen, Text eintippen.
 pub fn ablegen(arbeiter: &str, e: web_sys::DragEvent) {
     e.prevent_default();
     let Some(daten) = e.data_transfer() else { return };
+    if let Some(dateien) = daten.files()
+        && dateien.length() > 0
+    {
+        dateien_ablegen(arbeiter, dateien);
+        return;
+    }
     if let Ok(text) = daten.get_data("text/plain")
         && !text.is_empty()
     {

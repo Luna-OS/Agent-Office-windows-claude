@@ -5,6 +5,7 @@ pub mod anmeldung;
 pub mod buecher;
 pub mod connector;
 pub mod dateien;
+pub mod relay;
 pub mod statisch;
 
 use std::net::{IpAddr, SocketAddr};
@@ -68,6 +69,8 @@ pub fn router(o: OfficeRef, angebunden: Vec<Router>) -> Router {
         r = r.merge(a);
     }
     r.fallback_service(statisch::client(&o.konfig.client))
+        // Ganz außen: Anfragen über einen Dienste-Tunnel gehen an den Server des Arbeiters.
+        .layer(middleware::from_fn_with_state(o.clone(), relay::weiterleiten))
 }
 
 /// Die Sitzung zu einer Anfrage, falls gültig.

@@ -241,6 +241,23 @@ impl Sprache {
         i.verbindungen.get(id).and_then(|v| v.analyser.borrow().as_ref().map(rms)).unwrap_or(0.0)
     }
 
+    /// Für Tests und Entwicklerwerkzeuge: je Verbindung (ID, ICE-Zustand, kommt Ton an, Pegel).
+    pub fn diagnose(&self) -> Vec<(String, String, bool, f32)> {
+        let i = self.innen.borrow();
+        let mut v: Vec<_> = i
+            .verbindungen
+            .iter()
+            .map(|(id, v)| {
+                let ice = format!("{:?}", v.pc.ice_connection_state()).to_lowercase();
+                let ton = v.audio.src_object().is_some();
+                let pegel = v.analyser.borrow().as_ref().map_or(0.0, rms);
+                (id.clone(), ice, ton, pegel)
+            })
+            .collect();
+        v.sort_by(|a, b| a.0.cmp(&b.0));
+        v
+    }
+
     /// Ein Signal von `von` (aus `medien::Server::Rtc`).
     pub fn signal(&self, von: String, daten: RtcSignal) {
         let ich = self.clone();

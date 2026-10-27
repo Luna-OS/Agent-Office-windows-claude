@@ -25,6 +25,11 @@ pub struct Etage {
     pub github: GithubStand,
     /// Die Server, die Arbeiter gestartet haben.
     pub dienste: Vec<protokoll::agenten::Dienst>,
+    pub kerker: protokoll::agenten::Kerker,
+    /// Die Karte der Etage sperrt Heimgeschickte ein.
+    pub kerker_aktiv: bool,
+    pub besprechung: protokoll::agenten::BesprechungStand,
+    pub besprechung_stuehle: Vec<String>,
 }
 
 impl Etage {
@@ -106,6 +111,10 @@ pub fn anmelden(ag: &Agenten, id: &str, verzeichnis: PathBuf) {
         tische: Vec::new(),
         github: GithubStand::default(),
         dienste: Vec::new(),
+        kerker: crate::kerker::laden(&speicher::ordner(&ag.innen.daten, id)),
+        kerker_aktiv: false,
+        besprechung: crate::besprechung::laden(&speicher::ordner(&ag.innen.daten, id)),
+        besprechung_stuehle: Vec::new(),
     };
     z.etagen.insert(id.to_string(), etage);
     drop(z);

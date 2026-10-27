@@ -63,8 +63,21 @@ impl ws::Domaene for Domaene {
     }
 }
 
+/// Macht aus dem [`super::Anfrager`] den `agenten::Absender`, den vegas Routen als Extension erwarten.
+async fn absender_einsetzen(mut req: axum::extract::Request, next: axum::middleware::Next) -> axum::response::Response {
+    if let Some(a) = req.extensions().get::<super::Anfrager>().cloned() {
+        req.extensions_mut().insert(Absender {
+            verbindung: a.verbindung.unwrap_or_default(),
+            name: a.person.as_ref().map(|p| p.name.clone()).unwrap_or_default(),
+            etage: a.person.and_then(|p| p.etage).filter(|e| e != DACH),
+            konto: a.sitzung.konto,
+        });
+    }
+    next.run(req).await
+}
+
 pub fn router(a: &Agenten) -> axum::Router {
-    a.router()
+    a.router().layer(axum::middleware::from_fn(absender_einsetzen))
 }
 
 struct AgentenAnbindung(Agenten);
@@ -72,10 +85,18 @@ struct AgentenAnbindung(Agenten);
 impl Anbindung for AgentenAnbindung {
     fn etage_angemeldet(&self, id: &str, ordner: &Path) {
         self.0.etage_anmelden(id, ordner.to_path_buf());
+        // Die Stühle am Besprechungstisch (Kopf zuerst) aus `welt`; einen Kerker hat die Karte noch nicht.
+        let stuehle = welt::grundriss::sitze::besprechungs_tische().into_iter().map(|t| t.id).collect();
+        self.0.besprechung_stuehle_setzen(id, stuehle);
+        self.0.kerker_aktiv_setzen(id, false);
     }
 
     fn etage_abgemeldet(&self, id: &str) {
         self.0.etage_abmelden(id);
+    }
+
+    fn dienst_ports(&self) -> Option<Vec<u16>> {
+        Some(self.0.dienste().into_iter().map(|d| d.port).collect())
     }
 
     fn zahlen(&self, etage: &str) -> Option<crate::etagen::Zahlen> {
@@ -88,6 +109,43 @@ impl Anbindung for AgentenAnbindung {
     }
 }
 
+/// Meldungen der Arbeiter (wartet, fertig, PR gemergt …) gehen an den Team-Webhook, gedrosselt:
+/// dieselbe Meldung eines Arbeiters höchstens einmal pro Minute, insgesamt höchstens eine alle 3 s.
+fn meldungen_an_webhook(o: &OfficeRef, a: &Agenten) {
+    use std::collections::HashMap;
+    use std::sync::Mutex;
+    use std::time::{Duration, Instant};
+    let schwach = Arc::downgrade(o);
+    let laufzeit = tokio::runtime::Handle::current();
+    /// Wann jede Meldung zuletzt ging, und wann überhaupt zuletzt eine.
+    type Zuletzt = (HashMap<String, Instant>, Option<Instant>);
+    let zuletzt: Arc<Mutex<Zuletzt>> = Arc::default();
+    a.benachrichtigung_setzen(Arc::new(move |m: ::agenten::Meldung| {
+        let Some(o) = schwach.upgrade() else { return };
+        if o.einstellungen.d.lock().unwrap().webhook_url.is_none() {
+            return;
+        }
+        let schluessel = format!("{}|{}|{:?}", m.etage, m.arbeiter_name, m.art);
+        {
+            let mut z = zuletzt.lock().unwrap();
+            let jetzt = Instant::now();
+            if z.0.get(&schluessel).is_some_and(|t| jetzt.duration_since(*t) < Duration::from_secs(60)) || z.1.is_some_and(|t| jetzt.duration_since(t) < Duration::from_secs(3)) {
+                return;
+            }
+            z.0.retain(|_, t| jetzt.duration_since(*t) < Duration::from_secs(600));
+            z.0.insert(schluessel, jetzt);
+            z.1 = Some(jetzt);
+        }
+        let etage = o.etagen.get(&m.etage).map(|e| e.name).unwrap_or(m.etage);
+        let text = format!("🏢 {etage}: {}", m.text);
+        laufzeit.spawn(async move {
+            if let Err(f) = crate::webhook::senden(&o, &text).await {
+                tracing::warn!("Webhook: {f}");
+            }
+        });
+    }));
+}
+
 /// Ereignisse von `agenten` an die Browser verteilen.
 pub fn verbinden(o: &OfficeRef, a: Agenten) {
     let mut rx = a.ereignisse();
@@ -95,6 +153,7 @@ pub fn verbinden(o: &OfficeRef, a: Agenten) {
     // Arbeiter eines Kontos laufen mit dessen eigenen Anmeldungen (leerer Wert = Variable entfernen).
     let schwach = Arc::downgrade(o);
     a.konto_umgebung_setzen(Arc::new(move |konto: &str| schwach.upgrade().map(|o| crate::ws::anmeldungen::umgebung(&o, konto, None)).unwrap_or_default()));
+    meldungen_an_webhook(o, &a);
     let _ = o.agenten.set(a);
     let o = o.clone();
     tokio::spawn(async move {

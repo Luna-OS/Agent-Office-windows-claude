@@ -111,7 +111,7 @@ fn IssueAnsicht(i: Issue) -> impl IntoView {
             </Knopf>
             <Knopf art=KnopfArt::Umriss groesse=KnopfGroesse::Klein on:click=move |_| schicken(G::Schliessen { nummer: n })>"Schließen"</Knopf>
         </div>
-        <pre class="rounded-lg bg-secondary/60 p-3 font-sans text-sm whitespace-pre-wrap">{if i.text.is_empty() { "(keine Beschreibung)".to_string() } else { i.text.clone() }}</pre>
+        <div class="rounded-lg bg-secondary/60 p-3 text-sm">{if i.text.is_empty() { "(keine Beschreibung)".to_string().into_any() } else { view! { <crate::markdown::Markdown text=i.text.clone() /> }.into_any() }}</div>
         <Kommentar nummer=n />
     }
 }
@@ -153,7 +153,7 @@ fn PrAnsicht(p: PullRequest) -> impl IntoView {
                 <Knopf art=KnopfArt::Umriss groesse=KnopfGroesse::Klein on:click=move |_| schicken(G::Schliessen { nummer: n })>"Schließen"</Knopf>
             </div>
         })}
-        <pre class="rounded-lg bg-secondary/60 p-3 font-sans text-sm whitespace-pre-wrap">{if p.text.is_empty() { "(keine Beschreibung)".to_string() } else { p.text.clone() }}</pre>
+        <div class="rounded-lg bg-secondary/60 p-3 text-sm">{if p.text.is_empty() { "(keine Beschreibung)".to_string().into_any() } else { view! { <crate::markdown::Markdown text=p.text.clone() /> }.into_any() }}</div>
         <Kommentar nummer=n />
     }
 }
@@ -192,6 +192,8 @@ pub fn Github() -> impl IntoView {
             <span class="text-muted-foreground text-xs">"lädt …"</span>
         </Show>
         <Knopf art=KnopfArt::Geist groesse=KnopfGroesse::Klein attr:title="Neu von GitHub holen" on:click=move |_| schicken(G::Aktualisieren)>"⟳"</Knopf>
+        <Knopf art=KnopfArt::Umriss groesse=KnopfGroesse::Klein attr:title="Den Agenten am Pult fragen"
+            on:click=move |_| crate::modal::oeffnen(Fenster::Station(if prs_zeigen.get_untracked() { "station-pulls" } else { "station-issues" }.into()))>"🤖 Agent fragen"</Knopf>
         <Knopf art=KnopfArt::Umriss groesse=KnopfGroesse::Klein on:click=move |_| wahl.set(Some(Wahl::Neu))>"+ Issue"</Knopf>
     }
     .into_any();

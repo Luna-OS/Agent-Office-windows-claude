@@ -81,6 +81,7 @@ pub fn pruefen(ag: &Agenten, etage: &str) {
         for (id, name, nummer) in heim {
             if steuerung::stoppen(&ag, &etage, &id, Aufraeumen::Alles).await.is_ok() {
                 let text = format!("{name} ist heimgegangen: PR #{nummer} ist gemergt.");
+                ag.innen.melden(&etage, &name, crate::MeldungArt::PrGemergt, text.clone());
                 let _ = kommunikation::senden(&ag, &etage, "Office", None, None, &text);
             }
         }

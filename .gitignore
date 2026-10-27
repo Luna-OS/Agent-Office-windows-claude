@@ -11,3 +11,4 @@ desktop/release
 /target
 /dist
 **/node_modules
+target/

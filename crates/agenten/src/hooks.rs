@@ -94,11 +94,19 @@ pub fn verarbeiten(ag: &Agenten, route: &str, arbeiter: &str, token: &str, ereig
                 dateien = true;
             }
             HookEreignis::BrauchtMenschen(was) => {
+                if a.info.status != ArbeiterStatus::Wartet {
+                    let text = format!("{} wartet auf einen Menschen: {was}", a.info.name);
+                    ag.innen.melden(&etage, &a.info.name, crate::MeldungArt::Wartet, text);
+                }
                 a.info.aktivitaet = Some(was);
                 a.status_setzen(ArbeiterStatus::Wartet);
             }
             HookEreignis::Leerlauf => {}
             HookEreignis::Stopp => {
+                if a.info.status != ArbeiterStatus::Fertig {
+                    let was = a.info.aufgabe.as_ref().map(|t| format!(": {}", t.name)).unwrap_or_default();
+                    ag.innen.melden(&etage, &a.info.name, crate::MeldungArt::Fertig, format!("{} ist fertig{was}", a.info.name));
+                }
                 a.status_setzen(ArbeiterStatus::Fertig);
                 stopp = true;
                 dateien = true;

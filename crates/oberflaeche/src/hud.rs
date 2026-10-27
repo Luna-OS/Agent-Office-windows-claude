@@ -114,6 +114,15 @@ pub fn Hud() -> impl IntoView {
             <Show when=move || z.hinweis.with(Option::is_some) && z.fenster.with(Vec::is_empty)>
                 <div class="hud-panel absolute bottom-6 left-1/2 -translate-x-1/2 px-4 py-1.5 text-sm font-extrabold">{move || z.hinweis.get()}</div>
             </Show>
+            <Show when=move || z.emotes_offen.get()>
+                <div class="hud-panel pointer-events-auto absolute bottom-20 left-1/2 flex -translate-x-1/2 gap-1 p-2" role="toolbar" aria-label="Emotes">
+                    {crate::tasten::EMOTES.iter().enumerate().map(|(i, (_, sym, name))| view! {
+                        <button type="button" class="flex size-14 flex-col items-center justify-center rounded-lg text-2xl hover:cursor-pointer hover:bg-accent" title=*name on:click=move |_| crate::tasten::emote(i)>
+                            {*sym}<span class="text-muted-foreground text-[10px] font-bold">{i + 1}</span>
+                        </button>
+                    }).collect_view()}
+                </div>
+            </Show>
             <Meldungen />
             <Show when=move || z.war_verbunden.get() && !z.verbunden.get()>
                 <div class="hud-panel absolute top-20 left-1/2 -translate-x-1/2 bg-warning px-4 py-2 font-extrabold">

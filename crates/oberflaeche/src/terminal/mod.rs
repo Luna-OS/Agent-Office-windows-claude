@@ -119,6 +119,14 @@ pub fn TerminalFenster(arbeiter: String) -> impl IntoView {
     };
 
     let einfuegen = move |e: web_sys::ClipboardEvent| {
+        // Ein Bild in der Zwischenablage (Bildschirmfoto): hochladen, Pfad eintippen.
+        if let Some(dateien) = e.clipboard_data().and_then(|d| d.files())
+            && dateien.length() > 0
+        {
+            e.prevent_default();
+            maus::dateien_ablegen(&id.get_value(), dateien);
+            return;
+        }
         let Some(text) = e.clipboard_data().and_then(|d| d.get_data("text").ok()) else { return };
         e.prevent_default();
         let klammern = sitzung::mit(&id.get_value(), |s| s.parser.screen().bracketed_paste()).unwrap_or(false);

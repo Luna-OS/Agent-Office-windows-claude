@@ -66,6 +66,9 @@ pub async fn starten() {
             kx.etage_bauen();
             if let Some(o) = kx.zustand.ankunft.take() {
                 kx.spieler.versetzen(o.x, o.y, o.z, o.rot_y);
+                if kx.zustand.auf_dem_dach() {
+                    crate::features::aufzug::dach_ankunft(&mut kx);
+                }
             }
         }
 

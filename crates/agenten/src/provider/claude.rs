@@ -78,6 +78,10 @@ impl Provider for Claude {
         if let Some(m) = e.info.aufwand.as_deref().filter(|m| wert_gueltig(m)) {
             a.extend(["--effort".into(), m.into()]);
         }
+        // Der Aufgaben-Agent legt nur Aufgaben an: ohne diese Werkzeuge kann er keine Dateien ändern.
+        if e.info.station.as_deref() == Some("aufgaben") {
+            a.extend(["--disallowedTools".into(), "Edit".into(), "Write".into(), "NotebookEdit".into()]);
+        }
         if let Some(s) = e.fortsetzen.filter(|s| wert_gueltig(s)) {
             a.extend(["--resume".into(), s.into()]);
         }
@@ -145,6 +149,10 @@ pub(crate) mod tests {
             aufgabe: None,
             verbrauch: None,
             letzte_eingabe: None,
+            station: None,
+            besprechung: None,
+            gearbeitet_ms: 0,
+            arbeitet_seit: None,
             konto: None,
             hinweis: None,
         }

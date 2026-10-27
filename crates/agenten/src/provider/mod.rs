@@ -2,7 +2,7 @@
 //! Verwaltung fragt nie, welcher Provider ein Arbeiter ist. Ein neuer Provider: eigene Datei, eine
 //! Zeile in `register()`.
 
-mod claude;
+pub(crate) mod claude;
 mod weitere;
 
 use std::collections::HashMap;

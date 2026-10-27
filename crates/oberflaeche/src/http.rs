@@ -36,6 +36,16 @@ pub async fn schicken(pfad: &str, koerper: &Value) -> Result<Antwort, String> {
     anfrage("POST", pfad, Some(koerper.to_string())).await
 }
 
+/// POST mit einem Blob (eine Datei) als Körper.
+pub async fn hochladen(pfad: &str, datei: &web_sys::Blob) -> Result<Antwort, String> {
+    let init = RequestInit::new();
+    init.set_method("POST");
+    init.set_credentials(RequestCredentials::SameOrigin);
+    init.set_body(datei);
+    let req = Request::new_with_str_and_init(pfad, &init).map_err(|_| "Ungültige Anfrage.".to_string())?;
+    abschicken(req).await
+}
+
 async fn anfrage(methode: &str, pfad: &str, koerper: Option<String>) -> Result<Antwort, String> {
     let fehler = |_: JsValue| "Der Server ist nicht erreichbar.".to_string();
     let init = RequestInit::new();
@@ -48,6 +58,11 @@ async fn anfrage(methode: &str, pfad: &str, koerper: Option<String>) -> Result<A
     if koerper.is_some() {
         req.headers().set("Content-Type", "application/json").map_err(fehler)?;
     }
+    abschicken(req).await
+}
+
+async fn abschicken(req: Request) -> Result<Antwort, String> {
+    let fehler = |_: JsValue| "Der Server ist nicht erreichbar.".to_string();
     let fenster = web_sys::window().ok_or("Kein Browserfenster.")?;
     let antwort: Response = JsFuture::from(fenster.fetch_with_request(&req)).await.map_err(fehler)?.unchecked_into();
     let status = antwort.status();

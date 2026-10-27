@@ -18,6 +18,8 @@ Befehle:
   status <text>                         Melden, woran du gerade arbeitest
   aufgaben                              Das gemeinsame Aufgabenboard
   aufgabe-neu <titel> [notiz]           Eine Aufgabe anlegen
+  aufgabe-neu --auto <titel> <auftrag>  Eine Aufgabe, die das Office selbst einem neuen Arbeiter gibt
+  aufgabe-weg <id>                      Eine wartende Aufgabe vom Board nehmen
   aufgabe <id> <offen|in_arbeit|erledigt|blockiert> [notiz]
                                         Eine Aufgabe übernehmen, abschließen oder blockieren
   anlegen [--provider <id>] <auftrag>   Einen weiteren Arbeiter mit einem Auftrag holen
@@ -175,8 +177,16 @@ fn ausfuehren(args: &[String]) -> Result<(), String> {
         }
         "aufgaben" => aufgaben_zeigen(&v.anfrage("GET", "/office/aufgaben", None)?),
         "aufgabe-neu" => {
-            let titel = rest.first().ok_or("So: office-agenten aufgabe-neu <titel> [notiz]")?;
-            let r = v.anfrage("POST", "/office/aufgaben", Some(json!({ "titel": titel, "notiz": rest.get(1) })))?;
+            let (auto, rest) = match rest.first().map(String::as_str) {
+                Some("--auto") => (true, &rest[1..]),
+                _ => (false, rest),
+            };
+            let titel = rest.first().ok_or("So: office-agenten aufgabe-neu [--auto] <titel> [notiz bzw. auftrag]")?;
+            let notiz = (rest.len() > 1).then(|| rest[1..].join(" "));
+            if auto && notiz.is_none() {
+                return Err("Mit --auto braucht die Aufgabe einen vollständigen Auftrag".into());
+            }
+            let r = v.anfrage("POST", "/office/aufgaben", Some(json!({ "titel": titel, "notiz": notiz, "automatisch": auto })))?;
             println!("Aufgabe #{} angelegt.", r.get("id").and_then(Value::as_u64).unwrap_or(0));
         }
         "aufgabe" => {
@@ -187,6 +197,11 @@ fn ausfuehren(args: &[String]) -> Result<(), String> {
             let notiz = (rest.len() > 2).then(|| rest[2..].join(" "));
             let r = v.anfrage("POST", &format!("/office/aufgaben/{id}"), Some(json!({ "status": status, "notiz": notiz })))?;
             println!("Aufgabe #{} ist jetzt „{}“.", id, s(&r, "status"));
+        }
+        "aufgabe-weg" => {
+            let id = rest.first().ok_or("So: office-agenten aufgabe-weg <id>")?.trim_start_matches('#').to_string();
+            v.anfrage("POST", &format!("/office/aufgaben/{id}/weg"), None)?;
+            println!("Aufgabe #{id} ist vom Board.");
         }
         "anlegen" => {
             let (provider, auftrag) = match rest {

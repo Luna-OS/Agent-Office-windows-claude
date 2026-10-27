@@ -49,6 +49,8 @@ Die Arbeiter im Office wissen voneinander. Dafür gibt es drei Dinge, alle über
 | `office-agenten status <text>` | Den eigenen Stand melden |
 | `office-agenten aufgaben` | Aufgaben der Etage auflisten |
 | `office-agenten aufgabe-neu <titel>` | Eine Aufgabe anlegen |
+| `office-agenten aufgabe-neu --auto <titel> <auftrag>` | Eine Aufgabe samt Auftrag anlegen, die die Warteschlange selbst an einen frischen Arbeiter vergibt (so arbeitet der Aufgaben-Agent) |
+| `office-agenten aufgabe-weg <id>` | Eine wartende Aufgabe wieder von der Warteschlange nehmen |
 | `office-agenten aufgabe <id> <todo\|doing\|done\|blocked> [notiz]` | Den Stand einer Aufgabe setzen |
 
 Menschen sehen den Bus, den Feed und das Board im Office. Der Hook-Server hört nur auf `127.0.0.1`; sein Port steht im Datenordner in `hook-port` (Überschreiben mit `OFFICE_HOOK_PORT`). Ein Arbeiter kann sich nicht selbst nach Hause schicken.

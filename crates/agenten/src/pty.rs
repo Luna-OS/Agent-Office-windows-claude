@@ -1,7 +1,8 @@
 //! Ein Pseudo-Terminal mit einem Prozess darin, über portable-pty (Windows ConPTY, Unix openpty).
 //!
 //! Die Ausgabe liest ein eigener Thread und reicht sie an `bei_daten`; ein zweiter wartet auf das
-//! Ende des Prozesses und meldet den Exit-Code an `bei_ende`.
+//! Ende des Prozesses und meldet den Exit-Code an `bei_ende`. Ein [`Pty`] läuft entweder hier im
+//! Prozess oder im PTY-Wirt (siehe `wirt.rs`), der einen Neustart des Servers überlebt.
 
 use std::collections::HashMap;
 use std::ffi::OsString;
@@ -13,7 +14,7 @@ use anyhow::{Context, Result};
 use portable_pty::{ChildKiller, CommandBuilder, MasterPty, PtySize, native_pty_system};
 
 /// Was gestartet werden soll.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct Befehl {
     pub programm: PathBuf,
     pub argumente: Vec<String>,
@@ -30,6 +31,11 @@ pub struct Befehl {
 pub struct Antworter(Arc<Mutex<Box<dyn Write + Send>>>);
 
 impl Antworter {
+    /// Einer, der nichts schreibt (der PTY-Wirt beantwortet Abfragen selbst).
+    pub fn stumm() -> Self {
+        Antworter(Arc::new(Mutex::new(Box::new(std::io::sink()))))
+    }
+
     pub fn schreiben(&self, daten: &[u8]) -> std::io::Result<()> {
         let mut w = self.0.lock().unwrap_or_else(|e| e.into_inner());
         w.write_all(daten)?;
@@ -42,8 +48,17 @@ pub fn fragt_cursor(daten: &[u8]) -> bool {
     daten.windows(4).any(|w| w == b"\x1b[6n")
 }
 
-/// Ein laufendes Terminal.
+/// Ein laufendes Terminal: hier im Prozess oder im PTY-Wirt.
 pub struct Pty {
+    art: Art,
+}
+
+enum Art {
+    Lokal(Lokal),
+    Wirt(crate::wirt::WirtPty),
+}
+
+struct Lokal {
     pid: Option<u32>,
     master: Box<dyn MasterPty + Send>,
     schreiber: Antworter,
@@ -51,6 +66,18 @@ pub struct Pty {
 }
 
 impl Pty {
+    pub(crate) fn im_wirt(w: crate::wirt::WirtPty) -> Pty {
+        Pty { art: Art::Wirt(w) }
+    }
+
+    /// Die Sitzung im PTY-Wirt, wenn das Terminal dort läuft.
+    pub fn wirt_sitzung(&self) -> Option<&str> {
+        match &self.art {
+            Art::Wirt(w) => Some(&w.id),
+            Art::Lokal(_) => None,
+        }
+    }
+
     /// Startet `befehl` in einem neuen Terminal der Größe `spalten` × `zeilen`.
     pub fn starten(
         befehl: &Befehl,
@@ -97,31 +124,45 @@ impl Pty {
             let code = kind.wait().ok().map(|s| s.exit_code() as i32);
             bei_ende(code);
         })?;
-        Ok(Pty { pid, master: paar.master, schreiber, killer })
+        Ok(Pty { art: Art::Lokal(Lokal { pid, master: paar.master, schreiber, killer }) })
     }
 
     /// Die Prozess-ID des Programms im Terminal.
     pub fn pid(&self) -> Option<u32> {
-        self.pid
+        match &self.art {
+            Art::Lokal(l) => l.pid,
+            Art::Wirt(w) => w.pid(),
+        }
     }
 
     pub fn schreiben(&mut self, daten: &[u8]) -> Result<()> {
-        self.schreiber.schreiben(daten)?;
+        match &self.art {
+            Art::Lokal(l) => l.schreiber.schreiben(daten)?,
+            Art::Wirt(w) => w.schreiben(daten),
+        }
         Ok(())
     }
 
     pub fn groesse(&self, spalten: u16, zeilen: u16) -> Result<()> {
-        self.master.resize(PtySize { rows: zeilen, cols: spalten, pixel_width: 0, pixel_height: 0 })?;
+        match &self.art {
+            Art::Lokal(l) => l.master.resize(PtySize { rows: zeilen, cols: spalten, pixel_width: 0, pixel_height: 0 })?,
+            Art::Wirt(w) => w.groesse(spalten, zeilen),
+        }
         Ok(())
     }
 
     /// Beendet den Prozess (das Ende kommt dann über `bei_ende`).
     pub fn beenden(&mut self) {
-        let _ = self.killer.kill();
+        match &mut self.art {
+            Art::Lokal(l) => {
+                let _ = l.killer.kill();
+            }
+            Art::Wirt(w) => w.beenden(),
+        }
     }
 }
 
-impl Drop for Pty {
+impl Drop for Lokal {
     fn drop(&mut self) {
         let _ = self.killer.kill();
     }

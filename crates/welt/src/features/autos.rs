@@ -122,7 +122,7 @@ impl Aktivitaet<Kontext> for Fahren {
             st.eigen = Some((self.auto, lage));
             kx.senden(ClientNachricht::Spielzeug(S::AutoFahren { auto: self.auto as u32, x: lage.x, z: lage.z, rot_y: lage.rot_y, tempo: lage.tempo, lenkung: lage.lenkung }));
             if lage.tempo.abs() > 0.5 && (kx.zeit * 2.0).fract() < dt as f64 * 2.0 {
-                klang(Klang::Motor { pos: [lage.x, strasse + 0.6, lage.z], tempo: lage.tempo });
+                klang(Klang::Motor { auto: self.auto as u32, pos: [lage.x, strasse + 0.6, lage.z], tempo: lage.tempo });
             }
         }
         // Man sitzt im Auto: Kamera auf Kopfhöhe am Sitz, Blick mit der Maus frei.

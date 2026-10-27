@@ -5,7 +5,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::arbeiter::{ArbeiterStatus, Verbrauch};
+use crate::arbeiter::{ArbeiterStatus, Verbrauch, Worktree};
 
 /// Eine Nachricht auf dem Bus einer Etage.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -109,6 +109,211 @@ pub struct Dienst {
     pub seit: u64,
 }
 
+/// Wie die Arbeiter am Besprechungstisch zusammenarbeiten.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Muster {
+    /// Jeder schlägt vor, dann kritisieren sie einander; zuletzt schreibt der Vorsitz die Entscheidung.
+    Debatte,
+    /// Die Leitung teilt die Aufgabe auf, das Team erledigt je einen Teil, die Leitung führt zusammen.
+    Leitung,
+    /// Dieselbe Aufgabe über viele Teile parallel; der Kopf des Tisches fasst zusammen.
+    MapReduce,
+    /// Rot greift an, Blau behebt, Runde um Runde; Blau schreibt es auf.
+    RotBlau,
+    /// Prüfer lesen einen Pull Request je aus ihrem Blickwinkel; das Ergebnis kommt als Kommentar an den PR.
+    Review,
+}
+
+/// Ein Platz am Besprechungstisch.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Platz {
+    /// Die Rolle, z. B. „Skeptiker“ oder „Rotes Team“.
+    pub rolle: String,
+    /// Der Stuhl (Sitz-ID der Welt).
+    pub tisch: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub arbeiter: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    /// Verbrauchte Tokens (bleibt, wenn er heimgeht).
+    #[serde(default)]
+    pub tokens: u64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ZugZustand {
+    /// Noch nicht übergeben.
+    Wartet,
+    /// Übergeben, noch nicht begonnen.
+    Gesendet,
+    Arbeitet,
+    /// Seine Datei ist geschrieben.
+    Fertig,
+}
+
+/// Der Teil eines Arbeiters in einem Schritt einer Runde.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Zug {
+    /// Index in `Besprechung::plaetze`.
+    pub platz: usize,
+    /// z. B. „schlägt vor“, „kritisiert“, „schreibt die Entscheidung“.
+    pub tut: String,
+    /// Die Datei, die er schreibt (relativ zum Arbeitsordner der Besprechung).
+    pub datei: String,
+    pub zustand: ZugZustand,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gesendet_um: Option<u64>,
+    /// Wurde schon einmal erinnert.
+    #[serde(default)]
+    pub erinnert: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum BesprechungStatus {
+    Laeuft,
+    Fertig,
+    Gestoppt,
+}
+
+/// Eine Besprechung: 2–5 Arbeiter an einer Frage oder Aufgabe, in Runden nach einem Muster.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Besprechung {
+    pub id: String,
+    pub muster: Muster,
+    pub titel: String,
+    pub auftrag: String,
+    /// Die Datei, die die Besprechung schreibt (relativ zu ihrem Worktree).
+    pub ausgabe: String,
+    /// Der Kopf des Tisches zuerst.
+    pub plaetze: Vec<Platz>,
+    #[serde(default)]
+    pub teile: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pr: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub issue: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provider: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub modell: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub aufwand: Option<String>,
+    /// Höchstzahl der Runden.
+    pub runden: u32,
+    /// Aktuelle Runde (ab 1) und Schritt darin.
+    pub runde: u32,
+    pub schritt: u32,
+    pub zuege: Vec<Zug>,
+    /// Tokens für alle zusammen, und wie viele verbraucht sind.
+    pub budget: u64,
+    pub tokens: u64,
+    pub status: BesprechungStatus,
+    /// Warum sie vorzeitig endete.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub grund: Option<String>,
+    pub einberufen_von: String,
+    pub begonnen_um: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub beendet_um: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub worktree: Option<Worktree>,
+    /// Ordner der Rundennotizen (relativ zum Worktree).
+    pub notizen: String,
+    /// Commit mit der Ausgabe.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub commit: Option<String>,
+    /// Review: Link zum Kommentar am PR, oder warum es nicht ging.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub review_url: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub review_fehler: Option<String>,
+    /// Der Anfang der Ausgabedatei, für die Tafel im Raum.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub vorschau: Option<String>,
+    /// Die Arbeiter sind heim, der Worktree ist weg.
+    #[serde(default)]
+    pub abgeraeumt: bool,
+}
+
+/// Eine vergangene Besprechung in einer Zeile.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BesprechungEintrag {
+    pub id: String,
+    pub muster: Muster,
+    pub titel: String,
+    pub status: BesprechungStatus,
+    pub zusammenfassung: String,
+    pub einberufen_von: String,
+    pub beendet_um: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub branch: Option<String>,
+    pub ausgabe: String,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct BesprechungStand {
+    /// Die laufende oder letzte Besprechung (bis abgeräumt oder eine neue beginnt).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub aktuell: Option<Box<Besprechung>>,
+    /// Frühere, neueste zuerst.
+    #[serde(default)]
+    pub frueher: Vec<BesprechungEintrag>,
+}
+
+/// Was beim Einberufen gewünscht wird.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BesprechungWunsch {
+    pub muster: Muster,
+    pub auftrag: String,
+    #[serde(default)]
+    pub titel: Option<String>,
+    /// Ausgabedatei; ohne: die des Musters.
+    #[serde(default)]
+    pub ausgabe: Option<String>,
+    /// Eine Rolle je Arbeiter, der Kopf des Tisches zuerst; leer: die des Musters.
+    #[serde(default)]
+    pub rollen: Vec<String>,
+    #[serde(default)]
+    pub teile: Vec<String>,
+    #[serde(default)]
+    pub pr: Option<u64>,
+    #[serde(default)]
+    pub issue: Option<u64>,
+    #[serde(default)]
+    pub runden: Option<u32>,
+    #[serde(default)]
+    pub budget: Option<u64>,
+    #[serde(default)]
+    pub provider: Option<String>,
+    #[serde(default)]
+    pub modell: Option<String>,
+    #[serde(default)]
+    pub aufwand: Option<String>,
+}
+
+/// Ein heimgeschickter Arbeiter im Kerker (auf Karten, die Arbeiter einsperren).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Gefangener {
+    pub id: String,
+    pub name: String,
+    pub farbe: String,
+    /// Wann eingesperrt (ms).
+    pub um: u64,
+    /// Wie lange er gearbeitet hatte (ms), für wie verbraucht er aussieht.
+    #[serde(default)]
+    pub gearbeitet_ms: u64,
+}
+
+/// Der Kerker einer Etage: alle Eingesperrten, erste zuerst, und wie viele davor nur noch Knochen sind.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Kerker {
+    pub gefangene: Vec<Gefangener>,
+    pub knochen: u32,
+}
+
 /// Nachrichten vom Browser.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "typ", rename_all = "snake_case")]
@@ -123,6 +328,12 @@ pub enum Client {
     Abfragen,
     /// Die Plan-Limits jetzt neu lesen.
     LimitsAuffrischen,
+    /// Eine Besprechung einberufen: Arbeiter setzen sich an den Besprechungstisch.
+    BesprechungStarten { wunsch: Box<BesprechungWunsch> },
+    /// Die laufende Besprechung anhalten; die Arbeiter bleiben am Tisch.
+    BesprechungStoppen,
+    /// Die Arbeiter der letzten Besprechung heimschicken und den Tisch abräumen.
+    BesprechungAbraeumen,
     /// Einen Prompt umschreiben; `text: None` (oder leer) stellt den Standard wieder her.
     PromptSetzen {
         id: String,
@@ -147,6 +358,10 @@ pub enum Server {
     Limits { stand: Limits },
     /// Die Dienste der Etage (beim Betreten und bei jeder Änderung).
     Dienste { liste: Vec<Dienst> },
+    /// Der Besprechungsraum der Etage (beim Betreten und bei jeder Änderung).
+    Besprechung { stand: BesprechungStand },
+    /// Der Kerker der Etage (beim Betreten und wenn jemand eingesperrt wird).
+    Kerker { stand: Kerker },
     /// Alle Prompts (beim Verbinden und nach jeder Änderung).
     Prompts { liste: Vec<PromptInfo> },
 }

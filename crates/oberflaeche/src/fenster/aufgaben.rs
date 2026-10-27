@@ -157,6 +157,8 @@ pub fn Aufgaben() -> impl IntoView {
                 }
             />
         </label>
+        <Knopf art=KnopfArt::Umriss groesse=KnopfGroesse::Klein attr:title="Den Aufgaben-Agenten am Pult fragen"
+            on:click=move |_| crate::modal::oeffnen(Fenster::Station("station-queue".into()))>"🤖 Agent fragen"</Knopf>
         <Knopf art=KnopfArt::Geist groesse=KnopfGroesse::Klein on:click=move |_| schicken(A::ErledigteLeeren)>"Erledigte leeren"</Knopf>
     }
     .into_any();

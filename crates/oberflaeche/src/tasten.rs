@@ -7,6 +7,7 @@ use wasm_bindgen::JsCast;
 use crate::bruecke::{Befehl, befehl};
 use crate::modal::{self, Fenster};
 use crate::zustand::zustand;
+use protokoll::{ClientNachricht, praesenz};
 
 /// Taste → was sie tut.
 const KUERZEL: &[(&str, fn())] = &[
@@ -20,7 +21,45 @@ const KUERZEL: &[(&str, fn())] = &[
     ("V", voice_taste),
     ("m", || befehl(Befehl::StummUmschalten)),
     ("M", || befehl(Befehl::StummUmschalten)),
+    ("g", emote_leiste),
+    ("G", emote_leiste),
+    ("1", || emote(0)),
+    ("2", || emote(1)),
+    ("3", || emote(2)),
+    ("4", || emote(3)),
+    ("5", || emote(4)),
+    ("6", || emote(5)),
 ];
+
+/// Die Emotes in der Reihenfolge der Tasten 1–6.
+pub const EMOTES: [(praesenz::Emote, &str, &str); 6] = [
+    (praesenz::Emote::Winken, "👋", "winken"),
+    (praesenz::Emote::Daumen, "👍", "Daumen hoch"),
+    (praesenz::Emote::Klatschen, "👏", "klatschen"),
+    (praesenz::Emote::Tanzen, "💃", "tanzen"),
+    (praesenz::Emote::Zeigen, "👉", "zeigen"),
+    (praesenz::Emote::Facepalm, "🤦", "Facepalm"),
+];
+
+/// Ein Emote für alle auf der Etage.
+pub fn emote(i: usize) {
+    if let Some((e, _, _)) = EMOTES.get(i) {
+        crate::bruecke::senden(ClientNachricht::Praesenz(praesenz::Client::Emote { emote: *e }));
+    }
+    let z = zustand();
+    if z.emotes_offen.get_untracked() {
+        z.emotes_offen.set(false);
+        crate::bruecke::fenster(false);
+    }
+}
+
+/// G: die Emote-Leiste auf- oder zuklappen (offen gibt sie die Maus frei, damit man klicken kann).
+fn emote_leiste() {
+    let z = zustand();
+    let offen = !z.emotes_offen.get_untracked();
+    z.emotes_offen.set(offen);
+    crate::bruecke::fenster(offen);
+}
 
 /// V: außerhalb des Voice beitreten, drinnen sprechen, solange V gedrückt ist.
 fn voice_taste() {
@@ -58,6 +97,11 @@ pub(crate) fn anmelden() {
             return;
         }
         if e.ctrl_key() || e.meta_key() || e.alt_key() || tippt(&e) {
+            return;
+        }
+        // Esc klappt die Emote-Leiste zu.
+        if e.key() == "Escape" && zustand().emotes_offen.get_untracked() {
+            emote_leiste();
             return;
         }
         let key = e.key();

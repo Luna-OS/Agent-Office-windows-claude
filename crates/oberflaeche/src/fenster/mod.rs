@@ -4,22 +4,28 @@
 pub mod aenderungen;
 pub mod agenten;
 pub mod anlegen;
+pub mod arcade;
 pub mod aufgaben;
 pub mod aufzug;
+pub mod bar;
+pub mod buecher;
 pub mod einstellungen;
 pub mod github;
 pub mod hilfe;
 pub mod konten;
 pub mod medien;
+pub mod meeting;
 pub mod menue;
 pub mod nutzung;
 pub mod palette;
+pub mod station;
 pub mod team;
 pub mod tisch;
+pub mod whiteboard;
 
 use leptos::prelude::*;
 
-use crate::modal::{Fenster, Rahmen};
+use crate::modal::Fenster;
 
 /// Die Komponente zu einem Fenster.
 pub fn ansicht(f: Fenster) -> AnyView {
@@ -46,20 +52,14 @@ pub fn ansicht(f: Fenster) -> AnyView {
         Fenster::Nutzung => view! { <nutzung::Nutzung /> }.into_any(),
         Fenster::Prompts => view! { <nutzung::Prompts /> }.into_any(),
         Fenster::Dienste => view! { <nutzung::Dienste /> }.into_any(),
+        Fenster::Bar => view! { <bar::Bar /> }.into_any(),
+        Fenster::Buecher => view! { <buecher::Buecher /> }.into_any(),
+        Fenster::Whiteboard => view! { <whiteboard::Whiteboard /> }.into_any(),
+        Fenster::Arcade => view! { <arcade::Arcade /> }.into_any(),
+        Fenster::Meeting => view! { <meeting::Meeting /> }.into_any(),
+        Fenster::Station(t) => view! { <station::Station tisch=t /> }.into_any(),
         Fenster::Team => view! { <team::Team /> }.into_any(),
         Fenster::Konten => view! { <konten::Konten /> }.into_any(),
         Fenster::Terminal(id) => view! { <crate::terminal::TerminalFenster arbeiter=id /> }.into_any(),
-        andere => view! { <Baustelle fenster=andere /> }.into_any(),
-    }
-}
-
-/// Für Fenster, die noch gebaut werden.
-#[component]
-fn Baustelle(fenster: Fenster) -> impl IntoView {
-    let titel = format!("{fenster:?}");
-    view! {
-        <Rahmen fenster=fenster titel=titel>
-            <p class="text-muted-foreground">"🚧 Dieses Fenster wird gerade gebaut."</p>
-        </Rahmen>
     }
 }

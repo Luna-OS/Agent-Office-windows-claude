@@ -103,6 +103,13 @@ impl Arbeiter {
         if status != ArbeiterStatus::Arbeitet {
             self.info.aktion = None;
         }
+        // Arbeitszeit: die Welt zeigt, wie verbraucht er aussieht.
+        let jetzt = jetzt_ms();
+        if status == ArbeiterStatus::Arbeitet {
+            self.info.arbeitet_seit.get_or_insert(jetzt);
+        } else if let Some(seit) = self.info.arbeitet_seit.take() {
+            self.info.gearbeitet_ms += jetzt.saturating_sub(seit);
+        }
         self.info.status = status;
         self.feed_um = jetzt_ms();
     }

@@ -141,6 +141,12 @@ pub async fn stoppen(ag: &Agenten, etage: &str, id: &str, aufraeumen: Aufraeumen
             pty.beenden();
         }
         e.bus.vergessen(id);
+        if e.kerker_aktiv {
+            crate::kerker::einsperren(&mut e.kerker, &a.info, jetzt_ms());
+            crate::kerker::speichern(&speicher::ordner(&ag.innen.daten, etage), &e.kerker);
+            let stand = e.kerker.clone();
+            ag.innen.senden(Ziel::Etage(etage.to_string()), ServerNachricht::Agenten(AgSrv::Kerker { stand }));
+        }
         // Seine automatischen Aufgaben gehen zurück aufs Board.
         for auf in e.board.board.aufgaben.iter_mut().filter(|t| t.arbeiter.as_deref() == Some(id)) {
             auf.arbeiter = None;

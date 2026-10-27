@@ -120,11 +120,18 @@ pub struct NeuAnfrage {
     notiz: Option<String>,
     #[serde(default)]
     besitzer: Option<String>,
+    /// Das Office gibt sie selbst einem neuen Arbeiter; `notiz` ist dann der Auftrag.
+    #[serde(default)]
+    automatisch: bool,
 }
 
 pub async fn aufgabe_neu(State(ag): State<Agenten>, kopf: HeaderMap, Json(a): Json<NeuAnfrage>) -> Response {
     let (etage, _, name) = ausweisen!(ag, kopf);
-    let neu = Neu { titel: a.titel, notiz: a.notiz, besitzer: a.besitzer, ..Default::default() };
+    let neu = if a.automatisch {
+        Neu { titel: a.titel, prompt: a.notiz, automatisch: true, ..Default::default() }
+    } else {
+        Neu { titel: a.titel, notiz: a.notiz, besitzer: a.besitzer, ..Default::default() }
+    };
     match kommunikation::aufgabe_neu(&ag, &etage, &name, neu) {
         Ok(a) => Json(a).into_response(),
         Err(f) => fehler(StatusCode::BAD_REQUEST, f),
@@ -157,6 +164,20 @@ pub async fn aufgabe_aendern(State(ag): State<Agenten>, kopf: HeaderMap, Path(nr
     let aenderung = Aenderung { titel: a.titel, status, besitzer, notiz: a.notiz };
     match kommunikation::aufgabe_aendern(&ag, &etage, &name, nr, aenderung) {
         Ok(a) => Json(a).into_response(),
+        Err(f) => fehler(StatusCode::BAD_REQUEST, f),
+    }
+}
+
+/// Nimmt eine Aufgabe vom Board, die noch niemand bearbeitet.
+pub async fn aufgabe_weg(State(ag): State<Agenten>, kopf: HeaderMap, Path(nr): Path<u64>) -> Response {
+    let (etage, _, _) = ausweisen!(ag, kopf);
+    let ergebnis = kommunikation::board_aendern(&ag, &etage, |b| match b.holen(nr) {
+        None => Err(format!("Keine Aufgabe #{nr}")),
+        Some(a) if a.status == protokoll::aufgaben::AufgabenStatus::InArbeit => Err(format!("Aufgabe #{nr} ist schon in Arbeit")),
+        Some(_) => Ok(b.entfernen(nr)),
+    });
+    match ergebnis.and_then(|r| r) {
+        Ok(_) => Json(json!({ "ok": true })).into_response(),
         Err(f) => fehler(StatusCode::BAD_REQUEST, f),
     }
 }

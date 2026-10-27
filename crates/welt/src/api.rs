@@ -118,7 +118,8 @@ pub enum Klang {
     GolfLoch { pos: [f32; 3] },
     Bellen { pos: [f32; 3] },
     Hupe { pos: [f32; 3] },
-    Motor { pos: [f32; 3], tempo: f32 },
+    /// Ein fahrendes Auto (Index wie im Protokoll), regelmäßig solange es fährt.
+    Motor { auto: u32, pos: [f32; 3], tempo: f32 },
     Gong { pos: [f32; 3] },
     Kaffee { pos: [f32; 3] },
     Dart { pos: [f32; 3] },

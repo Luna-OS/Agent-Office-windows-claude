@@ -83,6 +83,10 @@ pub trait Anbindung: Send + Sync {
     /// Eine Etage ist da (beim Start, nach einem Klon, nach dem Übernehmen).
     fn etage_angemeldet(&self, _id: &str, _ordner: &std::path::Path) {}
     fn etage_abgemeldet(&self, _id: &str) {}
+    /// Die Ports der Server, die Arbeiter gestartet haben (für Tunnel und Tailnet).
+    fn dienst_ports(&self) -> Option<Vec<u16>> {
+        None
+    }
     /// Der Ausbau des Hinterbüros einer Etage hat sich geändert (beim Anmelden auch einmal).
     fn fluegel_geaendert(&self, _id: &str, _fluegel: u32) {}
     /// Arbeiter-Zahlen für die Aufzugtafel.
@@ -244,6 +248,10 @@ impl Office {
         for a in self.anbindungen() {
             a.etage_abgemeldet(id);
         }
+    }
+
+    pub fn dienst_ports(&self) -> Vec<u16> {
+        self.anbindungen().iter().filter_map(|a| a.dienst_ports()).flatten().collect()
     }
 
     pub fn zahlen(&self, etage: &str) -> Zahlen {

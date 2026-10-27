@@ -47,6 +47,8 @@ pub struct Zustand {
     pub chat: RwSignal<Vec<praesenz::ChatZeile>>,
     /// Das Chat-Eingabefeld hat den Fokus (T).
     pub chat_offen: RwSignal<bool>,
+    /// Die Emote-Leiste (G) ist offen.
+    pub emotes_offen: RwSignal<bool>,
     /// Die Hinweiszeile der Welt ("E: Terminal von Pixel öffnen").
     pub hinweis: RwSignal<Option<String>>,
 
@@ -66,12 +68,16 @@ pub struct Zustand {
     pub limits: RwSignal<Option<agenten::Limits>>,
     pub prompts: RwSignal<Vec<agenten::PromptInfo>>,
     pub dienste: RwSignal<Vec<agenten::Dienst>>,
+    pub besprechung: RwSignal<agenten::BesprechungStand>,
+    pub kerker: RwSignal<agenten::Kerker>,
     /// Arbeiter gehen heim, wenn ihr PR gemergt ist.
     pub nach_merge_gehen: RwSignal<bool>,
 
     pub einstellungen: RwSignal<Option<einstellungen::Gesamt>>,
     pub konten: RwSignal<Option<konten::KontenStand>>,
     pub anmeldungen: RwSignal<Option<konten::Anmeldungen>>,
+    /// Der SSH-Zugang für das Team (Admins).
+    pub team_ssh: RwSignal<Option<konten::TeamStand>>,
 
     pub bildschirme: RwSignal<Vec<protokoll::medien::Bildschirm>>,
     pub leinwand: RwSignal<protokoll::dach::LeinwandZustand>,
@@ -97,6 +103,7 @@ impl Zustand {
             personen: RwSignal::new(Vec::new()),
             chat: RwSignal::new(Vec::new()),
             chat_offen: RwSignal::new(false),
+            emotes_offen: RwSignal::new(false),
             hinweis: RwSignal::new(None),
             etagen: RwSignal::new(Vec::new()),
             etage: RwSignal::new(None),
@@ -113,10 +120,13 @@ impl Zustand {
             limits: RwSignal::new(None),
             prompts: RwSignal::new(Vec::new()),
             dienste: RwSignal::new(Vec::new()),
+            besprechung: RwSignal::new(Default::default()),
+            kerker: RwSignal::new(Default::default()),
             nach_merge_gehen: RwSignal::new(false),
             einstellungen: RwSignal::new(None),
             konten: RwSignal::new(None),
             anmeldungen: RwSignal::new(None),
+            team_ssh: RwSignal::new(None),
             bildschirme: RwSignal::new(Vec::new()),
             leinwand: RwSignal::new(Default::default()),
             jukebox: RwSignal::new(None),

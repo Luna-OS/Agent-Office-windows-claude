@@ -172,6 +172,15 @@ impl Klang {
         k.klirren(&aus, t0 + 0.02, zufall_f(1600.0, 1900.0), 0.06);
     }
 
+    /// Der Aufzug ist da: ein heller Zweiklang an der Tür.
+    pub fn aufzug(&self, ort: Ort) {
+        let Some(k) = self.kern() else { return };
+        let aus = k.ausgang(Some(ort), 2.0, 1.0, &k.umgebung);
+        let t0 = k.jetzt() + 0.01;
+        k.blip(&aus, t0, 880.0, 1.0, 0.6, 0.09, OscillatorType::Triangle);
+        k.blip(&aus, t0 + 0.28, 698.0, 1.0, 0.9, 0.08, OscillatorType::Triangle);
+    }
+
     /// Jemand landet im Stroh.
     pub fn plumps(&self, ort: Ort) {
         let Some(k) = self.kern() else { return };

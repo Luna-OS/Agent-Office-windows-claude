@@ -63,6 +63,7 @@ pub fn Team() -> impl IntoView {
     let als_admin = RwSignal::new(false);
     if z.ich.with_untracked(|i| i.admin) {
         schicken(K::KontenHolen);
+        schicken(K::TeamHolen);
     }
     view! {
         <Rahmen fenster=Fenster::Team titel="👥 Team" breite="max-w-3xl">
@@ -95,6 +96,7 @@ pub fn Team() -> impl IntoView {
                             <p class="rounded-md bg-success/15 p-2 font-mono text-xs break-all">{l}</p>
                         })}
                     </section>
+                    <SshZugang />
                     {move || z.konten.get().map(|k| view! {
                         <section class="flex flex-col gap-2">
                             <h3 class="text-sm font-extrabold">"Konten"</h3>
@@ -153,5 +155,64 @@ pub fn Team() -> impl IntoView {
                 </Show>
             </div>
         </Rahmen>
+    }
+}
+
+/// Der Tunnel-Befehl, der das Office auf dem eigenen Rechner unter localhost öffnet.
+fn tunnel(ssh: &str, port: u16) -> String {
+    format!("ssh -N -L {port}:localhost:{port} {ssh}")
+}
+
+/// Teammitglieder per SSH-Schlüssel (von GitHub) hereinlassen, für ein Office auf einem Server.
+#[component]
+fn SshZugang() -> impl IntoView {
+    let z = zustand();
+    let github = RwSignal::new(String::new());
+    view! {
+        {move || z.team_ssh.get().map(|t| view! {
+            <section class="flex flex-col gap-2 rounded-xl border p-3">
+                <h3 class="text-sm font-extrabold">"🔐 SSH-Zugang"</h3>
+                {t.nicht_verfuegbar.clone().map(|n| view! { <p class="text-muted-foreground text-sm">{n}</p> })}
+                {t.fehler.clone().map(|f| view! { <p class="text-sm text-destructive">{f}</p> })}
+                {t.tailnet.clone().map(|n| view! { <p class="text-sm">"Im Tailnet: "<a class="text-primary font-bold hover:underline" href=format!("https://{n}") target="_blank" rel="noopener noreferrer">{format!("https://{n}")}</a></p> })}
+                {t.ssh.clone().map(|ssh| {
+                    let befehl = tunnel(&ssh, t.port);
+                    let b2 = befehl.clone();
+                    view! {
+                        <p class="text-muted-foreground text-xs">{format!("Dann im Browser http://localhost:{} öffnen.", t.port)}</p>
+                        <div class="flex items-center gap-2">
+                            <code class="flex-1 rounded-md bg-secondary p-2 font-mono text-xs break-all">{befehl}</code>
+                            <Knopf art=KnopfArt::Umriss groesse=KnopfGroesse::Klein on:click=move |_| kopieren(&b2)>"Kopieren"</Knopf>
+                        </div>
+                    }
+                })}
+                {t.fingerabdruck.clone().map(|f| view! { <p class="text-muted-foreground font-mono text-[11px] break-all">{format!("Host-Schlüssel: {f}")}</p> })}
+                {(t.nicht_verfuegbar.is_none()).then(|| view! {
+                    <ul class="flex flex-col gap-1">
+                        {t.mitglieder.iter().map(|m| {
+                            let name = m.name.clone();
+                            view! {
+                                <li class="flex items-center gap-2 text-sm">
+                                    <span class="font-bold">{m.name.clone()}</span>
+                                    <span class="text-muted-foreground text-xs">{format!("{} Schlüssel", m.schluessel)}</span>
+                                    <Knopf art=KnopfArt::Geist groesse=KnopfGroesse::Klein class="ml-auto" on:click=move |_| schicken(K::TeamEntfernen { name: name.clone() })>"Entfernen"</Knopf>
+                                </li>
+                            }
+                        }).collect_view()}
+                    </ul>
+                    <form class="flex gap-2" on:submit=move |e| {
+                        e.prevent_default();
+                        let g = github.get_untracked().trim().trim_start_matches('@').to_string();
+                        if !g.is_empty() {
+                            schicken(K::TeamEinladen { github: g });
+                            github.set(String::new());
+                        }
+                    }>
+                        <Eingabe wert=github platzhalter="GitHub-Name (seine SSH-Schlüssel kommen von GitHub)" />
+                        <Knopf absenden=true groesse=KnopfGroesse::Klein>"Hereinlassen"</Knopf>
+                    </form>
+                })}
+            </section>
+        })}
     }
 }

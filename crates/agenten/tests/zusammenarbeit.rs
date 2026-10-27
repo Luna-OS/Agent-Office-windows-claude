@@ -28,6 +28,14 @@ async fn warte<T>(rx: &mut Receiver<Ereignis>, sekunden: u64, mut pruefen: impl 
                 if let ServerNachricht::Fehler { text } = &e.nachricht {
                     eprintln!("Fehler vom Office: {text}");
                 }
+                if let ServerNachricht::Agenten(AgSrv::Dienste { liste }) = &e.nachricht {
+                    eprintln!("Dienste: {liste:?}");
+                }
+                if std::env::var("TEST_TERMINAL").is_ok()
+                    && let ServerNachricht::Arbeiter(ArbSrv::TerminalDaten { daten, .. }) = &e.nachricht
+                {
+                    eprint!("{daten}");
+                }
                 if let Some(a) = aktualisiert(&e) {
                     eprintln!("{}: {:?} {:?}", a.name, a.status, a.aktivitaet);
                 }
@@ -105,6 +113,8 @@ async fn agenten_reden_miteinander() {
     ag.nachricht(&luna, ClientNachricht::Arbeiter(ArbCl::Anschauen { arbeiter: ada.id.clone() })).await;
     warte(&mut rx, 10, |e| matches!(&e.nachricht, ServerNachricht::Arbeiter(ArbSrv::TerminalSnapshot { .. })).then_some(())).await;
 
+    ag.nachricht(&luna, ClientNachricht::Arbeiter(ArbCl::Anschauen { arbeiter: bruno.id.clone() })).await;
+
     // Bruno schreibt Ada über die CLI.
     let tippe = |text: &str| ClientNachricht::Arbeiter(ArbCl::Eingabe { arbeiter: bruno.id.clone(), daten: eingabe(text) });
     tokio::time::sleep(Duration::from_secs(2)).await;
@@ -133,7 +143,8 @@ async fn agenten_reden_miteinander() {
 
     // Bruno startet einen Server: er erscheint als sein Dienst.
     let server = if cfg!(windows) {
-        "powershell -NoProfile -Command \"$l=[System.Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback,0);$l.Start();Start-Sleep 60\""
+        // Brunos Shell ist hier PowerShell: einfache Anführungszeichen, damit `$l` erst drinnen gilt.
+        "powershell -NoProfile -Command '$l=[System.Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback,0);$l.Start();Start-Sleep 60'"
     } else {
         "python3 -c 'import socket,time;s=socket.socket();s.bind((\"127.0.0.1\",0));s.listen();time.sleep(60)'"
     };

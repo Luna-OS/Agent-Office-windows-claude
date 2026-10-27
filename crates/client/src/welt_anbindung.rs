@@ -77,7 +77,7 @@ mod an {
             A::BoardOeffnen { board } => match board {
                 welt::api::Board::Warteschlange => Fenster::Aufgaben,
                 welt::api::Board::Issues | welt::api::Board::PullRequests => Fenster::Github,
-                welt::api::Board::Dienste => Fenster::Agenten,
+                welt::api::Board::Dienste => Fenster::Dienste,
             },
             A::TvOeffnen => {
                 oberflaeche::tv_oeffnen();
@@ -91,6 +91,10 @@ mod an {
                 Fenster::BildAufhaengen
             }
             A::HilfeOeffnen => Fenster::Hilfe,
+            A::BarKarte => Fenster::Bar,
+            A::BuecherregalOeffnen => Fenster::Buecher,
+            A::WhiteboardOeffnen => Fenster::Whiteboard,
+            A::ArcadeOeffnen => Fenster::Arcade,
             A::Meldung { text } => {
                 oberflaeche::zustand::info(text);
                 return;

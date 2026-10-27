@@ -44,6 +44,8 @@ pub fn etage_betreten(ag: &Agenten, von: &Absender) -> Vec<ServerNachricht> {
     }));
     aus.push(ServerNachricht::Aufgaben(AufSrv::Stand { board: e.board.board.clone() }));
     aus.push(ServerNachricht::Agenten(AgSrv::Dienste { liste: e.dienste.clone() }));
+    aus.push(ServerNachricht::Agenten(AgSrv::Kerker { stand: e.kerker.clone() }));
+    aus.push(ServerNachricht::Agenten(AgSrv::Besprechung { stand: e.besprechung.clone() }));
     aus.push(e.github.nachricht());
     aus
 }
@@ -52,6 +54,14 @@ pub async fn verarbeiten(ag: &Agenten, von: &Absender, n: ClientNachricht) {
     let etage = etage_von(von);
     let ergebnis = match n {
         ClientNachricht::Arbeiter(m) => arbeiter(ag, von, &etage, m).await,
+        ClientNachricht::Agenten(AgCl::BesprechungStarten { wunsch }) => {
+            crate::besprechung::starten(ag, &etage, &von.name, von.konto.clone(), *wunsch).await
+        }
+        ClientNachricht::Agenten(AgCl::BesprechungStoppen) => {
+            crate::besprechung::anhalten(ag, &etage, &format!("Angehalten von {}", von.name));
+            Ok(())
+        }
+        ClientNachricht::Agenten(AgCl::BesprechungAbraeumen) => crate::besprechung::abraeumen(ag, &etage).await,
         ClientNachricht::Agenten(m) => agenten(ag, von, &etage, m),
         ClientNachricht::Aufgaben(m) => aufgaben(ag, von, &etage, m),
         ClientNachricht::Github(m) => github_nachricht(ag, von, &etage, m).await,
@@ -75,7 +85,7 @@ async fn arbeiter(ag: &Agenten, von: &Absender, etage: &str, m: ArbCl) -> Result
                 (p, Some(n)) => Some(issue_auftrag(ag, etage, n, p)),
                 (p, None) => p,
             };
-            let wunsch = start::Wunsch { tisch: Some(tisch), prompt, worktree, art, provider, modell, aufwand, konto: von.konto.clone() };
+            let wunsch = start::Wunsch { tisch: Some(tisch), prompt, worktree, art, provider, modell, aufwand, konto: von.konto.clone(), ..Default::default() };
             start::anlegen(ag, etage, &von.name, wunsch).await?;
             if let Some(n) = issue {
                 issue_uebernehmen(ag, etage, n);
@@ -108,6 +118,7 @@ async fn arbeiter(ag: &Agenten, von: &Absender, etage: &str, m: ArbCl) -> Result
         ArbCl::PrOeffnen { arbeiter } => pr_oeffnen(ag, etage, &arbeiter_id(ag, etage, &arbeiter)?).await?,
         ArbCl::Eingabe { arbeiter, daten } => steuerung::eingabe(ag, etage, &arbeiter, &daten, &von.name),
         ArbCl::Groesse { arbeiter, spalten, zeilen } => steuerung::groesse(ag, etage, &arbeiter, spalten, zeilen),
+        ArbCl::StationAuftrag { tisch, text } => crate::stationen::auftrag(ag, etage, &von.name, von.konto.clone(), &tisch, &text).await?,
         ArbCl::NachMergeGehen { an } => crate::nach_merge::setzen(ag, von, an),
         ArbCl::AenderungenAbfragen { arbeiter } => {
             crate::aenderungen::stand_senden(ag, &von.verbindung, etage, &arbeiter_id(ag, etage, &arbeiter)?).await?
@@ -135,6 +146,7 @@ fn agenten(ag: &Agenten, von: &Absender, etage: &str, m: AgCl) -> Result<(), Str
             crate::prompts::speichern(&ag.innen.daten, &z.prompts);
             ag.innen.senden(Ziel::Alle, ServerNachricht::Agenten(AgSrv::Prompts { liste: crate::prompts::liste(&z.prompts) }));
         }
+        AgCl::BesprechungStarten { .. } | AgCl::BesprechungStoppen | AgCl::BesprechungAbraeumen => {}
         AgCl::LimitsAuffrischen => {
             let ag = ag.clone();
             ag.innen.laufzeit.clone().spawn(async move { crate::nutzung::limits_auffrischen(&ag).await });

@@ -90,6 +90,28 @@ impl Terminal {
         self.parser.screen_mut().set_size(zeilen, spalten);
     }
 
+    /// Alle Zeilen samt Verlauf (älteste zuerst), als reiner Text – für die Suche.
+    pub fn alle_zeilen(&mut self) -> Vec<String> {
+        let schirm = self.parser.screen_mut();
+        let (zeilen, spalten) = schirm.size();
+        let zeilen = zeilen as usize;
+        schirm.set_scrollback(usize::MAX);
+        let verlauf = schirm.scrollback();
+        let mut aus = Vec::new();
+        let mut versatz = verlauf;
+        loop {
+            schirm.set_scrollback(versatz);
+            let nimm = if versatz == 0 { zeilen } else { zeilen.min(versatz) };
+            aus.extend(schirm.rows(0, spalten).take(nimm).map(|z| z.trim_end().to_string()));
+            if versatz == 0 {
+                break;
+            }
+            versatz = versatz.saturating_sub(zeilen);
+        }
+        schirm.set_scrollback(0);
+        aus
+    }
+
     /// Die Antwort auf eine Cursor-Abfrage (DSR 6): `ESC [ zeile ; spalte R`, ab 1 gezählt.
     pub fn cursor_antwort(&self) -> String {
         let (zeile, spalte) = self.parser.screen().cursor_position();
@@ -126,6 +148,18 @@ mod tests {
         assert_eq!(b.neuer_fortschritt, Some(true));
         let c = t.einspeisen(b"\x1b]9;4;0\x07");
         assert_eq!(c.neuer_fortschritt, Some(false));
+    }
+
+    #[test]
+    fn zeilen_mit_verlauf() {
+        let mut t = Terminal::neu(20, 3);
+        for i in 0..10 {
+            t.einspeisen(format!("zeile {i}\r\n").as_bytes());
+        }
+        let z: Vec<String> = t.alle_zeilen().into_iter().filter(|z| !z.is_empty()).collect();
+        assert_eq!(z.first().map(String::as_str), Some("zeile 0"));
+        assert_eq!(z.last().map(String::as_str), Some("zeile 9"));
+        assert_eq!(z.len(), 10);
     }
 
     #[test]

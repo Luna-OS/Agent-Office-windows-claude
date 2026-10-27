@@ -55,7 +55,10 @@ pub fn installieren(reg: &mut Register<Kontext>) {
     // Der Gong schwingt (und alle hören ihn, sobald die Medien ihn spielen).
     let schwung = Rc::new(Cell::new(0.0f32));
     let s = schwung.clone();
-    reg.interaktion("gong", |_, _| Some("E: Gong schlagen".into()), move |_, _| s.set(1.0));
+    reg.interaktion("gong", |_, _| Some("E: Gong schlagen".into()), move |_, _| {
+        s.set(1.0);
+        crate::api::klang(crate::api::Klang::Gong { pos: [GONG.0, 1.45, GONG.1] });
+    });
     reg.tick(Phase::Umgebung, move |kx: &mut Kontext, dt| {
         let w = schwung.get();
         if w <= 0.0 {
@@ -77,6 +80,8 @@ pub fn installieren(reg: &mut Register<Kontext>) {
         |_, _| Some("E: Kaffee holen".into()),
         move |kx: &mut Kontext, _| {
             b.set(kx.zeit + KAFFEE_DAUER);
+            let (x, z) = crate::grundriss::KAFFEEMASCHINE;
+            crate::api::klang(crate::api::Klang::Kaffee { pos: [x, 1.2, z + 1.0] });
             melden(WeltAktion::Meldung { text: "☕ Eine Minute lang schneller unterwegs.".into() });
         },
     );
@@ -100,7 +105,10 @@ pub fn installieren(reg: &mut Register<Kontext>) {
     // Leiter hoch, Stange runter: eine Etage weiter, mit dem Aufzug-Weg (der Server setzt einen ab).
     reg.interaktion("leiter", |_, _| Some("E: Leiter hinauf zur Etage darüber".into()), |kx: &mut Kontext, _| nachbar_etage(kx, 1));
     reg.interaktion("stange", |_, _| Some("E: Feuerwehrstange hinunter".into()), |kx: &mut Kontext, _| nachbar_etage(kx, -1));
-    reg.interaktion("dj", |_, _| Some("E: Lufthorn!".into()), |_, _| melden(WeltAktion::Meldung { text: "📯 TRÖÖÖT!".into() }));
+    reg.interaktion("dj", |_, _| Some("E: Lufthorn!".into()), |_, _| {
+        let (x, z) = crate::grundriss::dach::DJ;
+        crate::api::klang(crate::api::Klang::Lufthorn { pos: [x, 1.6, z] });
+    });
 
     reg.taste("KeyF", None, |kx: &mut Kontext| {
         match wandplatz(kx) {
