@@ -44,6 +44,9 @@ export function installLoop(ctx: Ctx, core: CoreState, parts: Pick<Parts, 'stage
 
   /** Frames coming too slowly for the 3D to be any fun: the 2D view is offered. */
   function watchFrameRate({ now, delta }: Frame) {
+    // Not while they're drawn slowly on purpose, to spare the computer (see ctx.pace): that's no sign it's struggling.
+    const fps = ctx.pace.fps();
+    if (fps && fps < 30) return slowFrames.rest();
     if (slowFrames.frame(now, delta * 1000)) deps.offer2d('slow');
   }
 
@@ -186,12 +189,17 @@ export function installLoop(ctx: Ctx, core: CoreState, parts: Pick<Parts, 'stage
 }
 
 /**
- * The frame loop: each frame, every phase's ticks, in order (see TICK_PHASES, and installLoop). Its
- * clock starts now; hand what it returns to requestAnimationFrame to start it.
+ * The frame loop: each frame, every phase's ticks, in order (see TICK_PHASES, and installLoop), on
+ * the screen frames ctx.pace lets through. Its clock starts now; hand what it returns to
+ * requestAnimationFrame to start it.
  */
 export function frameLoop(ctx: Ctx, loading: { drew(): void }): (ts?: number) => void {
   const timer = new THREE.Timer();
   function frame(ts?: number) {
+    if (!ctx.pace.due(ts ?? performance.now())) {
+      requestAnimationFrame(frame);
+      return;
+    }
     timer.update(ts);
     const delta = timer.getDelta();
     ctx.ticks.run({ delta, dt: Math.min(delta, 0.1), t: timer.getElapsed(), now: performance.now() });

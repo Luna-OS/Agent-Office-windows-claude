@@ -27,6 +27,8 @@ interface Saved {
   invites: AccountInvite[];
   /** Missing means on: offices from before accounts keep working with their password. */
   sharedPassword?: boolean;
+  /** Members may run their workers on the office machine's own Claude (the host's), not only their own. Missing means off. */
+  shareClaude?: boolean;
 }
 
 /** Collapses whitespace and drops control characters, so "Ada" and " Ada​" are one name. */
@@ -74,6 +76,12 @@ export class Accounts {
     return this.data.sharedPassword !== false;
   }
 
+  /** Whether members may use the office machine's own Claude (the host's) for their workers. */
+  get shareClaude(): boolean {
+    this.sync();
+    return this.data.shareClaude === true;
+  }
+
   /** Whether anyone has an account yet. */
   get any(): boolean {
     this.sync();
@@ -99,6 +107,7 @@ export class Accounts {
       accounts: this.data.accounts.map(({ hash: _h, salt: _s, ...a }) => ({ ...a, online: online.has(a.id) })),
       invites: this.data.invites,
       sharedPassword: this.data.sharedPassword !== false,
+      shareClaude: this.data.shareClaude === true,
     };
   }
 
@@ -209,6 +218,13 @@ export class Accounts {
     this.save();
   }
 
+  setShareClaude(on: boolean) {
+    this.sync();
+    if (on) this.data.shareClaude = true;
+    else delete this.data.shareClaude;
+    this.save();
+  }
+
   seen(id: string) {
     const a = this.get(id);
     if (!a) return;
@@ -252,6 +268,7 @@ export class Accounts {
         accounts: Array.isArray(saved.accounts) ? saved.accounts.filter((a) => a && typeof a.id === 'string' && typeof a.hash === 'string') : [],
         invites: Array.isArray(saved.invites) ? saved.invites.filter((v) => v && typeof v.token === 'string') : [],
         ...(saved.sharedPassword === false ? { sharedPassword: false } : {}),
+        ...(saved.shareClaude === true ? { shareClaude: true } : {}),
       };
       this.unreadable = false;
     } catch (err) {
@@ -336,6 +353,7 @@ export function accountsCommand(argv: string[]): number {
     case 'list': {
       const s = accounts.state(new Set());
       console.log(`Shared office password: ${s.sharedPassword ? 'on' : 'off'}`);
+      console.log(`The office's own Claude for members: ${s.shareClaude ? 'shared' : 'admins only'}`);
       console.log(`\nAccounts (${s.accounts.length}):`);
       for (const a of s.accounts) {
         console.log(`  ${a.name.padEnd(NAME_MAX)}  ${a.role.padEnd(6)}  since ${day(a.createdAt)}  ${a.lastSeenAt ? `last seen ${day(a.lastSeenAt)}` : 'never signed in'}`);

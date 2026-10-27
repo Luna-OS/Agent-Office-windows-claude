@@ -1,0 +1,146 @@
+name: Mac app
+
+# Builds the Agent Office Mac app (desktop/, see docs/mac-app.md) on a Mac runner: the office itself,
+# its production dependencies with the macOS native modules for each architecture, a node and the
+# GitHub CLI for each, and the Electron app around them, packed by electron-builder into
+# Agent-Office-<version>-mac-arm64.dmg (Apple silicon) and Agent-Office-<version>-mac-x64.dmg (Intel).
+# The app is signed ad hoc (no Apple Developer certificate), which Apple silicon needs to run it at all.
+#
+# Every run uploads the disk images as a workflow artifact. A push to main also publishes them as a
+# GitHub release (mac-v0.1.<commits on main>), next to the Windows app's windows-v… one.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'bin/**'
+      - 'desktop/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig*.json'
+      - 'vite.config.ts'
+      - '.github/workflows/mac-app.yml'
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'bin/**'
+      - 'desktop/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig*.json'
+      - 'vite.config.ts'
+      - '.github/workflows/mac-app.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mac-app-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  dmg:
+    runs-on: macos-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # the version counts the commits on main
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            desktop/package-lock.json
+
+      - name: Build the office
+        run: npm ci # its prepare script builds the client and the server
+
+      - name: Install the app's build tools
+        working-directory: desktop
+        run: npm ci
+
+      - name: Version
+        id: version
+        working-directory: desktop
+        run: |
+          version="$(node -p 'require("./package.json").version.split(".").slice(0, 2).join(".")').$(git rev-list --count HEAD)"
+          npm version "$version" --no-git-tag-version --allow-same-version
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Stage the office, node and gh for Apple silicon and Intel
+        working-directory: desktop
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          STAGE_ARCH=arm64 npm run stage
+          STAGE_ARCH=x64 npm run stage
+          file staging-arm64/node/node staging-x64/node/node staging-arm64/gh/gh staging-x64/gh/gh
+          ./staging-arm64/gh/gh --version
+          ls staging-arm64/office/node_modules/@lydell staging-x64/office/node_modules/@lydell
+
+      - name: Start the staged office once
+        working-directory: desktop/staging-arm64
+        run: |
+          home="$RUNNER_TEMP/office-home"
+          mkdir -p "$home"
+          ./node/node office/bin/agent-office.js --home "$home" --host 127.0.0.1 --port 4700 --password ci --no-open > "$RUNNER_TEMP/office.log" 2>&1 &
+          office=$!
+          for _ in $(seq 60); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:4700/login.html || true)
+            [ "$code" = 200 ] && break
+            sleep 1
+          done
+          cat "$RUNNER_TEMP/office.log"
+          kill "$office" || true
+          [ "$code" = 200 ] || { echo "the staged office didn't answer (last status: $code)"; exit 1; }
+
+      - name: Build the disk images
+        working-directory: desktop
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+          # electron-builder skips signing in pull requests, to keep certificates away from forks. The
+          # app is only signed ad hoc ("identity": "-"), with no certificate or secret, and unsigned it
+          # fails codesign's check and won't run on Apple silicon: so pull requests sign it too.
+          CSC_FOR_PULL_REQUEST: 'true'
+        run: npx electron-builder --mac dmg --arm64 --x64 --publish never
+
+      - name: Check the apps
+        working-directory: desktop/release
+        run: |
+          for app in mac-arm64/"Agent Office.app" mac/"Agent Office.app"; do
+            [ -d "$app" ] || continue
+            echo "== $app"
+            codesign --verify --deep --strict "$app"
+            res="$app/Contents/Resources"
+            for f in office/office-entry.mjs node/node gh/gh claude/claude-code.command tools/github-login.command; do
+              [ -e "$res/$f" ] || { echo "$f is missing from $app"; exit 1; }
+            done
+            [ -x "$res/claude/claude-code.command" ] || { echo "claude-code.command isn't executable"; exit 1; }
+            plutil -extract NSMicrophoneUsageDescription raw "$app/Contents/Info.plist"
+          done
+          ls -la *.dmg
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Agent-Office-${{ steps.version.outputs.version }}-mac
+          path: desktop/release/*.dmg
+          if-no-files-found: error
+
+      - name: Publish
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: mac-v${{ steps.version.outputs.version }}
+        run: |
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            echo "$TAG is already released"
+            exit 0
+          fi
+          # The Windows app's release stays the "latest" one; this one sits next to it.
+          gh release create "$TAG" desktop/release/*.dmg --target "$GITHUB_SHA" --title "Agent Office für macOS $TAG" --generate-notes --latest=false

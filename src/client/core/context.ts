@@ -21,7 +21,7 @@ import type { Interactable, Office } from '../world/types';
 import type { Sky } from '../world/sky';
 import type { Smoke } from '../world/smoke';
 import type { World } from '../world/world';
-import type { Activities, Hooks, Interactions, Keys, Messages, Ticks, Usables, View } from './registry';
+import type { Activities, Hooks, Interactions, Keys, Messages, Pace, Ticks, Usables, View } from './registry';
 
 /** What the hint bar says. */
 export interface Hint {
@@ -127,6 +127,8 @@ export interface Ctx {
   readonly messages: Messages<ServerMsg>;
   readonly keys: Keys<KeyboardEvent>;
   readonly ticks: Ticks;
+  /** How often the frames are drawn: as often as the screen shows them, or fewer (see features/graphics). */
+  readonly pace: Pace;
   readonly activities: Activities<StopWhy, KeyboardEvent, HTMLElement>;
   readonly interactions: Interactions<OfficeInteraction>;
   /** What what you're doing makes of you and your view each frame (see ViewEffect). */

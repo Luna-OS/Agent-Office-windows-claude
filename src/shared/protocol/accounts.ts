@@ -33,8 +33,11 @@ export interface SignInState {
 export interface SignInsState {
   claude: SignInState;
   github: SignInState;
-  /** You may use the office machine's own sign-ins instead of yours (admins). */
-  office: boolean;
+  /**
+   * Which of the office machine's own sign-ins you may use instead of yours: both for admins, and
+   * Claude for members too while an admin shares it (the host's AI, see AccountsState.shareClaude).
+   */
+  office: Record<SignInKind, boolean>;
 }
 
 export interface AccountInfo {
@@ -66,6 +69,8 @@ export interface AccountsState {
   invites: AccountInvite[];
   /** Whether the shared office password still lets people in. */
   sharedPassword: boolean;
+  /** Whether members may run their workers on the office machine's own Claude (the host's), as well as their own. */
+  shareClaude: boolean;
 }
 
 export interface TeamMember {
@@ -105,7 +110,9 @@ export type AccountsClientMsg =
   | { t: 'accounts.revoke'; accountId: string }
   | { t: 'accounts.role'; accountId: string; role: AccountRole }
   /** Let the shared office password sign people in, or stop it. */
-  | { t: 'accounts.shared'; on: boolean };
+  | { t: 'accounts.shared'; on: boolean }
+  /** Let members run their workers on the office machine's own Claude (the host's), or only on their own. */
+  | { t: 'accounts.shareClaude'; on: boolean };
 
 export type SignInsClientMsg =
   /** Your own sign-ins (accounts only): look at them again. */
@@ -117,7 +124,7 @@ export type SignInsClientMsg =
   | { t: 'signins.cancel'; which: SignInKind }
   /** A token instead: from `claude setup-token` (or an Anthropic API key), or a GitHub token. */
   | { t: 'signins.token'; which: SignInKind; token: string }
-  /** Use the office machine's own sign-in (admins only). */
+  /** Use the office machine's own sign-in (admins; members for Claude while it's shared). */
   | { t: 'signins.office'; which: SignInKind }
   | { t: 'signins.signout'; which: SignInKind };
 

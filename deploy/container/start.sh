@@ -2,6 +2,11 @@
 # Starts the office in its container (deploy/container/Dockerfile): sshd on port 22, then the
 # office as agentoffice on 127.0.0.1:4600.
 #
+# Behind a proxy of its own instead (the Umbrel app, deploy/umbrel): AGENT_OFFICE_SSHD=off starts
+# no sshd, AGENT_OFFICE_HOST=0.0.0.0 lets the proxy reach the office, AGENT_OFFICE_TRUST_PROXY=1
+# takes the address people use from its X-Forwarded-* headers, and AGENT_OFFICE_PASSWORD is the
+# office's password (the office reads that one itself).
+#
 # Everything that has to outlive a restart or a redeploy lives on the volume at /data:
 #   /data/home   agentoffice's home: the office's data in ~/agent-office (password, accounts, floors,
 #                chat, per-account sign-ins), the projects in ~/workspace, Claude Code and its sign-in
@@ -50,11 +55,21 @@ fi
 SSHD_PORT=${AGENT_OFFICE_SSHD_PORT:-22}
 [[ "$SSHD_PORT" =~ ^[0-9]+$ ]] || SSHD_PORT=22
 
-mkdir -p /run/sshd
-/usr/sbin/sshd -t
-# Brought back if it ever dies, so the tunnels keep working.
-(while :; do /usr/sbin/sshd -D -e -p "$SSHD_PORT"; sleep 2; done) &
-say "sshd is listening on port $SSHD_PORT${AGENT_OFFICE_PUBLIC_HOST:+ (reached at $AGENT_OFFICE_PUBLIC_HOST)}"
+OFFICE_HOST=${AGENT_OFFICE_HOST:-127.0.0.1}
+[[ "$OFFICE_HOST" =~ ^[0-9A-Fa-f.:]+$ ]] || OFFICE_HOST=127.0.0.1
+OFFICE_FLAGS=()
+[[ "${AGENT_OFFICE_TRUST_PROXY:-}" == 1 ]] && OFFICE_FLAGS+=(--trust-proxy)
+unset AGENT_OFFICE_HOST AGENT_OFFICE_TRUST_PROXY
+
+if [[ "${AGENT_OFFICE_SSHD:-on}" == off ]]; then
+  say "no sshd (AGENT_OFFICE_SSHD=off): the office is reached through its proxy, on $OFFICE_HOST:4600"
+else
+  mkdir -p /run/sshd
+  /usr/sbin/sshd -t
+  # Brought back if it ever dies, so the tunnels keep working.
+  (while :; do /usr/sbin/sshd -D -e -p "$SSHD_PORT"; sleep 2; done) &
+  say "sshd is listening on port $SSHD_PORT${AGENT_OFFICE_PUBLIC_HOST:+ (reached at $AGENT_OFFICE_PUBLIC_HOST)}"
+fi
 
 if [[ ! -x $RUN_HOME/.local/bin/claude ]]; then
   say "installing Claude Code in $RUN_HOME/.local (first start)"
@@ -68,4 +83,4 @@ if [[ ! -f $RUN_HOME/agent-office/.agent-office/projects-folder.json ]]; then
 fi
 "${AS_USER[@]}" node /usr/local/lib/agent-office/onboard.js $RUN_HOME/workspace
 
-exec "${AS_USER[@]}" node /opt/agent-office/bin/agent-office.js --host 127.0.0.1 --port 4600 --no-open
+exec "${AS_USER[@]}" node /opt/agent-office/bin/agent-office.js --host "$OFFICE_HOST" --port 4600 --no-open "${OFFICE_FLAGS[@]}"

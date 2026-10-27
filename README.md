@@ -1,9 +1,15 @@
 > [!TIP]
-> **Windows-App mit Claude Code ohne API-Key.** Diese Version gibt es als Windows-Installer
-> (`Agent-Office-Setup-<version>.exe` unter *Releases*): das Office in einem eigenen Fenster, ohne Terminal,
-> ohne eigenes Node.js und mit eingebauter GitHub CLI, plus eine Verknüpfung **„Claude Code (ohne API-Key)“**, die Claude Code mit deinem
+> **Windows- und Mac-App mit Claude Code ohne API-Key.** Diese Version gibt es als Windows-Installer
+> (`Agent-Office-Setup-<version>.exe` unter *Releases*) und als Mac-Disk-Image (`Agent-Office-<version>-mac-arm64.dmg`
+> bzw. `-x64.dmg`): das Office in einem eigenen Fenster, ohne Terminal,
+> ohne eigenes Node.js und mit eingebauter GitHub CLI, plus **„Claude Code (ohne API-Key)“**, das Claude Code mit deinem
 > Claude-Abo (Pro/Max) startet. Auch die Worker im Office nutzen das Abo statt eines `ANTHROPIC_API_KEY`.
-> Alles dazu: [docs/windows-app.md](docs/windows-app.md).
+> Alles dazu: [Windows-App](docs/windows-app.md), [Mac-App](docs/mac-app.md).
+>
+> **Online-Lobby auf deinem Umbrel.** Das Office kann auch auf einem Server laufen, zum Beispiel als Umbrel-App:
+> Die Worker laufen dann dort statt auf deinem PC, und deine Mitspieler treten mit der App oder im Browser derselben Lobby bei.
+> Jeder Spieler nutzt sein eigenes Claude-Abo, oder das des Hosts, wenn der es teilt. Anleitung: [docs/online-lobby.md](docs/online-lobby.md),
+> die Umbrel-App selbst: [docs/umbrel.md](docs/umbrel.md).
 
 > [!WARNING]
 > **Work in progress.** Agent Office is built for one person's workflow — mine — and it changes fast as I iterate on it.
@@ -27,7 +33,7 @@ and jump into any of them together. Every GitHub repo is a floor of the building
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey?style=flat-square)](#run-locally)
 [![Built with TypeScript](https://img.shields.io/badge/built%20with-TypeScript-3178c6?style=flat-square)](https://www.typescriptlang.org)
 
-[**Run locally**](#run-locally) · [**Deploy to AWS**](#deploy-to-aws-ec2) · [**Azure**](#deploy-to-azure) · [**Railway**](#deploy-to-railway) · [**Fly.io**](#deploy-to-flyio) · [**Dokploy**](#deploy-to-dokploy) · [**Any server**](#deploy-to-any-ubuntu-or-debian-server) · [**Add users**](#add-users) · [**Controls**](#controls) · [**Features**](docs/features.md) · [**How it works**](docs/how-it-works.md)
+[**Run locally**](#run-locally) · [**Online lobby on Umbrel**](docs/online-lobby.md) · [**Deploy to AWS**](#deploy-to-aws-ec2) · [**Azure**](#deploy-to-azure) · [**Railway**](#deploy-to-railway) · [**Fly.io**](#deploy-to-flyio) · [**Dokploy**](#deploy-to-dokploy) · [**Any server**](#deploy-to-any-ubuntu-or-debian-server) · [**Add users**](#add-users) · [**Controls**](#controls) · [**Features**](docs/features.md) · [**How it works**](docs/how-it-works.md)
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/AgentSystemLabs/agent-office/main/install.sh | bash
@@ -63,7 +69,9 @@ On the machine that runs the office:
 
 On Windows, the easiest way is the Windows app: install `Agent-Office-Setup-<version>.exe` from the releases and start
 **Agent Office** from the Start menu. It brings its own Node.js and signs Claude Code in with your Claude subscription,
-no API key needed ([docs/windows-app.md](docs/windows-app.md)).
+no API key needed ([docs/windows-app.md](docs/windows-app.md)). On a Mac, the same app comes as a disk image
+([docs/mac-app.md](docs/mac-app.md)). Either one can also join an [online lobby](docs/online-lobby.md): an office on your
+Umbrel or a server, so the workers run there and not on your computer.
 
 Install the latest release and start the office:
 
@@ -320,7 +328,7 @@ deploy/fly.sh ssh 'node /opt/agent-office/bin/agent-office.js accounts invite ad
 deploy/dokploy.sh ssh 'node /opt/agent-office/bin/agent-office.js accounts invite ada'   # on Dokploy
 ```
 
-**Their own Claude and GitHub.** With accounts, everyone's workers run on their own Claude plan, and the office acts on GitHub as them: comments, merges, labels, pushes and pull requests show up under their name. The first time someone comes in, **🔐 Your sign-ins** opens (it's in the **☰** menu too). *Sign in with Claude* gives them Claude's sign-in page and takes back the code it shows. *Sign in with GitHub* shows a one-time code for github.com/login/device. They can paste a token from `claude setup-token`, or a GitHub token, instead. A 🐚 shell they open at a desk runs as them, so `claude auth login` and `gh auth login` typed there work too. Admins can use the office machine's own sign-ins instead. Each account's sign-ins live in `.agent-office/homes/<account>/`, and revoking the account deletes them. The boards are read with the machine's own `gh`, so that account needs read access to the repos. Running it just for yourself, with no accounts, none of this applies.
+**Their own Claude and GitHub.** With accounts, everyone's workers run on their own Claude plan, and the office acts on GitHub as them: comments, merges, labels, pushes and pull requests show up under their name. Or share the host's: in **🔑 Accounts**, **✳️ The office’s own Claude → Share it with everyone** lets every member pick **Use the host’s Claude** in **🔐 Your sign-ins** instead of their own, and switch back any time. The first time someone comes in, **🔐 Your sign-ins** opens (it's in the **☰** menu too). *Sign in with Claude* gives them Claude's sign-in page and takes back the code it shows. *Sign in with GitHub* shows a one-time code for github.com/login/device. They can paste a token from `claude setup-token`, or a GitHub token, instead. A 🐚 shell they open at a desk runs as them, so `claude auth login` and `gh auth login` typed there work too. Admins can use the office machine's own sign-ins instead. Each account's sign-ins live in `.agent-office/homes/<account>/`, and revoking the account deletes them. The boards are read with the machine's own `gh`, so that account needs read access to the repos. Running it just for yourself, with no accounts, none of this applies.
 
 **3. Turn off the shared password.** Until you do, anyone who knows the office password can get in, as an admin. Once everyone has an account, switch it off in **🔑 Accounts** (signed in with your own admin account), or `agent-office accounts password off`.
 
@@ -366,6 +374,9 @@ Every change to the app that lands on `main` is published as a GitHub release by
 ## More
 
 - [Windows app](docs/windows-app.md): the Windows installer, and Claude Code on your Claude subscription without an API key
+- [Mac app](docs/mac-app.md): the same app for macOS (Apple silicon and Intel)
+- [Online lobby](docs/online-lobby.md): the office on your Umbrel, joined from the apps, with the host's AI or each player's own
+- [Umbrel app](docs/umbrel.md): what the Umbrel app is made of, and putting it in your community app store with `deploy/umbrel/publish.sh`
 - [Features](docs/features.md): everything in the office, room by room
 - [Agents](docs/agents.md): Claude Code, Codex and OpenCode, models and effort, and the office's prompts
 - [Configuration](docs/configuration.md): every command-line option, and where the office keeps its data

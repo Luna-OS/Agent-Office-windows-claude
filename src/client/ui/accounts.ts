@@ -132,6 +132,19 @@ export function openAccounts(net: Net) {
         () => net.send({ t: 'accounts.shared', on: false }),
       );
     });
+    // The host's AI: members may run their workers on the office machine's own Claude, not only on their own.
+    const share = h('button.btn', { type: 'button', class: s.shareClaude ? 'on' : '' }, s.shareClaude ? 'Stop sharing it' : 'Share it with everyone');
+    share.addEventListener('click', () => net.send({ t: 'accounts.shareClaude', on: !s.shareClaude }));
+    body.append(
+      h('div.team-head', {}, h('h4', {}, '✳️ The office’s own Claude'), share),
+      h(
+        'p.note',
+        {},
+        s.shareClaude
+          ? 'Shared. Every member picks in 🔐 Your sign-ins: their workers run on the office machine’s own Claude (the host’s plan, and its limits), or on their own. Admins always may.'
+          : 'Admins only. Everyone else runs their workers on their own Claude plan. Share it, and members can pick the host’s Claude instead, from 🔐 Your sign-ins.',
+      ),
+    );
     body.append(
       h('div.team-head', {}, h('h4', {}, 'Shared office password'), toggle),
       h(

@@ -66,4 +66,16 @@ export const accountsHandlers = {
     ctx.toastAll(msg.on ? `${who} switched the shared office password back on` : `🔑 ${who} switched off the shared office password — everyone signs in with their own account now`);
     ctx.accountsChanged(); // signs out whoever came in with it
   },
+  'accounts.shareClaude'(ctx, c, msg) {
+    const who = c.peer.name;
+    if (!admin(ctx, c)) return;
+    const on = msg.on === true;
+    if (on === ctx.accounts.shareClaude) return;
+    ctx.accounts.setShareClaude(on);
+    console.log(`  ${who} ${on ? 'shared' : 'stopped sharing'} the office's own Claude with members`);
+    ctx.toastAll(on ? `✳️ ${who} shared the office's Claude: members can run their workers on it (🔐 Your sign-ins), or keep their own` : `✳️ ${who} stopped sharing the office's Claude: members' new workers run on their own again`);
+    ctx.accountsChanged();
+    // Everyone's 🔐 Your sign-ins offers it now, or no longer does (a member on it is back on their own).
+    for (const id of ctx.onlineAccounts()) void ctx.signins.look(id, true);
+  },
 } satisfies HandlerMap<AccountsClientMsg>;
