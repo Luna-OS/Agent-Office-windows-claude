@@ -5,13 +5,14 @@
 // starts on this computer runs with the node it ships, exactly like the `agent-office` command, with
 // Claude Code on the Claude subscription login, so no worker needs an Anthropic API key.
 const { app, BrowserWindow, Menu, Tray, clipboard, dialog, ipcMain, nativeImage, safeStorage, shell } = require('electron');
-const { spawn, execFile, execFileSync } = require('node:child_process');
+const { spawn, exec, execFile, execFileSync } = require('node:child_process');
 const fs = require('node:fs');
 const netSocket = require('node:net');
 const os = require('node:os');
 const path = require('node:path');
 const { DOCS } = require('./lobby.cjs');
 const { createController } = require('./controller.cjs');
+const { githubToken, lookClaude, lookGithub } = require('./local-signins.cjs');
 const { MAC, MAC_DIRS, installMacGit, loginShellPath, macGit, openTerminal, scriptName } = require('./platform.cjs');
 const { inviteText, newPassword, shareAddresses } = require('./hosting.cjs');
 
@@ -164,6 +165,17 @@ function installed(cmd) {
   }
 }
 
+/**
+ * Runs claude or gh the way the office would find them, for what they say: { code, out, missing }.
+ * Through the shell on Windows, where an npm-installed claude is a .cmd (the arguments are the app's own).
+ */
+function runTool(cmd, args) {
+  if (!installed(cmd)) return Promise.resolve({ code: 127, out: '', missing: true });
+  const opts = { env: childEnv(), timeout: 20_000, windowsHide: true };
+  const done = (resolve) => (err, out) => resolve({ code: err ? 1 : 0, out: String(out ?? '') });
+  return new Promise((resolve) => (WIN ? exec([cmd, ...args].join(' '), opts, done(resolve)) : execFile(cmd, args, opts, done(resolve))));
+}
+
 /** Whether gh is signed in to GitHub (`gh auth status` succeeds). */
 function ghSignedIn() {
   return new Promise((resolve) => {
@@ -310,8 +322,11 @@ const here = {
   },
   /** Where friends reach it: nowhere until it's opened to the network (toggleShare). */
   inviteBase: () => (settings.share && officeInfo ? shareAddresses(Number(new URL(officeInfo.url).port))[0]?.url : undefined),
+  /** This computer's own sign-ins (see local-signins.cjs), and signing in in a console window. */
+  look: (which) => (which === 'github' ? lookGithub(runTool) : lookClaude(runTool)),
   claude: () => openClaudeCode(['auth', 'login', '--claudeai']),
   github: () => githubLogin(),
+  githubToken: () => githubToken(runTool),
 };
 
 // --- A lobby hosted on this computer ------------------------------------------------------------------

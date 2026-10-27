@@ -26,13 +26,15 @@ Pull Requests unter deinem Namen, auch wenn alles auf dem Umbrel läuft.
    - Wer die Lobby aufgesetzt hat, kommt beim ersten Mal mit dem **Office-Passwort** herein (Name leer
      lassen; bei der Umbrel-App steht es auf ihrer Seite) und legt dann mit **👤 Dein eigenes Konto**
      sein eigenes Konto an, als Admin.
-4. **🔐 Deine Anmeldungen**:
+4. **🔐 Deine Anmeldungen** (ganz oben, sobald du in der Lobby bist; jede Karte zeigt ✅ und mit
+   welchem Konto du angemeldet bist):
    - **✳️ Claude → Mit Claude anmelden**: Claudes Anmeldeseite geht in deinem Browser auf. Melde dich
      mit deinem eigenen Claude-Konto an, kopier den Code, den sie dir zeigt, und füge ihn im Connector
      ein. Oder füge einen Token aus `claude setup-token` ein.
    - **🐙 GitHub → Mit GitHub anmelden**: Der Connector zeigt einen Einmal-Code. **Code kopieren und
      GitHub öffnen**, dort einfügen, bestätigen; der Connector merkt es von selbst. Oder füge einen
-     GitHub-Token ein.
+     GitHub-Token ein. Ist auf deinem Computer die GitHub CLI schon angemeldet, geht es mit einem Klick:
+     **@dein-name von diesem Computer übernehmen**.
    - Teilt der Host sein Claude (im Office unter ☰ → 🔑 Accounts), gibt es **Claude des Hosts
      nutzen**. Du kannst jederzeit zwischen deinem und seinem wechseln.
 5. **🌐 Office im Browser öffnen**: Dein Browser öffnet das Office, schon angemeldet als du.
@@ -56,8 +58,10 @@ Eine Lobby über `https://` öffnet der Browser direkt, ohne den Umweg.
 
 Unter **Ohne Server → Auf diesem Computer starten** läuft das Office wie früher auf deinem Computer
 (mit dem Node.js, Claude Code und der GitHub CLI, die die App mitbringt), und der Connector meldet
-dich dort an. Die Anmeldungen des Office sind dann die deines Computers: das Menü **Dieser Computer**
-(oder die Knöpfe im Connector) meldet Claude Code und die GitHub CLI an. Andere lässt du über **Dieser
+dich dort an. Die Anmeldungen des Office sind dann die deines Computers, und sie stehen genauso ganz
+oben unter **🔐 Deine Anmeldungen**: **Mit Claude anmelden** bzw. **Mit GitHub anmelden** öffnet ein
+Konsolenfenster (auf dem Mac ein Terminal) für die Anmeldung, und sobald sie geklappt hat, zeigt die
+Karte von selbst ✅ mit deinem Konto. Einmal anmelden reicht, für alle Worker hier. Andere lässt du über **Dieser
 Computer → Lobby auf diesem Computer für andere öffnen** herein ([so geht's](online-lobby.md#ohne-umbrel-die-lobby-auf-deinem-pc-hosten)).
 Das kostet Rechenleistung; soll dein PC geschont werden, nimm den Umbrel.
 
@@ -76,6 +80,8 @@ Das kostet Rechenleistung; soll dein PC geschont werden, nimm den Umbrel.
 
 - `desktop/controller.cjs`: was das Fenster zeigt und tut (Lobby, Anmelden, Anmeldungen, Einladungen,
   Browser). `desktop/ui/` zeichnet es, `desktop/preload.cjs` ist die einzige Verbindung dorthin.
+- `desktop/local-signins.cjs` liest die Anmeldungen dieses Computers (`claude auth status`, `gh api user`)
+  für das Office hier; `gh auth token` gibt GitHubs Anmeldung an die Lobby weiter, wenn du es willst.
 - `desktop/connector.cjs` spricht mit der Lobby, über ihre normalen Anmelde-Routen und die Routen in
   `src/server/http/routes/connector.ts`: `/api/signins` (deine Claude- und GitHub-Anmeldungen, wie
   🔐 Your sign-ins im Office), `/api/accounts/invite` (Einladungen, für Admins) und `/api/link/new`.

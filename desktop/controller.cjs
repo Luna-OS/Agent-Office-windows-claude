@@ -13,8 +13,10 @@ const KINDS = ['claude', 'github'];
 /**
  * `settings()` and `save(patch)` are the app's settings (lobbies, mode, sessions), `seal`/`unseal`
  * keep a session cookie encrypted at rest, `openExternal` and `copy` are the browser and the
- * clipboard, `onChange(state)` redraws the window, and `here` is the office on this computer:
- * { running(), start() → { origin, link }, stop(), inviteBase() → where friends reach it, claude(), github() }.
+ * clipboard, `onChange(state)` redraws the window, and `here` is this computer: its office
+ * ({ running(), start() → { origin, link }, stop(), inviteBase() → where friends reach it }) and its own
+ * sign-ins ({ look(which) → { status, who?, missing? }, claude(), github() to sign in in a console
+ * window, githubToken() }).
  */
 function createController({ settings, save, seal = (s) => ({ p: s }), unseal = (v) => v?.p ?? null, openExternal, copy, here, onChange, passthroughPort, get = fetch }) {
   let lobby = null;
@@ -35,6 +37,15 @@ function createController({ settings, save, seal = (s) => ({ p: s }), unseal = (
   let timer = null;
   /** Claude's sign-in pages opened in the browser already: each opens by itself once. */
   const opened = new Set();
+  /**
+   * This computer's own sign-ins, { claude?, github? }: what the office here runs on (on its
+   * password), and GitHub's, to hand on to a lobby that doesn't have yours yet.
+   */
+  let mine = {};
+  /** Sign-ins under way in a console window on this computer: since when, by kind. */
+  const waiting = {};
+  /** How long a console sign-in is waited for before the window stops looking every few seconds. */
+  const WAIT_MS = 10 * 60_000;
 
   const state = () => {
     const s = settings();
@@ -49,6 +60,8 @@ function createController({ settings, save, seal = (s) => ({ p: s }), unseal = (
       pending: pending && { name: pending.name, role: pending.role, by: pending.by, project: pending.project },
       me,
       signins,
+      mine,
+      waiting: { claude: !!waiting.claude, github: !!waiting.github },
       invited,
       viaPassthrough: !!lobby && needsPassthrough(lobby.origin),
       passthrough: passthrough?.origin ?? null,
@@ -144,8 +157,21 @@ function createController({ settings, save, seal = (s) => ({ p: s }), unseal = (
 
   async function home() {
     signins = me.account ? await lobby.signins() : null;
+    await lookHere();
     show('home');
     afterLook();
+  }
+
+  /**
+   * This computer's sign-ins, as far as they matter here: both, for the office here on its password
+   * (they're the ones its workers use), and GitHub's, while a lobby account has none of its own yet.
+   */
+  async function lookHere() {
+    const kinds = local && !me?.account ? KINDS : !local && me?.account && signins?.github?.status !== 'ok' ? ['github'] : [];
+    const found = {};
+    for (const k of kinds) found[k] = await here.look(k).catch(() => ({ status: 'none' }));
+    mine = found;
+    for (const k of KINDS) if (mine[k]?.status === 'ok' || Date.now() - (waiting[k] ?? 0) > WAIT_MS) delete waiting[k];
   }
 
   /** After a look at your sign-ins: Claude's sign-in page opens in the browser once, then the window's redrawn. */
@@ -159,12 +185,13 @@ function createController({ settings, save, seal = (s) => ({ p: s }), unseal = (
     schedule();
   }
 
-  /** Looks again soon: every second or two while a sign-in is under way, else now and then. */
+  /** Looks again soon: every few seconds while a sign-in is under way, else now and then. */
   function schedule() {
     clearTimeout(timer);
     if (view !== 'home' || !lobby) return;
     const live = signins && KINDS.some((k) => signins[k].pending || signins[k].status === 'busy');
-    timer = setTimeout(refresh, live ? 1500 : 15_000);
+    const inConsole = KINDS.some((k) => waiting[k]);
+    timer = setTimeout(refresh, live ? 1500 : inConsole ? 3000 : local ? 30_000 : 15_000);
     timer.unref?.();
   }
 
@@ -177,6 +204,7 @@ function createController({ settings, save, seal = (s) => ({ p: s }), unseal = (
         return show('signin', { error: 'Deine Anmeldung in dieser Lobby gilt nicht mehr. Melde dich wieder an.' });
       }
       signins = me.account ? await lobby.signins() : null;
+      await lookHere();
       error = '';
     } catch (err) {
       error = err.message;
@@ -190,6 +218,13 @@ function createController({ settings, save, seal = (s) => ({ p: s }), unseal = (
     local = false;
     me = null;
     show('lobbies', { error: why });
+  }
+
+  function signInHere(which) {
+    waiting[which] = Date.now();
+    here[which]();
+    push();
+    schedule();
   }
 
   const samePassword = (password, again) => {
@@ -276,8 +311,19 @@ function createController({ settings, save, seal = (s) => ({ p: s }), unseal = (
       signins = null;
       show('signin');
     },
-    hereClaude: () => here.claude(),
-    hereGithub: () => here.github(),
+    /** This computer's own sign-in, in a console window: the window looks every few seconds until it's done. */
+    hereClaude: () => signInHere('claude'),
+    hereGithub: () => signInHere('github'),
+    /** The GitHub CLI's sign-in on this computer, for your account in the lobby too. */
+    async githubFromHere() {
+      const token = await here.githubToken();
+      if (!token) throw new Error('Die GitHub CLI ist auf diesem Computer nicht angemeldet.');
+      const r = await lobby.signin('token', 'github', { token });
+      signins = r.state;
+      await lookHere();
+      afterLook();
+      if (r.error) throw new Error(r.error);
+    },
     refresh: () => refresh(),
   };
 
