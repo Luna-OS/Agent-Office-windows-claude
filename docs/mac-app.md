@@ -11,7 +11,7 @@ dann mit deinem **Claude-Abo** statt mit einem API-Key.
 
 ## Installieren
 
-1. Lade die Disk-Image-Datei von der neuesten Release `mac-v…` auf der Releases-Seite dieses
+1. Lade die Disk-Image-Datei von der neuesten Release (`v…`, „Agent Office <version>“) auf der Releases-Seite dieses
    Repositorys (oder als Artefakt des Workflows **Mac app** unter *Actions*):
    - `Agent-Office-<version>-mac-arm64.dmg` für Macs mit Apple-Chip (M1, M2, M3, M4 …)
    - `Agent-Office-<version>-mac-x64.dmg` für Macs mit Intel-Prozessor

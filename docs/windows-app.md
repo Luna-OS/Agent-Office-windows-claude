@@ -15,7 +15,7 @@ CLI mit, und eine Verknüpfung **„Claude Code (ohne API-Key)“**, die Claude 
 
 ## Installieren
 
-1. Lade `Agent-Office-Setup-<version>.exe` von der neuesten Release `windows-v…` auf der
+1. Lade `Agent-Office-Setup-<version>.exe` von der neuesten Release (`v…`, „Agent Office <version>“) auf der
    Releases-Seite dieses Repositorys (oder als Artefakt des Workflows **Windows app** unter
    *Actions*).
 2. Starte den Installer. Er installiert nur für deinen Windows-Benutzer (keine Admin-Rechte nötig),

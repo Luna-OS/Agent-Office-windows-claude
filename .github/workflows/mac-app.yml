@@ -7,7 +7,7 @@ name: Mac app
 # The app is signed ad hoc (no Apple Developer certificate), which Apple silicon needs to run it at all.
 #
 # Every run uploads the disk images as a workflow artifact. A push to main also publishes them as a
-# GitHub release (mac-v0.1.<commits on main>), next to the Windows app's windows-v… one.
+# GitHub release, v0.1.<commits on main>, which it shares with the Windows app (.github/scripts/publish-app.sh).
 
 on:
   push:
@@ -136,11 +136,4 @@ jobs:
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: mac-v${{ steps.version.outputs.version }}
-        run: |
-          if gh release view "$TAG" > /dev/null 2>&1; then
-            echo "$TAG is already released"
-            exit 0
-          fi
-          # The Windows app's release stays the "latest" one; this one sits next to it.
-          gh release create "$TAG" desktop/release/*.dmg --target "$GITHUB_SHA" --title "Agent Office für macOS $TAG" --generate-notes --latest=false
+        run: bash .github/scripts/publish-app.sh "${{ steps.version.outputs.version }}" desktop/release/*.dmg
