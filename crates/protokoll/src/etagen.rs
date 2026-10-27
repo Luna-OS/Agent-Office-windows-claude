@@ -114,7 +114,7 @@ pub struct Grundriss {
 pub const DACH: &str = "@dach";
 
 /// Höchster Ausbau des Hinterbüros (Reihen).
-pub const FLUEGEL_MAX: u32 = 4;
+pub const FLUEGEL_MAX: u32 = 2;
 
 /// Nachrichten vom Browser.
 #[derive(Debug, Clone, Serialize, Deserialize)]

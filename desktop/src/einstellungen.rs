@@ -20,13 +20,21 @@ pub struct Einstellungen {
 
 impl Default for Einstellungen {
     fn default() -> Self {
-        Self { lobbys: Vec::new(), daten: None, projekte: None, nur_abo: true, lobby_passwort: None }
+        Self {
+            lobbys: Vec::new(),
+            daten: None,
+            projekte: None,
+            nur_abo: true,
+            lobby_passwort: None,
+        }
     }
 }
 
 pub fn home() -> PathBuf {
     let var = if cfg!(windows) { "USERPROFILE" } else { "HOME" };
-    std::env::var_os(var).map(PathBuf::from).unwrap_or_else(|| PathBuf::from("."))
+    std::env::var_os(var)
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("."))
 }
 
 /// Ordner für die Einstellungen der App.
@@ -64,7 +72,10 @@ impl Einstellungen {
 
     /// Daten-Ordner des lokalen Office (Standard wie beim Server: `~/open-agentic-office`).
     pub fn daten_ordner(&self) -> PathBuf {
-        self.daten.as_ref().map(PathBuf::from).unwrap_or_else(|| home().join("open-agentic-office"))
+        self.daten
+            .as_ref()
+            .map(PathBuf::from)
+            .unwrap_or_else(|| home().join("open-agentic-office"))
     }
 
     /// Lobby nach vorn holen (oder neu aufnehmen).

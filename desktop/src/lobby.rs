@@ -29,10 +29,19 @@ pub fn deuten(text: &str) -> Option<Eingabe> {
     if host.is_empty() {
         return None;
     }
-    let hat_port = host.rsplit_once(':').is_some_and(|(_, p)| p.parse::<u16>().is_ok());
-    let host = if hat_port || schema == "https" { host.to_string() } else { format!("{host}:{STANDARD_PORT}") };
+    let hat_port = host
+        .rsplit_once(':')
+        .is_some_and(|(_, p)| p.parse::<u16>().is_ok());
+    let host = if hat_port || schema == "https" {
+        host.to_string()
+    } else {
+        format!("{host}:{STANDARD_PORT}")
+    };
     let rest = if rest == "/" { "" } else { rest };
-    Some(Eingabe { basis: format!("{schema}://{host}"), rest: rest.to_string() })
+    Some(Eingabe {
+        basis: format!("{schema}://{host}"),
+        rest: rest.to_string(),
+    })
 }
 
 /// `host:port` für die TCP-Verbindung.
@@ -48,8 +57,12 @@ pub fn host_port(basis: &str) -> Option<String> {
 }
 
 pub fn erreichbar(basis: &str) -> bool {
-    let Some(hp) = host_port(basis) else { return false };
-    let Ok(mut adressen) = hp.to_socket_addrs() else { return false };
+    let Some(hp) = host_port(basis) else {
+        return false;
+    };
+    let Ok(mut adressen) = hp.to_socket_addrs() else {
+        return false;
+    };
     adressen.any(|a| TcpStream::connect_timeout(&a, Duration::from_secs(4)).is_ok())
 }
 
@@ -85,7 +98,10 @@ mod tests {
 
     #[test]
     fn https_ohne_port_bleibt() {
-        assert_eq!(deuten("https://office.example.com/").unwrap().basis, "https://office.example.com");
+        assert_eq!(
+            deuten("https://office.example.com/").unwrap().basis,
+            "https://office.example.com"
+        );
     }
 
     #[test]

@@ -19,7 +19,10 @@ pub struct Ansicht {
 }
 
 pub fn escape(t: &str) -> String {
-    t.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;")
+    t.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
 }
 
 const STIL: &str = "body{font:15px system-ui,sans-serif;background:#1c1b22;color:#eee;margin:0;padding:24px}\
@@ -31,8 +34,10 @@ button.leise{background:#44434f;color:#eee}form{margin:0;display:inline}.melde{b
 small{color:#aaa}code{background:#15141a;padding:2px 5px;border-radius:4px}";
 
 fn knopf(aktion: &str, text: &str, felder: &[(&str, &str)], leise: bool) -> String {
-    let versteckt: String =
-        felder.iter().map(|(n, w)| format!("<input type=hidden name=\"{n}\" value=\"{}\">", escape(w))).collect();
+    let versteckt: String = felder
+        .iter()
+        .map(|(n, w)| format!("<input type=hidden name=\"{n}\" value=\"{}\">", escape(w)))
+        .collect();
     let klasse = if leise { " class=leise" } else { "" };
     format!("<form action=\"/aktion/{aktion}\">{versteckt}<button{klasse}>{text}</button></form>")
 }
@@ -47,8 +52,18 @@ fn lobby_karten(lobbys: &[String]) -> String {
             format!(
                 "<div class=karte><b>{}</b><br>{}{}{}</div>",
                 escape(l),
-                knopf("beitreten", "🌐 Im Browser öffnen", &[("adresse", l), ("wo", "browser")], false),
-                knopf("beitreten", "🪟 Im Fenster öffnen", &[("adresse", l), ("wo", "fenster")], true),
+                knopf(
+                    "beitreten",
+                    "🌐 Im Browser öffnen",
+                    &[("adresse", l), ("wo", "browser")],
+                    false
+                ),
+                knopf(
+                    "beitreten",
+                    "🪟 Im Fenster öffnen",
+                    &[("adresse", l), ("wo", "fenster")],
+                    true
+                ),
                 knopf("vergessen", "Vergessen", &[("adresse", l)], true),
             )
         })
@@ -59,24 +74,61 @@ fn lokal_bereich(lokal: &Option<LokalAnsicht>) -> String {
     let Some(l) = lokal else {
         return format!(
             "<div class=karte>Das Office läuft dann auf diesem Computer, mit eurem Claude-Abo und eurer GitHub CLI.<br>{}{}</div>",
-            knopf("lokal_start", "🖥️ Auf diesem Computer starten (Browser)", &[("wo", "browser")], false),
-            knopf("lokal_start", "🪟 Im Fenster starten", &[("wo", "fenster")], true),
+            knopf(
+                "lokal_start",
+                "🖥️ Auf diesem Computer starten (Browser)",
+                &[("wo", "browser")],
+                false
+            ),
+            knopf(
+                "lokal_start",
+                "🪟 Im Fenster starten",
+                &[("wo", "fenster")],
+                true
+            ),
         );
     };
     let status = if l.bereit { "läuft" } else { "startet …" };
-    let mut s = format!("<div class=karte>Das Office auf diesem Computer <b>{status}</b> unter <code>{}</code>.<br>", escape(&l.url));
+    let mut s = format!(
+        "<div class=karte>Das Office auf diesem Computer <b>{status}</b> unter <code>{}</code>.<br>",
+        escape(&l.url)
+    );
     if l.bereit {
-        s += &knopf("lokal_oeffnen", "🌐 Im Browser öffnen", &[("wo", "browser")], false);
-        s += &knopf("lokal_oeffnen", "🪟 Im Fenster öffnen", &[("wo", "fenster")], true);
+        s += &knopf(
+            "lokal_oeffnen",
+            "🌐 Im Browser öffnen",
+            &[("wo", "browser")],
+            false,
+        );
+        s += &knopf(
+            "lokal_oeffnen",
+            "🪟 Im Fenster öffnen",
+            &[("wo", "fenster")],
+            true,
+        );
     }
     if l.fuer_andere {
-        s += &knopf("fuer_andere", "🔒 Lobby wieder schließen", &[("an", "nein")], true);
+        s += &knopf(
+            "fuer_andere",
+            "🔒 Lobby wieder schließen",
+            &[("an", "nein")],
+            true,
+        );
     } else {
-        s += &knopf("fuer_andere", "👥 Lobby für andere öffnen", &[("an", "ja")], true);
+        s += &knopf(
+            "fuer_andere",
+            "👥 Lobby für andere öffnen",
+            &[("an", "ja")],
+            true,
+        );
     }
     s += &knopf("lokal_stop", "⏹️ Beenden", &[], true);
     if l.fuer_andere {
-        let adressen: Vec<String> = l.adressen.iter().map(|a| format!("<code>{}</code>", escape(a))).collect();
+        let adressen: Vec<String> = l
+            .adressen
+            .iter()
+            .map(|a| format!("<code>{}</code>", escape(a)))
+            .collect();
         s += &format!(
             "<p>Einladung für Mitspieler: Adresse {} und Passwort <code>{}</code>.<br><small>Besser: im Office unter ☰ → 🔑 Konten einen Einladungslink (/beitreten#…) erzeugen.</small></p>",
             adressen.join(" oder "),
@@ -87,7 +139,11 @@ fn lokal_bereich(lokal: &Option<LokalAnsicht>) -> String {
 }
 
 pub fn startseite(a: &Ansicht) -> String {
-    let meldung = if a.meldung.is_empty() { String::new() } else { format!("<div class=\"karte melde\">{}</div>", escape(&a.meldung)) };
+    let meldung = if a.meldung.is_empty() {
+        String::new()
+    } else {
+        format!("<div class=\"karte melde\">{}</div>", escape(&a.meldung))
+    };
     let durch = a.durchleitung.as_ref().map_or(String::new(), |z| {
         format!("<p><small>Durchleitung aktiv: <code>http://127.0.0.1:48600</code> → <code>{}</code>. Lass den Connector laufen, damit Sprache und Bildschirm teilen im Browser gehen.</small></p>", escape(z))
     });
@@ -116,13 +172,22 @@ mod tests {
 
     #[test]
     fn escape_schuetzt_html() {
-        assert_eq!(escape("<a href=\"x\">&"), "&lt;a href=&quot;x&quot;&gt;&amp;");
+        assert_eq!(
+            escape("<a href=\"x\">&"),
+            "&lt;a href=&quot;x&quot;&gt;&amp;"
+        );
     }
 
     #[test]
     fn startseite_zeigt_lobbys_und_meldung() {
-        let a = Ansicht { meldung: "Hallo".into(), lobbys: vec!["http://x:4600".into()], ..Default::default() };
+        let a = Ansicht {
+            meldung: "Hallo".into(),
+            lobbys: vec!["http://x:4600".into()],
+            ..Default::default()
+        };
         let h = startseite(&a);
-        assert!(h.contains("Hallo") && h.contains("http://x:4600") && h.contains("Lobby beitreten"));
+        assert!(
+            h.contains("Hallo") && h.contains("http://x:4600") && h.contains("Lobby beitreten")
+        );
     }
 }

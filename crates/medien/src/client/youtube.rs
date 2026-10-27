@@ -97,7 +97,7 @@ impl LeinwandPlayer {
     /// Die aktuelle Stelle laut Server, z. B. für Play/Pause-Knöpfe der Oberfläche.
     pub fn soll_stelle(&self) -> f64 {
         let z = self.z.borrow();
-        z.soll.position_um(server_jetzt(z.versatz_ms))
+        z.soll.position_um(server_jetzt(z.versatz_ms) as u64)
     }
 
     pub fn soll(&self) -> LeinwandZustand {
@@ -213,11 +213,10 @@ impl LeinwandPlayer {
     }
 
     fn anmelden(&self) {
-        if let Some(t) = self.teile.borrow().as_ref() {
-            if let Some(w) = t.rahmen.content_window() {
+        if let Some(t) = self.teile.borrow().as_ref()
+            && let Some(w) = t.rahmen.content_window() {
                 let _ = w.post_message(&r#"{"event":"listening","id":"oao-leinwand"}"#.into(), HERKUNFT);
             }
-        }
     }
 
     /// Rückmeldungen des Players: `onReady`, `infoDelivery` mit `currentTime`/`playerState`.

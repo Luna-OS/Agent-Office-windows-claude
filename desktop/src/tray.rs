@@ -19,7 +19,11 @@ pub fn erstellen(proxy: EventLoopProxy<Ereignis>) -> Option<TrayIcon> {
     let beenden = MenuItem::new("Beenden", true, None);
     let menue = Menu::new();
     menue.append_items(&[&anzeigen, &browser, &beenden]).ok()?;
-    let (id_anzeigen, id_browser, id_beenden) = (anzeigen.id().clone(), browser.id().clone(), beenden.id().clone());
+    let (id_anzeigen, id_browser, id_beenden) = (
+        anzeigen.id().clone(),
+        browser.id().clone(),
+        beenden.id().clone(),
+    );
 
     let p = proxy.clone();
     MenuEvent::set_event_handler(Some(move |e: MenuEvent| {
@@ -35,12 +39,19 @@ pub fn erstellen(proxy: EventLoopProxy<Ereignis>) -> Option<TrayIcon> {
         let _ = p.send_event(ereignis);
     }));
     TrayIconEvent::set_event_handler(Some(move |e: TrayIconEvent| {
-        if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } = e {
+        if let TrayIconEvent::Click {
+            button: MouseButton::Left,
+            button_state: MouseButtonState::Up,
+            ..
+        } = e
+        {
             let _ = proxy.send_event(Ereignis::Anzeigen);
         }
     }));
 
-    let mut bauer = TrayIconBuilder::new().with_menu(Box::new(menue)).with_tooltip("OpenAgenticOffice");
+    let mut bauer = TrayIconBuilder::new()
+        .with_menu(Box::new(menue))
+        .with_tooltip("OpenAgenticOffice");
     if let Some(s) = symbol() {
         bauer = bauer.with_icon(s);
     }

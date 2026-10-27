@@ -15,6 +15,8 @@ path = "src/lib.rs"
 
 [dependencies]
 protokoll.workspace = true
+agenten.workspace = true
+medien = { workspace = true, features = ["server"] }
 serde.workspace = true
 serde_json.workspace = true
 anyhow = "1"
@@ -30,6 +32,10 @@ sha2 = "0.10"
 scrypt = { version = "0.11", default-features = false }
 base64 = "0.22"
 open = "5"
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+sysinfo = { version = "0.37", default-features = false, features = ["system"] }
+ureq = { version = "3", features = ["json"] }
+tower = { version = "0.5", features = ["util"] }
 
 [dev-dependencies]
 tempfile = "3"

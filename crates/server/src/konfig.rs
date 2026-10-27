@@ -31,6 +31,12 @@ pub struct Konfig {
     pub max_arbeiter: Option<u32>,
     pub stadt: Option<String>,
     pub selbstupdate: bool,
+    /// Öffentlicher Hostname für Einladungslinks hinter Proxy/Tunnel.
+    pub oeffentlicher_host: Option<String>,
+    /// Name im Tailscale-Netz (<office>.ts.net).
+    pub tailscale_host: Option<String>,
+    /// Update-Skript für "Office aktualisieren".
+    pub deploy_skript: Option<String>,
 }
 
 /// Was die Kommandozeile verlangt.
@@ -136,6 +142,9 @@ pub fn lesen(args: impl IntoIterator<Item = String>) -> Result<Befehl> {
         max_arbeiter: None,
         stadt: umgebung("OFFICE_STADT"),
         selbstupdate: an("OFFICE_SELBSTUPDATE"),
+        oeffentlicher_host: umgebung("OFFICE_OEFFENTLICHER_HOST"),
+        tailscale_host: umgebung("OFFICE_TAILSCALE_HOST").map(|h| h.to_lowercase().trim_end_matches('.').to_string()),
+        deploy_skript: umgebung("OFFICE_DEPLOY_SKRIPT"),
     };
     let mut it = args.into_iter();
     while let Some(a) = it.next() {

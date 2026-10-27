@@ -2,7 +2,7 @@
 
 Die ganze Geschichte hinter `deploy/fly.sh`. Die Kurzfassung steht in der [README](../README.md#auf-flyio-bereitstellen).
 
-Du brauchst ein aktuelles **flyctl, angemeldet** (`fly auth login`; [installieren](https://fly.io/docs/flyctl/install/) mit `brew install flyctl` oder `curl -L https://fly.io/install.sh | sh`, ein altes aktualisierst du mit `fly version upgrade`), dazu `ssh`, `curl`, Node.js (nur als kleines JSON-Hilfswerkzeug für die Antworten von flyctl, nicht für das Office) und einen Klon dieses Repos:
+Du brauchst ein aktuelles **flyctl, angemeldet** (`fly auth login`; [installieren](https://fly.io/docs/flyctl/install/) mit `brew install flyctl` oder `curl -L https://fly.io/install.sh | sh`, ein altes aktualisierst du mit `fly version upgrade`), dazu `ssh`, `curl`, `jq` (wertet die JSON-Antworten von flyctl aus) und einen Klon dieses Repos:
 
 ```bash
 git clone https://github.com/Luna-OS/OpenAgenticOffice && cd OpenAgenticOffice

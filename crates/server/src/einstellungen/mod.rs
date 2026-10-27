@@ -96,6 +96,29 @@ impl Einstellungen {
         self.maschine.stand(arbeiter, limit, self.obergrenze)
     }
 
+    /// Liest die eigenen Karten aus `<daten>/karten/*.json` neu.
+    pub fn karten_neu_lesen(&self, daten: &std::path::Path) {
+        let mut eigene = Vec::new();
+        if let Ok(dir) = std::fs::read_dir(daten.join("karten")) {
+            for f in dir.flatten() {
+                let p = f.path();
+                if p.extension().and_then(|e| e.to_str()) != Some("json") {
+                    continue;
+                }
+                let id = p.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
+                let (daten, fehler) = match std::fs::read(&p).map_err(|e| e.to_string()).and_then(|b| serde_json::from_slice::<serde_json::Value>(&b).map_err(|e| e.to_string())) {
+                    Ok(v) => (Some(v), None),
+                    Err(e) => (None, Some(format!("Lässt sich nicht lesen: {e}"))),
+                };
+                let name = daten.as_ref().and_then(|d| d.get("name")).and_then(|n| n.as_str()).unwrap_or(&id).to_string();
+                eigene.push(protokoll::einstellungen::EigeneKarte { id, name, daten, fehler });
+            }
+        }
+        eigene.sort_by(|a, b| a.id.cmp(&b.id));
+        let mut d = self.d.lock().unwrap();
+        d.karte.eigene = eigene;
+    }
+
     /// Setzt den Webhook ("" entfernt ihn). Gibt einen Fehler zurück, wenn die URL nicht taugt.
     pub fn webhook_setzen(&self, url: &str, von: &str) -> Result<(), String> {
         let url = url.trim();

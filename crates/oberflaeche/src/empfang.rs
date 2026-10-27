@@ -4,7 +4,7 @@
 use leptos::prelude::*;
 use protokoll::{ServerNachricht, agenten, arbeiter, aufgaben, einstellungen, etagen, konten, praesenz};
 
-use crate::zustand::{EinstellungenStand, melden, zustand};
+use crate::zustand::{melden, zustand};
 
 /// Ein Frame vom Server.
 pub fn empfangen(n: &ServerNachricht) {
@@ -86,10 +86,13 @@ fn arbeiter(m: &arbeiter::Server) {
     use arbeiter::Server as S;
     match m {
         S::Liste { arbeiter } => z.arbeiter.set(arbeiter.clone()),
-        S::Aktualisiert { arbeiter } => z.arbeiter.update(|l| match l.iter_mut().find(|a| a.id == arbeiter.id) {
-            Some(a) => *a = arbeiter.clone(),
-            None => l.push(arbeiter.clone()),
-        }),
+        S::Aktualisiert { arbeiter } => {
+            crate::terminal::groesse(&arbeiter.id, arbeiter.spalten, arbeiter.zeilen);
+            z.arbeiter.update(|l| match l.iter_mut().find(|a| a.id == arbeiter.id) {
+                Some(a) => *a = (**arbeiter).clone(),
+                None => l.push((**arbeiter).clone()),
+            })
+        }
         S::Entfernt { arbeiter } => z.arbeiter.update(|l| l.retain(|a| &a.id != arbeiter)),
         S::WorktreeStand { arbeiter, stand } => z.worktree.set(Some((arbeiter.clone(), stand.clone()))),
         S::TerminalSnapshot { arbeiter, daten, spalten, zeilen } => {
@@ -131,18 +134,11 @@ fn einstellungen(m: &einstellungen::Server) {
     let e = zustand().einstellungen;
     use einstellungen::Server as S;
     match m {
-        S::Stand { benachrichtigung, maschine, update, himmel, thema, karte } => e.set(Some(EinstellungenStand {
-            benachrichtigung: benachrichtigung.clone(),
-            maschine: maschine.clone(),
-            update: update.clone(),
-            himmel: himmel.clone(),
-            thema: thema.clone(),
-            karte: karte.clone(),
-        })),
+        S::Stand { stand } => e.set(Some((**stand).clone())),
         S::Benachrichtigung { stand } => e.update(|s| s.iter_mut().for_each(|s| s.benachrichtigung = stand.clone())),
         S::Maschine { stand } => e.update(|s| s.iter_mut().for_each(|s| s.maschine = stand.clone())),
-        S::Update { stand } => e.update(|s| s.iter_mut().for_each(|s| s.update = stand.clone())),
-        S::Himmel { stand } => e.update(|s| s.iter_mut().for_each(|s| s.himmel = stand.clone())),
+        S::Update { stand } => e.update(|s| s.iter_mut().for_each(|s| s.update = (**stand).clone())),
+        S::Himmel { stand } => e.update(|s| s.iter_mut().for_each(|s| s.himmel = Some(stand.clone()))),
         S::Thema { stand } => e.update(|s| s.iter_mut().for_each(|s| s.thema = stand.clone())),
         S::Karte { stand } => e.update(|s| s.iter_mut().for_each(|s| s.karte = stand.clone())),
     }

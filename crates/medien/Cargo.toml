@@ -38,7 +38,7 @@ web-sys = { version = "0.3", optional = true, features = [
   "AudioDestinationNode", "OscillatorNode", "OscillatorType", "GainNode", "BiquadFilterNode",
   "BiquadFilterType", "AudioBuffer", "AudioBufferSourceNode", "StereoPannerNode", "AnalyserNode",
   "MediaStreamAudioSourceNode", "AudioScheduledSourceNode", "AudioContextState", "Location",
-  "DomRect", "Event", "EventTarget", "KeyboardEvent",
+  "DomRect", "console", "Event", "PannerNode", "PanningModelType", "DistanceModelType", "AudioListener", "DynamicsCompressorNode", "ConvolverNode", "EventTarget", "KeyboardEvent",
 ] }
 
 [dev-dependencies]

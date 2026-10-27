@@ -181,6 +181,17 @@ impl Default for Karte {
     }
 }
 
+/// Alle Einstellungen auf einmal (beim Verbinden).
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+pub struct Gesamt {
+    pub benachrichtigung: Benachrichtigung,
+    pub maschine: Maschine,
+    pub update: Update,
+    pub himmel: Option<Himmel>,
+    pub thema: Thema,
+    pub karte: Karte,
+}
+
 /// Nachrichten vom Browser.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "typ", rename_all = "snake_case")]
@@ -206,17 +217,10 @@ pub enum Client {
 #[serde(tag = "typ", rename_all = "snake_case")]
 pub enum Server {
     /// Alles auf einmal, direkt nach `praesenz::Server::Willkommen`.
-    Stand {
-        benachrichtigung: Benachrichtigung,
-        maschine: Maschine,
-        update: Update,
-        himmel: Himmel,
-        thema: Thema,
-        karte: Karte,
-    },
+    Stand { stand: Box<Gesamt> },
     Benachrichtigung { stand: Benachrichtigung },
     Maschine { stand: Maschine },
-    Update { stand: Update },
+    Update { stand: Box<Update> },
     Himmel { stand: Himmel },
     Thema { stand: Thema },
     Karte { stand: Karte },

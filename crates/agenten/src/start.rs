@@ -90,7 +90,7 @@ pub async fn anlegen(ag: &Agenten, etage: &str, von: &str, w: Wunsch) -> Result<
             zuschauer: Vec::new(),
             aktivitaet: w.prompt.as_deref().map(|p| crate::arbeiter::kuerzen(p, 80)),
             aktion: None,
-            aufgabe: None,
+            aufgabe: w.prompt.as_deref().and_then(crate::arbeiter::aufgabe_aus_prompt),
             verbrauch: None,
             letzte_eingabe: None,
             hinweis: None,
@@ -197,7 +197,7 @@ pub fn pty_starten(ag: &Agenten, etage: &str, id: &str, prompt: Option<String>, 
         &befehl,
         a.info.spalten,
         a.info.zeilen,
-        move |daten| bei_daten(&schwach, &e1, &i1, lauf, daten),
+        move |daten, antwort| bei_daten(&schwach, &e1, &i1, lauf, daten, antwort),
         move |code| bei_ende(&schwach2, &e2, &i2, lauf, code),
     )
     .map_err(|f| format!("{f:#}"))?;
@@ -266,7 +266,7 @@ fn nach_dem_start(ag: &Agenten, etage: &str, id: &str, lauf: u64, meldet_start: 
     ag.innen.arbeiter_melden(e, id);
 }
 
-fn bei_daten(schwach: &Weak<Innen>, etage: &str, id: &str, lauf: u64, daten: &[u8]) {
+fn bei_daten(schwach: &Weak<Innen>, etage: &str, id: &str, lauf: u64, daten: &[u8], antwort: &pty::Antworter) {
     let Some(innen) = schwach.upgrade() else { return };
     let ag = Agenten { innen };
     let mut z = ag.innen.zustand();
@@ -275,6 +275,11 @@ fn bei_daten(schwach: &Weak<Innen>, etage: &str, id: &str, lauf: u64, daten: &[u
         return;
     }
     let ae = a.terminal.einspeisen(daten);
+    a.letzte_ausgabe = Some(Instant::now());
+    // Cursor-Abfragen beantwortet der Server (ConPTY wartet beim Start darauf); Browser tun es nicht.
+    if pty::fragt_cursor(daten) {
+        let _ = antwort.schreiben(a.terminal.cursor_antwort().as_bytes());
+    }
     if !a.zuschauer.is_empty() && !ae.text.is_empty() {
         let ziel = Ziel::Verbindungen(a.zuschauer.keys().cloned().collect());
         ag.innen.senden(ziel, ServerNachricht::Arbeiter(ArbSrv::TerminalDaten { arbeiter: id.to_string(), daten: ae.text }));
@@ -299,15 +304,16 @@ fn bei_daten(schwach: &Weak<Innen>, etage: &str, id: &str, lauf: u64, daten: &[u
     }
     // Die ersten Sekunden: hängt er an einem Login- oder Vertrauensbildschirm?
     let frisch = a.gestartet.is_some_and(|g| g.elapsed() < Duration::from_secs(90));
-    if frisch && matches!(a.info.status, ArbeiterStatus::Startet | ArbeiterStatus::Wartet | ArbeiterStatus::Bereit) {
-        if let Some(p) = a.info.provider.as_deref().and_then(provider::finden) {
-            let frueh = a.info.status == ArbeiterStatus::Startet || a.info.hinweis.is_some();
-            let hinweis = p.blockiert(&a.terminal.text(), frueh);
-            if hinweis.is_some() && hinweis != a.info.hinweis {
-                a.status_setzen(ArbeiterStatus::Wartet);
-                a.info.hinweis = hinweis;
-                melden = true;
-            }
+    if frisch
+        && matches!(a.info.status, ArbeiterStatus::Startet | ArbeiterStatus::Wartet | ArbeiterStatus::Bereit)
+        && let Some(p) = a.info.provider.as_deref().and_then(provider::finden)
+    {
+        let frueh = a.info.status == ArbeiterStatus::Startet || a.info.hinweis.is_some();
+        let hinweis = p.blockiert(&a.terminal.text(), frueh);
+        if hinweis.is_some() && hinweis != a.info.hinweis {
+            a.status_setzen(ArbeiterStatus::Wartet);
+            a.info.hinweis = hinweis;
+            melden = true;
         }
     }
     if melden {

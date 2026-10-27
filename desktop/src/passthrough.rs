@@ -35,7 +35,10 @@ impl Durchleitung {
                 });
             }
         });
-        Ok(Self { ziel: ziel.to_string(), aktiv })
+        Ok(Self {
+            ziel: ziel.to_string(),
+            aktiv,
+        })
     }
 }
 
@@ -48,7 +51,9 @@ impl Drop for Durchleitung {
 }
 
 fn verbinden(a: TcpStream, b: TcpStream) {
-    let (Ok(mut a_lesen), Ok(mut b_lesen)) = (a.try_clone(), b.try_clone()) else { return };
+    let (Ok(mut a_lesen), Ok(mut b_lesen)) = (a.try_clone(), b.try_clone()) else {
+        return;
+    };
     let (mut a_schreiben, mut b_schreiben) = (a, b);
     let hin = thread::spawn(move || {
         let _ = io::copy(&mut a_lesen, &mut b_schreiben);

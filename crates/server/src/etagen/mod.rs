@@ -41,6 +41,14 @@ pub struct KlonLauf {
     pub abbruch: Option<oneshot::Sender<()>>,
 }
 
+/// Was `klon_anmelden` ergab.
+pub enum KlonStart {
+    /// Klonen: die Etage ist angemeldet, `abbruch` meldet einen Abbruch.
+    Klonen(EtageDef, oneshot::Receiver<()>),
+    /// Der Ordner ist schon da (früher geklont): übernehmen statt klonen.
+    Vorhanden(PathBuf),
+}
+
 /// Zahlen je Etage für die Aufzugtafel, die andere liefern (Arbeiter von `agenten`).
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Zahlen {
@@ -69,6 +77,15 @@ pub fn zum_anzeigen(p: &Path) -> String {
     match p.strip_prefix(&home) {
         Ok(rest) => format!("~/{}", rest.display()).replace('\\', "/"),
         Err(_) => p.display().to_string(),
+    }
+}
+
+/// Ein absoluter Pfad ohne das Windows-Präfix für lange Pfade.
+pub fn absolut(p: &Path) -> PathBuf {
+    let p = p.canonicalize().unwrap_or_else(|_| std::path::absolute(p).unwrap_or_else(|_| p.to_path_buf()));
+    match p.to_str().and_then(|s| s.strip_prefix(r"\\?\")) {
+        Some(rest) if !rest.starts_with("UNC") => PathBuf::from(rest),
+        _ => p,
     }
 }
 
@@ -129,7 +146,7 @@ impl Etagen {
 
     /// Das Projekt, in dem das Office gestartet wurde: wird (falls nicht schon da) die lokale Etage.
     pub fn lokale_sicherstellen(&self, ordner: &Path) -> EtageDef {
-        let ordner = ordner.canonicalize().unwrap_or_else(|_| ordner.to_path_buf());
+        let ordner = absolut(ordner);
         if let Some(e) = self.liste.lock().unwrap().iter().find(|e| e.ordner == ordner) {
             return e.clone();
         }
@@ -153,7 +170,7 @@ impl Etagen {
     }
 
     /// Bereitet einen Klon vor: die Etage steht im Aufzug, ist aber noch nicht betretbar.
-    pub fn klon_anmelden(&self, repo: &str, projekte: &Path, von: &str, verbindung: &str) -> Result<(EtageDef, oneshot::Receiver<()>), String> {
+    pub fn klon_anmelden(&self, repo: &str, projekte: &Path, von: &str, verbindung: &str) -> Result<KlonStart, String> {
         let (owner, name) = repo.split_once('/').ok_or("Ein Repository heißt owner/name")?;
         if self.liste.lock().unwrap().iter().any(|e| e.repo.as_deref().is_some_and(|r| r.eq_ignore_ascii_case(repo))) {
             return Err(format!("{repo} ist schon eine Etage"));
@@ -164,7 +181,7 @@ impl Etagen {
         let ordner = projekte.join(owner).join(name);
         if ordner.exists() && std::fs::read_dir(&ordner).map(|mut d| d.next().is_some()).unwrap_or(true) {
             // Schon ausgecheckt: direkt als Etage übernehmen, ohne zu klonen.
-            return Err(format!("BEREITS:{}", ordner.display()));
+            return Ok(KlonStart::Vorhanden(ordner));
         }
         let def = EtageDef {
             id: self.freie_id(name),
@@ -182,7 +199,7 @@ impl Etagen {
             def.id.clone(),
             KlonLauf { def: def.clone(), fortschritt: None, verbindung: verbindung.into(), von: von.into(), abbruch: Some(tx) },
         );
-        Ok((def, rx))
+        Ok(KlonStart::Klonen(def, rx))
     }
 
     /// Eine Etage aus einem vorhandenen Checkout anlegen (ohne Klon).
@@ -324,7 +341,7 @@ mod tests {
     fn klon_ablauf() {
         let dir = tempfile::tempdir().unwrap();
         let e = Etagen::laden(dir.path(), dir.path().join("projekte"));
-        let (def, _rx) = e.klon_anmelden("Luna-OS/Office", &dir.path().join("projekte"), "Luna", "v1").unwrap();
+        let Ok(KlonStart::Klonen(def, _rx)) = e.klon_anmelden("Luna-OS/Office", &dir.path().join("projekte"), "Luna", "v1") else { panic!() };
         assert_eq!(def.id, "office");
         assert!(e.klon_anmelden("luna-os/office", &dir.path().join("projekte"), "Luna", "v1").is_err());
         let infos = e.infos(&HashMap::new(), &|_| Zahlen::default());

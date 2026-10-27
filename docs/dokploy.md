@@ -2,7 +2,7 @@
 
 Die ganze Geschichte hinter `deploy/dokploy.sh`. Die Kurzfassung steht in der [README](../README.md#auf-dokploy-bereitstellen).
 
-Du brauchst einen **[Dokploy](https://dokploy.com)-Server** und einen **API-Schlüssel** dafür, dazu `ssh`, `curl`, `git`, Node.js (nur als kleines JSON-Hilfswerkzeug für die Antworten der Dokploy-API, nicht für das Office) und einen Klon dieses Repos. Erzeuge den Schlüssel in Dokploy unter **Settings → Profile → API/CLI Keys** und lass sein Rate-Limiting aus: Das Skript fragt den Build alle paar Sekunden ab.
+Du brauchst einen **[Dokploy](https://dokploy.com)-Server** und einen **API-Schlüssel** dafür, dazu `ssh`, `curl`, `git`, `jq` (wertet die JSON-Antworten der Dokploy-API aus) und einen Klon dieses Repos. Erzeuge den Schlüssel in Dokploy unter **Settings → Profile → API/CLI Keys** und lass sein Rate-Limiting aus: Das Skript fragt den Build alle paar Sekunden ab.
 
 ```bash
 git clone https://github.com/Luna-OS/OpenAgenticOffice && cd OpenAgenticOffice

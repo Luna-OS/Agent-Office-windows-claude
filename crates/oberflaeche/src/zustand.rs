@@ -61,20 +61,9 @@ pub struct Zustand {
     pub feed: RwSignal<Vec<agenten::FeedEintrag>>,
     pub board: RwSignal<aufgaben::Board>,
 
-    pub einstellungen: RwSignal<Option<EinstellungenStand>>,
+    pub einstellungen: RwSignal<Option<einstellungen::Gesamt>>,
     pub konten: RwSignal<Option<konten::KontenStand>>,
     pub anmeldungen: RwSignal<Option<konten::Anmeldungen>>,
-}
-
-/// Der Stand aus `einstellungen::Server::Stand`, einzeln aktualisierbar.
-#[derive(Debug, Clone, PartialEq)]
-pub struct EinstellungenStand {
-    pub benachrichtigung: einstellungen::Benachrichtigung,
-    pub maschine: einstellungen::Maschine,
-    pub update: einstellungen::Update,
-    pub himmel: einstellungen::Himmel,
-    pub thema: einstellungen::Thema,
-    pub karte: einstellungen::Karte,
 }
 
 impl Zustand {

@@ -44,6 +44,8 @@ pub enum HookEreignis {
     SitzungStart { geleert: bool },
     /// Die Sitzungs-ID (zum Fortsetzen).
     Sitzung(String),
+    /// Wo das Transkript der Sitzung liegt (für den Verbrauch).
+    Transkript(String),
     Prompt(String),
     WerkzeugVor { beschreibung: String, aktion: Option<Aktion> },
     WerkzeugNach { fehlgeschlagen: bool, test: bool },
@@ -184,6 +186,9 @@ pub fn claude_artige_hooks(ereignis: &str, n: &Value) -> Vec<HookEreignis> {
     let mut aus = Vec::new();
     if let Some(s) = n.get("session_id").and_then(Value::as_str).filter(|s| !s.is_empty() && s.len() <= 160) {
         aus.push(HookEreignis::Sitzung(s.to_string()));
+    }
+    if let Some(t) = n.get("transcript_path").and_then(Value::as_str).filter(|t| !t.is_empty() && t.len() <= 4096) {
+        aus.push(HookEreignis::Transkript(t.to_string()));
     }
     let werkzeug = n.get("tool_name").and_then(Value::as_str).unwrap_or("Werkzeug");
     let eingabe = n.get("tool_input").cloned().unwrap_or(Value::Null);

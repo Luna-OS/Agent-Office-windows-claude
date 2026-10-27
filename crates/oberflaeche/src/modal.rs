@@ -116,7 +116,7 @@ pub fn Rahmen(
     breite: String,
     /// Etwas im Kopf links neben dem ✕ (Knöpfe, Reiter).
     #[prop(optional)]
-    kopf: Option<ChildrenFn>,
+    kopf: Option<AnyView>,
     children: Children,
 ) -> impl IntoView {
     let f_zu = fenster.clone();
@@ -138,7 +138,7 @@ pub fn Rahmen(
             >
                 <header class="flex items-center gap-2 border-b-2 border-foreground/15 px-4 py-3">
                     <h2 class="mr-auto truncate text-lg font-extrabold">{move || titel.get()}</h2>
-                    {kopf.map(|k| k())}
+                    {kopf}
                     <button
                         type="button"
                         class="schliessen inline-flex size-8 items-center justify-center rounded-md text-lg font-bold hover:cursor-pointer hover:bg-accent"

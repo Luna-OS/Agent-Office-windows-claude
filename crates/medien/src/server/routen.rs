@@ -28,9 +28,19 @@ pub(super) fn routen(dienst: Medien) -> Router {
 
 type Antwort = Result<Response, (StatusCode, &'static str)>;
 
+type Fehler = (StatusCode, &'static str);
+
 /// Wer fragt: der Server legt nach seiner Anmeldeprüfung einen `Absender` in die Request-Extensions.
-fn sitzung(_d: &Medien, kopf: &Extensions) -> Result<Sitzung, (StatusCode, &'static str)> {
-    let a = kopf.get::<Absender>().ok_or((StatusCode::UNAUTHORIZED, "Bitte zuerst anmelden"))?;
+fn angemeldet(kopf: &Extensions) -> Result<&Absender, Fehler> {
+    kopf.get::<Absender>().ok_or((StatusCode::UNAUTHORIZED, "Bitte zuerst anmelden"))
+}
+
+/// Wer teilt: braucht zusätzlich eine bekannte Verbindung (Header `x-office-verbindung`) und eine Etage.
+fn sitzung(_d: &Medien, kopf: &Extensions) -> Result<Sitzung, Fehler> {
+    let a = angemeldet(kopf)?;
+    if a.verbindung.is_empty() {
+        return Err((StatusCode::FORBIDDEN, "Unbekannte Verbindung: bitte die Seite neu laden"));
+    }
     let etage = a.etage.clone().ok_or((StatusCode::CONFLICT, "Bitte zuerst eine Etage betreten"))?;
     Ok(Sitzung { spieler: a.verbindung.clone(), name: a.name.clone(), etage })
 }
@@ -41,8 +51,8 @@ fn json<T: serde::Serialize>(wert: &T) -> Response {
 }
 
 async fn liste(State(d): State<Medien>, kopf: Extensions) -> Antwort {
-    let s = sitzung(&d, &kopf)?;
-    Ok(json(&d.bildschirme().liste(Some(&s.etage))))
+    let a = angemeldet(&kopf)?;
+    Ok(json(&d.bildschirme().liste(a.etage.as_deref())))
 }
 
 async fn starten(State(d): State<Medien>, kopf: Extensions) -> Antwort {
@@ -68,7 +78,7 @@ async fn stoppen(State(d): State<Medien>, kopf: Extensions) -> Antwort {
 }
 
 async fn letztes_bild(State(d): State<Medien>, kopf: Extensions, Path(spieler): Path<String>) -> Antwort {
-    sitzung(&d, &kopf)?;
+    angemeldet(&kopf)?;
     let jpeg = d.bildschirme().letztes_bild(&spieler).ok_or((StatusCode::NOT_FOUND, "Noch kein Bild"))?;
     Ok(([(header::CONTENT_TYPE, "image/jpeg"), (header::CACHE_CONTROL, "no-store")], jpeg).into_response())
 }
@@ -84,7 +94,7 @@ pub fn mjpeg_teil(jpeg: &[u8]) -> Bytes {
 }
 
 async fn stream(State(d): State<Medien>, kopf: Extensions, Path(spieler): Path<String>) -> Antwort {
-    sitzung(&d, &kopf)?;
+    angemeldet(&kopf)?;
     let rx = d.bildschirme().zuschauen(&spieler).ok_or((StatusCode::NOT_FOUND, "Hier teilt gerade niemand"))?;
     // WatchStream liefert zuerst das aktuelle Bild, dann jedes neue; endet, wenn das Teilen endet.
     let teile = WatchStream::new(rx).filter_map(|b| b.map(|jpeg| Ok::<_, std::io::Error>(mjpeg_teil(&jpeg[..]))));

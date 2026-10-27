@@ -241,6 +241,8 @@ pub enum Client {
     Groesse { arbeiter: String, spalten: u16, zeilen: u16 },
     /// Liste der Provider anfordern; Antwort `Server::Provider`.
     ProviderAbfragen,
+    /// Arbeiter, deren Pull Request gemergt ist, gehen von selbst heim (für das ganze Office).
+    NachMergeGehen { an: bool },
 }
 
 /// Nachrichten an den Browser.
@@ -250,7 +252,7 @@ pub enum Server {
     /// Alle Arbeiter der Etage (beim Betreten).
     Liste { arbeiter: Vec<ArbeiterInfo> },
     /// Ein Arbeiter ist neu oder hat sich geändert.
-    Aktualisiert { arbeiter: ArbeiterInfo },
+    Aktualisiert { arbeiter: Box<ArbeiterInfo> },
     Entfernt { arbeiter: String },
     WorktreeStand { arbeiter: String, stand: WorktreeStand },
     /// Der ganze Bildschirm (mit Escape-Sequenzen), für ein frisch geöffnetes Terminal.
@@ -258,4 +260,11 @@ pub enum Server {
     /// Neue Ausgabe; geht nur an die Zuschauer.
     TerminalDaten { arbeiter: String, daten: String },
     Provider { provider: Vec<ProviderInfo>, standard: String },
+    /// Einstellungen der Arbeiter (beim Betreten und nach jeder Änderung).
+    Einstellungen {
+        nach_merge_gehen: bool,
+        /// Wer es zuletzt umgestellt hat.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        von: Option<String>,
+    },
 }

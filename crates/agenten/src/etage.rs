@@ -61,7 +61,7 @@ impl Innen {
     pub(crate) fn arbeiter_melden(&self, e: &Etage, id: &str) {
         let Some(a) = e.arbeiter.get(id) else { return };
         let ziel = Ziel::Etage(e.id.clone());
-        self.senden(ziel.clone(), ServerNachricht::Arbeiter(ArbSrv::Aktualisiert { arbeiter: a.info.clone() }));
+        self.senden(ziel.clone(), ServerNachricht::Arbeiter(ArbSrv::Aktualisiert { arbeiter: Box::new(a.info.clone()) }));
         self.senden(ziel, ServerNachricht::Agenten(AgSrv::Feed { eintrag: a.feed_eintrag() }));
     }
 

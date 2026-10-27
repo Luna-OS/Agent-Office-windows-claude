@@ -88,13 +88,12 @@ fn prozent_dekodieren(s: &str) -> String {
     let mut aus = Vec::with_capacity(b.len());
     let mut i = 0;
     while i < b.len() {
-        if b[i] == b'%' && i + 2 < b.len() + 1 {
-            if let Some(x) = s.get(i + 1..i + 3).and_then(|h| u8::from_str_radix(h, 16).ok()) {
+        if b[i] == b'%' && i + 2 < b.len() + 1
+            && let Some(x) = s.get(i + 1..i + 3).and_then(|h| u8::from_str_radix(h, 16).ok()) {
                 aus.push(x);
                 i += 3;
                 continue;
             }
-        }
         aus.push(if b[i] == b'+' { b' ' } else { b[i] });
         i += 1;
     }

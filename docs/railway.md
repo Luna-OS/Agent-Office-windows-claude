@@ -2,7 +2,7 @@
 
 Die ganze Geschichte hinter `deploy/railway.sh`. Die Kurzfassung steht in der [README](../README.md#auf-railway-bereitstellen).
 
-Du brauchst die **Railway CLI 5 oder neuer, angemeldet** (`railway login`; eine ältere aktualisierst du mit `railway upgrade` oder `brew upgrade railway`), dazu `ssh`, `curl`, Node.js (nur als kleines JSON-Hilfswerkzeug für die Antworten der Railway CLI, nicht für das Office) und einen Klon dieses Repos:
+Du brauchst die **Railway CLI 5 oder neuer, angemeldet** (`railway login`; eine ältere aktualisierst du mit `railway upgrade` oder `brew upgrade railway`), dazu `ssh`, `curl`, `jq` (wertet die JSON-Antworten der Railway CLI aus) und einen Klon dieses Repos:
 
 ```bash
 git clone https://github.com/Luna-OS/OpenAgenticOffice && cd OpenAgenticOffice

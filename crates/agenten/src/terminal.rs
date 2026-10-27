@@ -90,6 +90,12 @@ impl Terminal {
         self.parser.screen_mut().set_size(zeilen, spalten);
     }
 
+    /// Die Antwort auf eine Cursor-Abfrage (DSR 6): `ESC [ zeile ; spalte R`, ab 1 gezählt.
+    pub fn cursor_antwort(&self) -> String {
+        let (zeile, spalte) = self.parser.screen().cursor_position();
+        format!("\x1b[{};{}R", zeile + 1, spalte + 1)
+    }
+
     pub fn groesse(&self) -> (u16, u16) {
         let (zeilen, spalten) = self.parser.screen().size();
         (spalten, zeilen)

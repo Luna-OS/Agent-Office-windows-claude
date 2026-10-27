@@ -30,6 +30,8 @@ struct Zustand {
     ende: Option<Lauscher>,
     /// Ein Upload läuft noch: das nächste Bild wird ausgelassen, statt sich zu stauen.
     unterwegs: bool,
+    /// Die eigene Verbindungs-ID (aus der Begrüßung), Header `x-office-verbindung`.
+    verbindung: String,
     beobachter: Vec<Rc<dyn Fn(bool)>>,
 }
 
@@ -40,6 +42,11 @@ pub struct Teilen(Rc<RefCell<Zustand>>);
 impl Teilen {
     pub fn neu() -> Self {
         Self::default()
+    }
+
+    /// Die eigene Verbindungs-ID aus `praesenz::Server::Willkommen` (`du`); ohne sie lehnt der Server ab.
+    pub fn verbindung_setzen(&self, id: &str) {
+        self.0.borrow_mut().verbindung = id.into();
     }
 
     pub fn teilt(&self) -> bool {
@@ -105,9 +112,12 @@ impl Teilen {
             z.takt = Some(takt);
             z.ende = Some(ende);
         }
-        spawn_local(async {
-            let _ = senden("start", None).await;
-        });
+        let v = self.0.borrow().verbindung.clone();
+        let ergebnis = senden("start", None, &v).await;
+        if let Err(e) = ergebnis {
+            self.stoppen();
+            return Err(format!("Teilen ging nicht: {e}"));
+        }
         self.melden(true);
         Ok(())
     }
@@ -129,8 +139,9 @@ impl Teilen {
                 spur.stop();
             }
         }
-        spawn_local(async {
-            let _ = senden("stopp", None).await;
+        let v = self.0.borrow().verbindung.clone();
+        spawn_local(async move {
+            let _ = senden("stopp", None, &v).await;
         });
         self.melden(false);
     }
@@ -161,14 +172,14 @@ impl Teilen {
         }
         self.0.borrow_mut().unterwegs = true;
         let ich = self.clone();
+        let v = self.0.borrow().verbindung.clone();
         let fertig = Closure::once_into_js(move |blob: JsValue| {
             let blob: Option<Blob> = blob.dyn_into().ok();
             spawn_local(async move {
-                if let Some(blob) = blob {
-                    if let Err(e) = senden("bild", Some(&blob)).await {
+                if let Some(blob) = blob
+                    && let Err(e) = senden("bild", Some(&blob), &v).await {
                         web_sys::console::warn_1(&format!("Bildschirm-Bild nicht gesendet: {e}").into());
                     }
-                }
                 ich.0.borrow_mut().unterwegs = false;
             });
         });
@@ -179,8 +190,11 @@ impl Teilen {
 }
 
 /// POST an `/medien/bildschirm/<was>`, mit Sitzungs-Cookie.
-async fn senden(was: &str, koerper: Option<&Blob>) -> Result<(), String> {
+async fn senden(was: &str, koerper: Option<&Blob>, verbindung: &str) -> Result<(), String> {
     let init = RequestInit::new();
+    let kopf = web_sys::Headers::new().map_err(|e| fehlertext(&e))?;
+    let _ = kopf.set("x-office-verbindung", verbindung);
+    init.set_headers(&kopf);
     init.set_method("POST");
     init.set_credentials(RequestCredentials::SameOrigin);
     if let Some(b) = koerper {

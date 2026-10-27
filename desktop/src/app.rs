@@ -39,9 +39,14 @@ impl Zustand {
             bereit: self.bereit,
             fuer_andere: s.fuer_andere,
             passwort: s.passwort.clone(),
-            adressen: server_start::netz_adresse().map(|ip| vec![format!("{ip}:{}", s.port)]).unwrap_or_default(),
+            adressen: server_start::netz_adresse()
+                .map(|ip| vec![format!("{ip}:{}", s.port)])
+                .unwrap_or_default(),
         });
-        let (lobbys, durch) = (self.einstellungen.lobbys.clone(), self.durch.as_ref().map(|d| d.ziel.clone()));
+        let (lobbys, durch) = (
+            self.einstellungen.lobbys.clone(),
+            self.durch.as_ref().map(|d| d.ziel.clone()),
+        );
         self.aktualisieren(|a| {
             a.lobbys = lobbys;
             a.lokal = lokal;
@@ -52,7 +57,9 @@ impl Zustand {
 
 pub fn browser_oeffnen(url: &str) {
     #[cfg(windows)]
-    let _ = Command::new("rundll32").args(["url.dll,FileProtocolHandler", url]).spawn();
+    let _ = Command::new("rundll32")
+        .args(["url.dll,FileProtocolHandler", url])
+        .spawn();
     #[cfg(target_os = "macos")]
     let _ = Command::new("open").arg(url).spawn();
     #[cfg(all(unix, not(target_os = "macos")))]
@@ -65,7 +72,13 @@ pub fn starten() {
     let ansicht = Arc::new(Mutex::new(Ansicht::default()));
     let fenster = fenster::fenster_bauen(&schleife);
     let webview = fenster::webview_bauen(&fenster, ansicht.clone(), proxy.clone());
-    let mut z = Zustand { einstellungen: Einstellungen::laden(), ansicht, lokal: None, bereit: false, durch: None };
+    let mut z = Zustand {
+        einstellungen: Einstellungen::laden(),
+        ansicht,
+        lokal: None,
+        bereit: false,
+        durch: None,
+    };
     z.abgleichen();
     let mut tray_symbol = None;
 
@@ -157,13 +170,13 @@ pub fn starten() {
             _ => {}
         }
         // Ist der lokale Server von allein beendet worden, den Stand zurücksetzen.
-        if let Some(s) = z.lokal.as_mut() {
-            if !s.laeuft() {
-                z.lokal = None;
-                z.bereit = false;
-                z.meldung("Das Office auf diesem Computer ist unerwartet beendet worden.");
-                z.abgleichen();
-            }
+        if let Some(s) = z.lokal.as_mut()
+            && !s.laeuft()
+        {
+            z.lokal = None;
+            z.bereit = false;
+            z.meldung("Das Office auf diesem Computer ist unerwartet beendet worden.");
+            z.abgleichen();
         }
     });
 }
@@ -195,7 +208,13 @@ fn lobby_url(z: &mut Zustand, basis: &str) -> String {
     format!("http://127.0.0.1:{}", passthrough::PORT)
 }
 
-fn lokal_starten(z: &mut Zustand, fuer_andere: bool, danach: Option<Wo>, proxy: &tao::event_loop::EventLoopProxy<Ereignis>, zeigen: &dyn Fn(&str)) {
+fn lokal_starten(
+    z: &mut Zustand,
+    fuer_andere: bool,
+    danach: Option<Wo>,
+    proxy: &tao::event_loop::EventLoopProxy<Ereignis>,
+    zeigen: &dyn Fn(&str),
+) {
     if z.lokal.is_some() {
         if let (Some(wo), true) = (danach, z.bereit) {
             let url = z.lokal.as_ref().map(|s| s.url()).unwrap_or_default();

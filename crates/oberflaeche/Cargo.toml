@@ -19,5 +19,5 @@ web-sys = { version = "0.3", features = [
   "Window", "Document", "Element", "HtmlElement", "HtmlInputElement", "HtmlTextAreaElement", "HtmlCanvasElement",
   "CanvasRenderingContext2d", "TextMetrics", "KeyboardEvent", "MouseEvent", "WheelEvent", "ClipboardEvent", "DataTransfer",
   "Storage", "Location", "Headers", "Request", "RequestInit", "RequestCredentials", "Response", "Navigator", "Clipboard",
-  "DomRect", "History", "ResizeObserver", "ResizeObserverEntry", "console",
+  "DomRect", "History", "Selection", "DragEvent", "ResizeObserver", "ResizeObserverEntry", "console",
 ] }

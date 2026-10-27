@@ -10,7 +10,7 @@ use tokio::sync::mpsc;
 
 use crate::anmeldung::{Sitzung, Zugang};
 use crate::einstellungen::Einstellungen;
-use crate::etagen::Etagen;
+use crate::etagen::{EtageDef, Etagen, Zahlen};
 use crate::konfig::Konfig;
 use crate::spielzeug::Spielzeug;
 use crate::ws::Register;
@@ -70,6 +70,25 @@ pub struct Office {
     pub einstellungen: Einstellungen,
     pub register: Register,
     pub version: String,
+    /// Angebundene Bibliotheken (agenten, medien), die von Etagen wissen wollen.
+    pub anbindungen: Mutex<Vec<Arc<dyn Anbindung>>>,
+    /// Die Agenten (für das Herunterfahren).
+    pub agenten: std::sync::OnceLock<agenten::Agenten>,
+}
+
+/// Was eine angebundene Bibliothek vom Office erfährt bzw. ihm liefert.
+pub trait Anbindung: Send + Sync {
+    /// Eine Etage ist da (beim Start, nach einem Klon, nach dem Übernehmen).
+    fn etage_angemeldet(&self, _id: &str, _ordner: &std::path::Path) {}
+    fn etage_abgemeldet(&self, _id: &str) {}
+    /// Arbeiter-Zahlen für die Aufzugtafel.
+    fn zahlen(&self, _etage: &str) -> Option<Zahlen> {
+        None
+    }
+    /// Umgebungsvariablen für gh/git im Namen eines Kontos (eigene GitHub-Anmeldung).
+    fn github_umgebung(&self, _konto: &str) -> Option<Vec<(String, String)>> {
+        None
+    }
 }
 
 /// Serialisiert eine Nachricht einmal für viele Empfänger.
@@ -198,6 +217,36 @@ impl Office {
     pub fn chat_letzte(&self, n: usize) -> Vec<ChatZeile> {
         let c = self.chat.lock().unwrap();
         c.iter().skip(c.len().saturating_sub(n)).cloned().collect()
+    }
+
+    fn anbindungen(&self) -> Vec<Arc<dyn Anbindung>> {
+        self.anbindungen.lock().unwrap().clone()
+    }
+
+    pub fn anbinden(&self, a: Arc<dyn Anbindung>) {
+        self.anbindungen.lock().unwrap().push(a);
+    }
+
+    pub fn etage_angemeldet(&self, def: &EtageDef) {
+        for a in self.anbindungen() {
+            a.etage_angemeldet(&def.id, &def.ordner);
+        }
+    }
+
+    pub fn etage_abgemeldet(&self, id: &str) {
+        for a in self.anbindungen() {
+            a.etage_abgemeldet(id);
+        }
+    }
+
+    pub fn zahlen(&self, etage: &str) -> Zahlen {
+        self.anbindungen().iter().find_map(|a| a.zahlen(etage)).unwrap_or_default()
+    }
+
+    /// gh/git-Umgebung für die Verbindung `von`: die eigene GitHub-Anmeldung ihres Kontos, sonst die des Office.
+    pub fn github_umgebung(&self, von: &str) -> Vec<(String, String)> {
+        let Some(konto) = self.sitzung_von(von).and_then(|s| s.konto) else { return Vec::new() };
+        self.anbindungen().iter().find_map(|a| a.github_umgebung(&konto)).unwrap_or_default()
     }
 
     /// Schließt alle Verbindungen, deren Sitzung nicht mehr gilt (Konto entzogen, Passwort aus).

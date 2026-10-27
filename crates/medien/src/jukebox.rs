@@ -41,7 +41,7 @@ pub fn titel(stueck_id: &str, url: Option<&str>) -> String {
     let ohne = ohne.split(['?', '#']).next().unwrap_or("");
     let mut teile = ohne.split('/');
     let wirt = teile.next().unwrap_or("");
-    match teile.filter(|t| !t.is_empty()).next_back() {
+    match teile.rfind(|t| !t.is_empty()) {
         Some(datei) => format!("{wirt} · {datei}"),
         None if wirt.is_empty() => "Ein Stream".into(),
         None => wirt.into(),

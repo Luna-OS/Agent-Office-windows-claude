@@ -20,10 +20,14 @@ mod etage;
 mod github;
 mod hooks;
 mod kommunikation;
+mod cli_api;
 mod server;
 mod speicher;
+mod nach_merge;
 mod start;
 mod steuerung;
+mod verbrauch;
+mod wache;
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -93,6 +97,7 @@ pub(crate) struct Innen {
     pub(crate) cli: PathBuf,
     pub(crate) laufzeit: tokio::runtime::Handle,
     beenden: tokio::sync::Notify,
+    selbst: std::sync::Weak<Innen>,
 }
 
 #[derive(Default)]
@@ -100,6 +105,7 @@ pub(crate) struct Zustand {
     pub(crate) etagen: HashMap<String, Etage>,
     /// Das Office fährt herunter: endende Prozesse sind gestoppt, nicht abgestürzt.
     pub(crate) schliesst: bool,
+    pub(crate) nach_merge: nach_merge::NachMerge,
 }
 
 pub(crate) fn jetzt_ms() -> u64 {
@@ -121,6 +127,10 @@ impl Innen {
         let _ = self.sender.send(Ereignis { ziel, nachricht });
     }
 
+    pub(crate) fn selbst(&self) -> std::sync::Weak<Innen> {
+        self.selbst.clone()
+    }
+
     pub(crate) fn fehler(&self, verbindung: &str, text: impl Into<String>) {
         self.senden(Ziel::Verbindung(verbindung.to_string()), ServerNachricht::Fehler { text: text.into() });
     }
@@ -133,17 +143,19 @@ impl Agenten {
         let (listener, port) = server::lauschen(&e.daten_verzeichnis, e.hook_port).await?;
         let cli = e.cli_pfad.clone().unwrap_or_else(cli_neben_programm);
         let (sender, _) = broadcast::channel(4096);
-        let innen = Arc::new(Innen {
-            zustand: Mutex::new(Zustand::default()),
+        let innen = Arc::new_cyclic(|selbst| Innen {
+            zustand: Mutex::new(Zustand { nach_merge: nach_merge::laden(&e.daten_verzeichnis), ..Default::default() }),
             sender,
             daten: e.daten_verzeichnis.clone(),
             hook_url: format!("http://127.0.0.1:{port}"),
             cli,
             laufzeit: tokio::runtime::Handle::current(),
             beenden: tokio::sync::Notify::new(),
+            selbst: selbst.clone(),
         });
         let agenten = Agenten { innen };
         server::hook_server_starten(agenten.clone(), listener);
+        wache::starten(&agenten);
         tracing::info!("Hook-Server lauscht auf {}", agenten.innen.hook_url);
         Ok(agenten)
     }

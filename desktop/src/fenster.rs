@@ -18,14 +18,24 @@ pub enum Wo {
 /// Alles, was Fenster, Tray und Hintergrund-Threads dem Hauptprogramm mitteilen.
 #[derive(Debug)]
 pub enum Ereignis {
-    Beitreten { adresse: String, wo: Wo },
-    LobbyGeprueft { basis: String, rest: String, wo: Wo, erreichbar: bool },
+    Beitreten {
+        adresse: String,
+        wo: Wo,
+    },
+    LobbyGeprueft {
+        basis: String,
+        rest: String,
+        wo: Wo,
+        erreichbar: bool,
+    },
     Vergessen(String),
     LokalStart(Wo),
     LokalOeffnen(Wo),
     LokalStop,
     FuerAndere(bool),
-    ServerBereit { wo: Option<Wo> },
+    ServerBereit {
+        wo: Option<Wo>,
+    },
     Anzeigen,
     Beenden,
 }
@@ -43,9 +53,15 @@ pub fn fenster_bauen(schleife: &EventLoop<Ereignis>) -> Window {
         .expect("Das Fenster ließ sich nicht öffnen")
 }
 
-pub fn webview_bauen(fenster: &Window, ansicht: Arc<Mutex<Ansicht>>, proxy: EventLoopProxy<Ereignis>) -> WebView {
+pub fn webview_bauen(
+    fenster: &Window,
+    ansicht: Arc<Mutex<Ansicht>>,
+    proxy: EventLoopProxy<Ereignis>,
+) -> WebView {
     WebViewBuilder::new()
-        .with_custom_protocol("oao".into(), move |_id, anfrage| antwort(&anfrage, &ansicht, &proxy))
+        .with_custom_protocol("oao".into(), move |_id, anfrage| {
+            antwort(&anfrage, &ansicht, &proxy)
+        })
         .with_url(START_URL)
         .build(fenster)
         .expect("Die Ansicht ließ sich nicht erzeugen (WebView2 bzw. WebKit fehlt?)")
@@ -58,16 +74,35 @@ fn html(seite: String) -> Response<Cow<'static, [u8]>> {
         .expect("Antwort bauen")
 }
 
-fn antwort(anfrage: &Request<Vec<u8>>, ansicht: &Arc<Mutex<Ansicht>>, proxy: &EventLoopProxy<Ereignis>) -> Response<Cow<'static, [u8]>> {
+fn antwort(
+    anfrage: &Request<Vec<u8>>,
+    ansicht: &Arc<Mutex<Ansicht>>,
+    proxy: &EventLoopProxy<Ereignis>,
+) -> Response<Cow<'static, [u8]>> {
     let pfad = anfrage.uri().path();
     let Some(name) = pfad.strip_prefix("/aktion/") else {
-        return html(seiten::startseite(&ansicht.lock().map(|a| a.clone()).unwrap_or_default()));
+        return html(seiten::startseite(
+            &ansicht.lock().map(|a| a.clone()).unwrap_or_default(),
+        ));
     };
     let felder = felder_lesen(anfrage.uri().query().unwrap_or(""));
-    let feld = |n: &str| felder.iter().find(|(k, _)| k == n).map(|(_, v)| v.clone()).unwrap_or_default();
-    let wo = if feld("wo") == "fenster" { Wo::Fenster } else { Wo::Browser };
+    let feld = |n: &str| {
+        felder
+            .iter()
+            .find(|(k, _)| k == n)
+            .map(|(_, v)| v.clone())
+            .unwrap_or_default()
+    };
+    let wo = if feld("wo") == "fenster" {
+        Wo::Fenster
+    } else {
+        Wo::Browser
+    };
     let ereignis = match name {
-        "beitreten" => Some(Ereignis::Beitreten { adresse: feld("adresse"), wo }),
+        "beitreten" => Some(Ereignis::Beitreten {
+            adresse: feld("adresse"),
+            wo,
+        }),
         "vergessen" => Some(Ereignis::Vergessen(feld("adresse"))),
         "lokal_start" => Some(Ereignis::LokalStart(wo)),
         "lokal_oeffnen" => Some(Ereignis::LokalOeffnen(wo)),
@@ -100,7 +135,10 @@ fn entkodieren(t: &str) -> String {
     while i < b.len() {
         match b[i] {
             b'+' => aus.push(b' '),
-            b'%' => match t.get(i + 1..i + 3).and_then(|h| u8::from_str_radix(h, 16).ok()) {
+            b'%' => match t
+                .get(i + 1..i + 3)
+                .and_then(|h| u8::from_str_radix(h, 16).ok())
+            {
                 Some(x) => {
                     aus.push(x);
                     i += 2;

@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use std::ffi::OsString;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 
 use anyhow::{Context, Result};
 use portable_pty::{ChildKiller, CommandBuilder, MasterPty, PtySize, native_pty_system};
@@ -23,10 +24,28 @@ pub struct Befehl {
     pub entfernen: Vec<String>,
 }
 
+/// Schreibt ins Terminal; der Lese-Rückruf bekommt ihn, um Anfragen des Programms zu beantworten
+/// (ConPTY fragt beim Start nach der Cursorposition und wartet auf die Antwort).
+#[derive(Clone)]
+pub struct Antworter(Arc<Mutex<Box<dyn Write + Send>>>);
+
+impl Antworter {
+    pub fn schreiben(&self, daten: &[u8]) -> std::io::Result<()> {
+        let mut w = self.0.lock().unwrap_or_else(|e| e.into_inner());
+        w.write_all(daten)?;
+        w.flush()
+    }
+}
+
+/// Fragt das Programm nach der Cursorposition (DSR 6)?
+pub fn fragt_cursor(daten: &[u8]) -> bool {
+    daten.windows(4).any(|w| w == b"\x1b[6n")
+}
+
 /// Ein laufendes Terminal.
 pub struct Pty {
     master: Box<dyn MasterPty + Send>,
-    schreiber: Box<dyn Write + Send>,
+    schreiber: Antworter,
     killer: Box<dyn ChildKiller + Send + Sync>,
 }
 
@@ -36,7 +55,7 @@ impl Pty {
         befehl: &Befehl,
         spalten: u16,
         zeilen: u16,
-        mut bei_daten: impl FnMut(&[u8]) + Send + 'static,
+        mut bei_daten: impl FnMut(&[u8], &Antworter) + Send + 'static,
         bei_ende: impl FnOnce(Option<i32>) + Send + 'static,
     ) -> Result<Pty> {
         let system = native_pty_system();
@@ -61,13 +80,14 @@ impl Pty {
         drop(paar.slave);
         let killer = kind.clone_killer();
         let mut leser = paar.master.try_clone_reader().context("Terminal-Ausgabe nicht lesbar")?;
-        let schreiber = paar.master.take_writer().context("Terminal-Eingabe nicht beschreibbar")?;
+        let schreiber = Antworter(Arc::new(Mutex::new(paar.master.take_writer().context("Terminal-Eingabe nicht beschreibbar")?)));
+        let antworter = schreiber.clone();
         std::thread::Builder::new().name("pty-lesen".into()).spawn(move || {
             let mut puffer = [0u8; 16 * 1024];
             loop {
                 match leser.read(&mut puffer) {
                     Ok(0) | Err(_) => break,
-                    Ok(n) => bei_daten(&puffer[..n]),
+                    Ok(n) => bei_daten(&puffer[..n], &antworter),
                 }
             }
         })?;
@@ -79,8 +99,7 @@ impl Pty {
     }
 
     pub fn schreiben(&mut self, daten: &[u8]) -> Result<()> {
-        self.schreiber.write_all(daten)?;
-        self.schreiber.flush()?;
+        self.schreiber.schreiben(daten)?;
         Ok(())
     }
 
@@ -116,6 +135,11 @@ pub fn programm_finden(name: &str) -> Option<PathBuf> {
     };
     for ordner in std::env::split_paths(&suchpfad) {
         if cfg!(windows) {
+            // Mit Endung angegeben (`cmd.exe`): genau so suchen.
+            let genau = ordner.join(name);
+            if pfad.extension().is_some() && genau.is_file() {
+                return Some(genau);
+            }
             for endung in &endungen {
                 let mut datei = ordner.join(name).into_os_string();
                 datei.push(endung);
@@ -155,7 +179,7 @@ pub fn standard_shell() -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::{Arc, Mutex, mpsc};
+    use std::sync::mpsc;
     use std::time::Duration;
 
     /// Ein echter PTY mit einer Shell: Eingabe hinein, Ausgabe und Ende heraus.
@@ -170,7 +194,13 @@ mod tests {
         let ausgabe = Arc::new(Mutex::new(Vec::<u8>::new()));
         let (ende_tx, ende_rx) = mpsc::channel();
         let a = ausgabe.clone();
-        let mut pty = Pty::starten(&befehl, 80, 24, move |d| a.lock().unwrap().extend_from_slice(d), move |c| {
+        let lesen = move |d: &[u8], antwort: &Antworter| {
+            if fragt_cursor(d) {
+                let _ = antwort.schreiben(b"\x1b[1;1R");
+            }
+            a.lock().unwrap().extend_from_slice(d);
+        };
+        let mut pty = Pty::starten(&befehl, 80, 24, lesen, move |c| {
             let _ = ende_tx.send(c);
         })
         .expect("PTY startet");
@@ -201,6 +231,9 @@ mod tests {
     fn findet_programme() {
         let shell = if cfg!(windows) { "cmd" } else { "sh" };
         assert!(programm_finden(shell).is_some());
+        if cfg!(windows) {
+            assert!(programm_finden("cmd.exe").is_some());
+        }
         assert!(programm_finden("gibt-es-sicher-nicht-12345").is_none());
     }
 }

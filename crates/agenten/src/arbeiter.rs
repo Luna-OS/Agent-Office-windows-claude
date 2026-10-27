@@ -5,7 +5,7 @@ use std::collections::{HashMap, VecDeque};
 use std::time::Instant;
 
 use protokoll::agenten::{BusNachricht, FeedEintrag};
-use protokoll::arbeiter::{ArbeiterInfo, ArbeiterStatus};
+use protokoll::arbeiter::{ArbeiterAufgabe, ArbeiterInfo, ArbeiterStatus};
 
 use crate::jetzt_ms;
 use crate::pty::Pty;
@@ -43,6 +43,10 @@ pub struct Arbeiter {
     /// Zählt die Starts: ein Ende-Rückruf eines alten Laufs wird ignoriert.
     pub lauf: u64,
     pub gestartet: Option<Instant>,
+    /// Wann zuletzt etwas ins oder aus dem Terminal kam (für Agenten ohne Hooks).
+    pub letzte_ausgabe: Option<Instant>,
+    /// Das Transkript seiner Sitzung (aus den Hooks).
+    pub transkript: Option<std::path::PathBuf>,
     /// Er meldet sich über Hooks (sonst gilt der Fortschritt im Terminal).
     pub hat_hooks: bool,
     /// Wann der Feed zuletzt gemeldet wurde.
@@ -65,6 +69,8 @@ impl Arbeiter {
             fehlschlaege: 0,
             lauf: 0,
             gestartet: None,
+            letzte_ausgabe: None,
+            transkript: None,
             hat_hooks: false,
             feed_um: jetzt_ms(),
         }
@@ -131,6 +137,20 @@ pub fn kuerzen(text: &str, max: usize) -> String {
     } else {
         einzeilig.chars().take(max.saturating_sub(1)).collect::<String>() + "…"
     }
+}
+
+/// Ein kurzer Name für die Aufgabe, aus dem ersten Auftrag: die ersten Wörter der ersten Zeile.
+pub fn aufgabe_aus_prompt(prompt: &str) -> Option<ArbeiterAufgabe> {
+    let zeile = prompt.lines().map(str::trim).find(|z| !z.is_empty())?;
+    if zeile.starts_with("[Nachricht von") || zeile.starts_with('/') {
+        return None;
+    }
+    let woerter: Vec<&str> = zeile.split_whitespace().take(6).collect();
+    let mut name = kuerzen(&woerter.join(" "), 40);
+    if let Some(erster) = name.chars().next() {
+        name = erster.to_uppercase().collect::<String>() + &name[erster.len_utf8()..];
+    }
+    Some(ArbeiterAufgabe { name: name.trim_end_matches(['.', ':', ',']).to_string(), zusammenfassung: kuerzen(zeile, 120) })
 }
 
 /// Status als deutsches Wort (für die CLI).
