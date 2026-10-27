@@ -2,8 +2,20 @@
 // off floors.
 import type { FloorClientMsg } from '../../../shared/protocol.js';
 import { ROOF } from '../../../shared/rooftop.js';
+import type { Client } from '../../office/client.js';
+import type { Ctx } from '../../office/context.js';
 import { arrivalSpot, str } from '../../office/input.js';
+import type { GhAs } from '../../signins.js';
 import type { HandlerMap, ViewPieces } from './types.js';
+
+/**
+ * Someone's own GitHub sign-in, when they have one: the elevator lists their repositories and clones
+ * a floor they add as them, so a teammate's private project comes in too. Else the office's own.
+ */
+const ownGithub = (ctx: Ctx, c: Client): GhAs | undefined => {
+  const as = c.accountId ? ctx.signins.ghAs(c.accountId) : undefined;
+  return typeof as === 'object' ? as : undefined;
+};
 
 export const projectView: ViewPieces['project'] = (_ctx, floor) => floor?.project ?? null;
 
@@ -19,9 +31,10 @@ export const floorHandlers = {
     else ctx.goToFloor(c, floor, arrivalSpot(msg.at));
   },
   'floor.repos'(ctx, c, msg) {
-    void ctx.building.repos(msg.refresh === true).then(
-      (repos) => ctx.sendTo(c, { t: 'floor.repos', repos }),
-      (err: Error) => ctx.sendTo(c, { t: 'floor.repos', repos: [], error: `Couldn't list your repositories with gh: ${err.message}` }),
+    const as = ownGithub(ctx, c);
+    void ctx.building.repos(msg.refresh === true, as).then(
+      (repos) => ctx.sendTo(c, { t: 'floor.repos', repos, mine: !!as }),
+      (err: Error) => ctx.sendTo(c, { t: 'floor.repos', repos: [], mine: !!as, error: `Couldn't list your repositories with gh: ${err.message}` }),
     );
   },
   'floor.add'(ctx, c, msg) {
@@ -36,6 +49,7 @@ export const floorHandlers = {
           ctx.toastAll(`🛗 ${who} is adding a floor for ${def.repo ?? def.name}…`);
         },
         c.accountId,
+        ownGithub(ctx, c),
       )
       .then((r) => {
         ctx.floorsChanged();

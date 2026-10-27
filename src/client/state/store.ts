@@ -101,8 +101,8 @@ export class Store {
   floor: string | null = null;
   /** Where the office clones new floors to. */
   projectsDir: ProjectsDirState = { dir: '', custom: false };
-  /** The repositories the office's gh login can clone, once asked for (see floor.repos). */
-  repos: { list: RepoChoice[]; error?: string; loading: boolean; at: number } = { list: [], loading: false, at: 0 };
+  /** The repositories you can make a floor of, once asked for (see floor.repos): yours with your own GitHub sign-in (`mine`), else the office's. */
+  repos: { list: RepoChoice[]; error?: string; loading: boolean; at: number; mine?: boolean } = { list: [], loading: false, at: 0 };
   issues: GhState<GhIssue> = { items: [], fetchedAt: 0, loading: true };
   pulls: GhState<GhPull> = { items: [], fetchedAt: 0, loading: true };
   ice: RTCIceServer[] = [];

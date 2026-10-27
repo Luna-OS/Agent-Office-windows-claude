@@ -1,7 +1,7 @@
-import type { Accounts } from '../accounts.js';
-import type { Me } from '../../shared/protocol.js';
+import type { AccountsState, Me } from '../../shared/protocol.js';
 import type { Ctx, People } from './context.js';
 import type { Client } from './client.js';
+import { accountsView } from './origins.js';
 
 /** WebSocket close code for a session that stopped counting: the account was revoked, or the shared password switched off. */
 const SIGNED_OUT = 4001;
@@ -22,7 +22,7 @@ export function people(ctx: Ctx): People {
   const onlineAccounts = () => new Set([...ctx.clients.values()].map((c) => c.accountId).filter((id): id is string => !!id));
   /** Tells each admin what the accounts are now, and everyone whether they're (still) an admin. */
   const accountsChanged = () => {
-    let state: ReturnType<Accounts['state']> | undefined;
+    let state: AccountsState | undefined;
     for (const c of ctx.clients.values()) {
       if (c.out) continue;
       if (!stillIn(c)) {
@@ -34,7 +34,7 @@ export function people(ctx: Ctx): People {
         c.admin = me.admin;
         ctx.sendTo(c, { t: 'me', me });
       }
-      if (me.admin) ctx.sendTo(c, { t: 'accounts', state: (state ??= ctx.accounts.state(onlineAccounts())) });
+      if (me.admin) ctx.sendTo(c, { t: 'accounts', state: (state ??= accountsView(ctx)) });
     }
   };
   return { meOf, stillIn, signOut, onlineAccounts, accountsChanged };

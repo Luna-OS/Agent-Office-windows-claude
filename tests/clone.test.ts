@@ -9,15 +9,21 @@ import { parseProgress, whyCloneFailed } from '../src/server/clone.js';
 
 // A stand-in for gh: `repo view` and `repo clone` from bare repositories in $FAKE_GH_REPOS. It says
 // how far along it is the way git does, can wait first ($FAKE_GH_DELAY), hang ($FAKE_GH_HANG) or
-// fail the way ssh does ($FAKE_GH_FAIL).
+// fail the way ssh does ($FAKE_GH_FAIL). $FAKE_GH_PRIVATE is a repository only someone's own
+// sign-in ($GH_CONFIG_DIR) can see, and `api` lists the repositories each login can.
 const FAKE_GH = `#!/bin/sh
+hidden() { [ -n "$FAKE_GH_PRIVATE" ] && [ "$1" = "$FAKE_GH_PRIVATE" ] && [ -z "$GH_CONFIG_DIR" ]; }
 case "$1 $2" in
+  "api --paginate")
+    if [ -n "$GH_CONFIG_DIR" ]; then echo '{"name":"friend/secret","private":true}'; else echo '{"name":"acme/game","private":false}'; fi
+    ;;
   "repo view")
-    [ -d "$FAKE_GH_REPOS/$3.git" ] || { echo "GraphQL: Could not resolve to a Repository with the name '$3'." >&2; exit 1; }
+    { [ -d "$FAKE_GH_REPOS/$3.git" ] && ! hidden "$3"; } || { echo "GraphQL: Could not resolve to a Repository with the name '$3'." >&2; exit 1; }
     echo "{\\"nameWithOwner\\":\\"$3\\",\\"isEmpty\\":false}"
     ;;
   "repo clone")
     name="$3"; dest="$4"
+    hidden "$name" && { echo "fatal: repository not found" >&2; exit 128; }
     printf "Cloning into '%s'...\\n" "$dest" >&2
     [ -n "$FAKE_GH_FAIL" ] && { echo "$FAKE_GH_FAIL" >&2; echo "fatal: Could not read from remote repository." >&2; exit 128; }
     [ -n "$FAKE_GH_HANG" ] && exec sleep 600
@@ -60,7 +66,7 @@ function office(t: { after(fn: () => void): void }) {
   execFileSync('git', ['clone', '-q', '--bare', work, path.join(repos, 'acme', 'game.git')]);
   process.env.PATH = `${bin}${path.delimiter}${process.env.PATH}`;
   process.env.FAKE_GH_REPOS = repos;
-  for (const k of ['FAKE_GH_DELAY', 'FAKE_GH_HANG', 'FAKE_GH_FAIL']) delete process.env[k];
+  for (const k of ['FAKE_GH_DELAY', 'FAKE_GH_HANG', 'FAKE_GH_FAIL', 'FAKE_GH_PRIVATE']) delete process.env[k];
   const projects = path.join(root, 'projects');
   /** The clones under way, as the office keeps them for the next one. */
   const saved = () => (existsSync(path.join(dataDir, 'cloning.json')) ? (JSON.parse(readFileSync(path.join(dataDir, 'cloning.json'), 'utf8')) as (FloorDef & { pid: number })[]) : []);
@@ -195,4 +201,26 @@ test("a clone that was cut off isn't taken for a checkout", async (t) => {
   const building = new Building(dataDir, projects, fast);
   assert.match(String(await building.add('acme/game', 'Sam', () => {})), /didn't finish/);
   assert.deepEqual(building.list(), []);
+});
+
+test("a teammate's own GitHub sign-in lists their repositories and brings their private one in as a floor", async (t) => {
+  const { root, dataDir, projects } = office(t);
+  // friend/secret on "GitHub": private, so the office's own login can't see it, only the friend's.
+  const work = path.join(root, 'secret');
+  execFileSync('git', ['init', '-q', work]);
+  writeFileSync(path.join(work, 'README.md'), 'secret');
+  execFileSync('git', ['-C', work, 'add', '.']);
+  execFileSync('git', ['-C', work, '-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'first']);
+  execFileSync('git', ['clone', '-q', '--bare', work, path.join(root, 'github', 'friend', 'secret.git')]);
+  process.env.FAKE_GH_PRIVATE = 'friend/secret';
+  const friend = { key: 'friend00001', env: { ...process.env, GH_CONFIG_DIR: path.join(root, 'friend-gh') } as Record<string, string> };
+  const building = new Building(dataDir, projects, fast);
+
+  assert.deepEqual((await building.repos()).map((r) => r.name), ['acme/game'], "the office's own");
+  assert.deepEqual((await building.repos(false, friend)).map((r) => r.name), ['friend/secret'], "the friend's own, not the office's kept from before");
+  assert.match(String(await building.add('friend/secret', 'Host', () => {})), /^Couldn't find friend\/secret on GitHub/);
+  const r = await building.add('friend/secret', 'Friend', () => {}, 'friend00001', friend);
+  assert.equal(typeof r, 'object', String(r));
+  assert.ok(existsSync(path.join(projects, 'friend', 'secret', 'README.md')), 'cloned with their sign-in');
+  assert.deepEqual(building.list().map((d) => [d.repo, d.addedBy]), [['friend/secret', 'Friend']]);
 });

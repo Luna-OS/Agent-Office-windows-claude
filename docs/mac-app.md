@@ -47,6 +47,12 @@ nur für dieses Fenster entfernt, Claude Code bei Bedarf installiert und startet
 - *Mit Claude-Abo anmelden …*: `claude auth login --claudeai`
 - *Anmeldestatus prüfen*: `claude auth status`
 
+## Mitspieler auf deinen Mac einladen
+
+Wie unter Windows: **Online-Lobby → Lobby auf diesem Computer für andere öffnen**, dann zeigt die App
+Adressen und Passwort zum Verschicken. Fragt macOS nach eingehenden Verbindungen: erlauben. Alles
+dazu in der [Online-Lobby-Anleitung](online-lobby.md#ohne-umbrel-die-lobby-auf-deinem-pc-hosten).
+
 ## Was anders ist als unter Windows
 
 - Das Menü der App heißt wie die App, und es gibt **Bearbeiten** (⌘C / ⌘V in Terminals und Feldern)

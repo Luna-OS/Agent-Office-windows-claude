@@ -8,6 +8,7 @@
 >
 > **Online-Lobby auf deinem Umbrel.** Das Office kann auch auf einem Server laufen, zum Beispiel als Umbrel-App:
 > Die Worker laufen dann dort statt auf deinem PC, und deine Mitspieler treten mit der App oder im Browser derselben Lobby bei.
+> Ohne Server geht es auch: **Online-Lobby → Lobby auf diesem Computer für andere öffnen** macht deinen PC zur Lobby.
 > Jeder Spieler nutzt sein eigenes Claude-Abo, oder das des Hosts, wenn der es teilt. Anleitung: [docs/online-lobby.md](docs/online-lobby.md),
 > die Umbrel-App selbst: [docs/umbrel.md](docs/umbrel.md).
 

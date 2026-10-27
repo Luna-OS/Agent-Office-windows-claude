@@ -8,7 +8,8 @@ import { h, openModal, timeAgo, toast, type Modal } from './dom';
 import { confirmDialog } from './prompt';
 
 // The elevator's panel: a button for every floor (every project), and "add a project", which clones
-// one of the repositories the office's gh login can see and makes it a new floor. The first time
+// one of your repositories (with your own GitHub sign-in, else the office's gh login) and makes it a
+// new floor. The first time
 // the office runs there are no floors, and this is where you start. Admins can take a floor off the
 // building here too; its checkout stays on disk. Under the floors, it goes down to the garage.
 
@@ -292,7 +293,7 @@ export function openElevator(opts: ElevatorOptions): void {
           on ? h('p.note', {}, [cloneStep(on.clone), on.clone?.detail].filter(Boolean).join(' · ')) : null,
           h('p.note', {}, 'You can close this and carry on: everyone hears when the new floor opens.'),
         ]
-      : [h('p.note', {}, `Cloned into ${dest} with this machine's gh login. Everything on the new floor works in that checkout.`, change)];
+      : [h('p.note', {}, `Cloned into ${dest} ${r.mine ? 'with your own GitHub sign-in, so your private repositories come in too' : store.me.account ? 'with the office’s GitHub login (sign in to your own in ☰ → 🔐 Your sign-ins to add your repositories)' : 'with this machine’s gh login'}. Everything on the new floor works in that checkout.`, change)];
     statusEl.replaceChildren(...lines.filter((l): l is HTMLElement => !!l), ...[r.error, error].filter(Boolean).map((e) => h('p.err', {}, e)));
     addBtn.disabled = !!adding || !pick || store.floors.some((f) => sameRepo(f.repo, pick));
     addBtn.textContent = adding ? '⏳ Cloning…' : pick ? `🛗 Add ${pick}` : '🛗 Add floor';

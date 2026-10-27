@@ -69,6 +69,8 @@ export interface CloneEnd {
 export interface CloneRunOptions {
   /** Hears about new progress, at most once a tick. */
   changed?: () => void;
+  /** Whose GitHub it clones as: someone's own sign-in (see signins.ts), else the office's. */
+  env?: Record<string, string>;
   stallMs?: number;
   tickMs?: number;
 }
@@ -113,7 +115,7 @@ export class CloneRun {
           stdio: ['ignore', fd, fd],
           windowsHide: true,
           // No prompts: nobody would see them. What would have asked says so and fails instead.
-          env: { ...process.env, GIT_TERMINAL_PROMPT: '0', GH_PROMPT_DISABLED: '1' },
+          env: { ...(opts.env ?? process.env), GIT_TERMINAL_PROMPT: '0', GH_PROMPT_DISABLED: '1' },
         });
       } finally {
         closeSync(fd);
