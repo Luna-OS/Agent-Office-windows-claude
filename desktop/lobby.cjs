@@ -28,6 +28,11 @@ function lobbyOrigin(input) {
   return u.origin;
 }
 
+/** The /join#<token> part of an invite link (from 🔑 Accounts), when `input` is one. */
+function inviteOf(input) {
+  return /\/join#[A-Za-z0-9_-]{16,}$/.exec(String(input ?? '').trim())?.[0];
+}
+
 /**
  * Whether Chromium has to be told an origin counts as secure, for voice and screen sharing: plain
  * http on any machine but this one (an Umbrel on the home network or on Tailscale, say).
@@ -98,7 +103,7 @@ ${error ? `<p class="error">${escapeHtml(error)}</p>` : ''}
 <div class="choices">
   <section>
     <h2>🖥️ Auf diesem Computer</h2>
-    <p>Das Office und seine Worker laufen hier. Für dich allein, ohne Server: braucht aber Rechenleistung und Speicher dieses Computers, je mehr Worker, desto mehr.</p>
+    <p>Das Office und seine Worker laufen hier: braucht Rechenleistung und Speicher dieses Computers, je mehr Worker, desto mehr. Mitspieler lässt du später über das Menü „Online-Lobby → Lobby auf diesem Computer für andere öffnen“ herein.</p>
     <a class="btn${here ? '' : ' quiet'}" href="${escapeHtml(link('local'))}">Hier starten</a>
   </section>
   <section>
@@ -106,7 +111,7 @@ ${error ? `<p class="error">${escapeHtml(error)}</p>` : ''}
     <p>Ein Office auf deinem Umbrel oder einem Server: Die Worker laufen dort, dieser Computer zeigt nur das Office. Mitspieler treten mit derselben Adresse bei, mit der App oder im Browser.</p>
     ${saved ? `<ul>${saved}</ul>` : ''}
     <form action="${escapeHtml(link('join'))}" method="get">
-      <input name="url" placeholder="Adresse, z. B. umbrel.local:4600" value="${escapeHtml(address)}" required autofocus spellcheck="false" autocomplete="off">
+      <input name="url" placeholder="Adresse (z. B. umbrel.local:4600) oder Einladungslink" value="${escapeHtml(address)}" required autofocus spellcheck="false" autocomplete="off">
       <input name="name" placeholder="Name der Lobby (optional)" maxlength="40" autocomplete="off">
       <button type="submit">Beitreten</button>
     </form>
@@ -115,4 +120,4 @@ ${error ? `<p class="error">${escapeHtml(error)}</p>` : ''}
 <p class="foot">Eine eigene Lobby hosten: die Umbrel-App „Agent Office“ — <a href="${DOCS}online-lobby.md">Anleitung</a></p>`;
 }
 
-module.exports = { APP_LINK, DOCS, lobbyOrigin, needsSecureFlag, unreachable, lobbyName, startPage, escapeHtml };
+module.exports = { APP_LINK, DOCS, inviteOf, lobbyOrigin, needsSecureFlag, unreachable, lobbyName, startPage, escapeHtml };

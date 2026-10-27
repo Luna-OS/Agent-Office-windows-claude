@@ -9,8 +9,9 @@ const fs = require('node:fs');
 const netSocket = require('node:net');
 const os = require('node:os');
 const path = require('node:path');
-const { APP_LINK, DOCS, escapeHtml, lobbyName, lobbyOrigin, needsSecureFlag, startPage, unreachable } = require('./lobby.cjs');
+const { APP_LINK, DOCS, escapeHtml, inviteOf, lobbyName, lobbyOrigin, needsSecureFlag, startPage, unreachable } = require('./lobby.cjs');
 const { MAC, MAC_DIRS, installMacGit, loginShellPath, macGit, openTerminal, scriptName } = require('./platform.cjs');
+const { inviteText, newPassword, shareAddresses } = require('./hosting.cjs');
 
 const WIN = process.platform === 'win32';
 const ORANGE = '#d97757';
@@ -66,6 +67,11 @@ const DEFAULTS = {
   lobby: null,
   /** Online lobbies joined before, newest first: { name, url }. */
   lobbies: [],
+  /** An invite link's /join#<token>, to open once the app is back from restarting for its lobby. */
+  lobbyInvite: null,
+  /** The office on this computer is open to the network (a lobby hosted here, see hosting.cjs), behind `sharePassword`. */
+  share: false,
+  sharePassword: null,
 };
 function readSettings() {
   try {
@@ -191,23 +197,28 @@ function log(line) {
   if (logLines.length > 2000) logLines.splice(0, logLines.length - 2000);
 }
 
-function freePort(from) {
+function freePort(from, host) {
   return new Promise((resolve, reject) => {
     const tryPort = (port) => {
       if (port > from + 100) return reject(new Error(`no free port from ${from}`));
       const probe = netSocket.createServer();
       probe.once('error', () => tryPort(port + 1));
-      probe.listen(port, '127.0.0.1', () => probe.close(() => resolve(port)));
+      probe.listen(port, host, () => probe.close(() => resolve(port)));
     };
     tryPort(from);
   });
 }
 
 async function startOffice() {
-  const port = await freePort(Number(settings.port) || DEFAULTS.port);
+  // This computer only, or (a lobby hosted here) every network it's on, behind the lobby's password.
+  const host = settings.share ? '0.0.0.0' : '127.0.0.1';
+  const port = await freePort(Number(settings.port) || DEFAULTS.port, host);
   fs.mkdirSync(settings.home, { recursive: true });
-  const args = [entry, '--home', settings.home, '--host', '127.0.0.1', '--port', String(port), '--no-open'];
+  const args = [entry, '--home', settings.home, '--host', host, '--port', String(port), '--no-open'];
   const env = childEnv();
+  // Through the environment, not the command line, where anyone on this computer could read it. The
+  // office keeps its own password as it was, for when the lobby is closed again.
+  if (settings.share) env.AGENT_OFFICE_PASSWORD = settings.sharePassword;
   if (!app.isPackaged) env.AGENT_OFFICE_ROOT = paths.root;
   log(`starting: ${paths.node} ${args.join(' ')}`);
   const child = spawn(paths.node, args, { cwd: settings.home, env, stdio: ['ignore', 'pipe', 'pipe', 'ipc'], windowsHide: true });
@@ -271,7 +282,8 @@ function stopOffice() {
   });
 }
 
-async function restartOffice() {
+/** Starts the office again. `first` is shown once it's open, before the questions about what's missing (checkTools). */
+async function restartOffice(first) {
   if (restarting || quitting) return;
   if (lobby) return reloadOffice();
   restarting = true;
@@ -282,6 +294,7 @@ async function restartOffice() {
     loginShellPath(true);
     await startOffice();
     await openOffice();
+    await first?.();
     checkTools();
   } catch (err) {
     showFailure(err);
@@ -306,15 +319,68 @@ async function startLocal() {
   }
 }
 
+// --- A lobby hosted on this computer ------------------------------------------------------------------
+
+/**
+ * Opens the office on this computer to the network for friends to join (see hosting.cjs), or closes
+ * it again: either way the office starts again, on 0.0.0.0 with the lobby's password or on
+ * 127.0.0.1 as before. Opening it asks first, since whoever joins runs workers on this computer.
+ */
+async function toggleShare(on) {
+  if (on) {
+    const firewall = WIN
+      ? 'Windows fragt gleich, ob „Node.js“ im Netzwerk erreichbar sein darf: für private Netzwerke zulassen (und dein WLAN in Windows als privates Netzwerk einstellen).'
+      : 'Fragt macOS, ob eingehende Verbindungen erlaubt sind: „Erlauben“.';
+    const { response } = await dialog.showMessageBox(win, {
+      type: 'warning',
+      title: 'Lobby für andere öffnen',
+      message: 'Das Office auf diesem Computer für deine Mitspieler öffnen?',
+      detail:
+        'Wer die Adresse und das Passwort hat, kommt in dein Office und kann Worker einstellen, die auf diesem Computer Befehle ausführen und deine Projekte ändern. Gib beides nur Leuten, denen du das zutraust.\n\n' +
+        `${firewall}\n\n` +
+        'Die Worker aller Spieler laufen dann auf diesem Computer. Soll er geschont werden, hoste die Lobby auf einem Server (Umbrel-App).',
+      buttons: ['Lobby öffnen', 'Abbrechen'],
+      defaultId: 0,
+      cancelId: 1,
+    });
+    if (response !== 0) return buildMenu();
+    saveSettings({ share: true, sharePassword: settings.sharePassword || newPassword() });
+  } else {
+    saveSettings({ share: false });
+  }
+  buildMenu();
+  await restartOffice(on ? showInvite : undefined);
+}
+
+/** Who to tell what: the addresses this computer has on its networks, and the lobby's password. */
+async function showInvite() {
+  if (!officeInfo || !settings.share) return;
+  const text = inviteText(shareAddresses(Number(new URL(officeInfo.url).port)), settings.sharePassword);
+  const { response } = await dialog.showMessageBox(win, {
+    type: 'info',
+    title: 'Mitspieler einladen',
+    message: 'Deine Lobby ist offen',
+    detail: `${text}\n\nMit dem Passwort kommen sie als Admin herein. Ein eigenes Konto (und ihre eigene KI) bekommt jeder unter ☰ → 🔑 Accounts.`,
+    buttons: ['Einladung kopieren', 'Schließen'],
+    defaultId: 0,
+    cancelId: 1,
+  });
+  if (response === 0) clipboard.writeText(text);
+}
+
 // --- Online lobbies --------------------------------------------------------------------------------
 
 /**
  * Joins the online lobby at `input` (an address as typed, see lobbyOrigin): checks it's an office
  * that answers, keeps it in the list, stops the office on this computer (it's the lobby's workers
- * that run now) and shows the lobby, where you sign in with its password or your account.
+ * that run now) and shows the lobby, where you sign in with its password or your account. An invite
+ * link (…/join#<token>) as `input` joins its lobby and opens it, to make the account.
  */
 async function joinLobby(input, name) {
   const origin = lobbyOrigin(input);
+  // Kept through the restart a new lobby over http may take (see below), and used once.
+  const invite = inviteOf(input) ?? settings.lobbyInvite ?? null;
+  if (settings.lobbyInvite) saveSettings({ lobbyInvite: null });
   if (!origin) return showStart({ error: `„${input ?? ''}“ ist keine Adresse, die die App versteht. Zum Beispiel: umbrel.local:4600 oder https://office.example.com`, address: input ?? '' });
   showLoading(`Verbinde mit ${origin} …`);
   const why = await unreachable(origin, net.fetch);
@@ -330,12 +396,13 @@ async function joinLobby(input, name) {
   if (needsSecureFlag(origin) && !secureAtStart.has(origin)) {
     // So voice and screen sharing work there (see secureAtStart): back in a moment, in the lobby.
     showLoading('Agent Office startet für die neue Lobby neu …');
+    if (invite) saveSettings({ lobbyInvite: invite });
     app.relaunch();
     return app.exit(0);
   }
   lobby = origin;
   buildMenu();
-  await win?.loadURL(`${origin}/`).catch(() => {});
+  await win?.loadURL(`${origin}${invite ?? '/'}`).catch(() => {});
 }
 
 function forgetLobby(url) {
@@ -621,6 +688,8 @@ function buildMenu() {
         ...settings.lobbies.map((l) => ({ label: `${l.name}  (${l.url})`, type: 'checkbox', checked: inLobby && settings.lobby === l.url, click: () => joinLobby(l.url) })),
         { type: 'separator' },
         { label: 'Auf diesem Computer (lokales Office)', type: 'checkbox', checked: !inLobby, click: () => startLocal() },
+        { label: 'Lobby auf diesem Computer für andere öffnen', type: 'checkbox', checked: settings.share, enabled: !inLobby, click: (item) => toggleShare(item.checked) },
+        { label: 'Mitspieler einladen (Adresse und Passwort) …', enabled: !inLobby && settings.share, click: () => showInvite() },
         { type: 'separator' },
         { label: 'Adresse der Lobby kopieren', enabled: inLobby, click: () => clipboard.writeText(settings.lobby) },
         { label: 'Eine Lobby hosten (Umbrel-App) …', click: () => shell.openExternal(`${DOCS}online-lobby.md`) },

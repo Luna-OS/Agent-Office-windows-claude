@@ -77,7 +77,7 @@ export const building: Slice = {
       return ['projectsDir'];
     },
     'floor.repos'(s, m) {
-      s.repos = { list: m.repos, error: m.error, loading: false, at: Date.now() };
+      s.repos = { list: m.repos, error: m.error, loading: false, at: Date.now(), mine: m.mine };
       return ['repos'];
     },
   },

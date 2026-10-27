@@ -3,6 +3,7 @@ import type { AccountsClientMsg } from '../../../shared/protocol.js';
 import type { Ctx } from '../../office/context.js';
 import type { Client } from '../../office/client.js';
 import { str } from '../../office/input.js';
+import { accountsView } from '../../office/origins.js';
 import type { HandlerMap } from './types.js';
 
 /** Whether `c` may manage accounts; if not, they're told so. */
@@ -15,7 +16,7 @@ const admin = (ctx: Ctx, c: Client): boolean => {
 export const accountsHandlers = {
   'accounts.get'(ctx, c) {
     if (!admin(ctx, c)) return;
-    ctx.sendTo(c, { t: 'accounts', state: ctx.accounts.state(ctx.onlineAccounts()) });
+    ctx.sendTo(c, { t: 'accounts', state: accountsView(ctx) });
   },
   'accounts.invite'(ctx, c, msg) {
     const who = c.peer.name;

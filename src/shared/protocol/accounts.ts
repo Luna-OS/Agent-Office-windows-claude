@@ -71,6 +71,12 @@ export interface AccountsState {
   sharedPassword: boolean;
   /** Whether members may run their workers on the office machine's own Claude (the host's), as well as their own. */
   shareClaude: boolean;
+  /**
+   * Where other computers reach the office (see server/office/origins.ts): none when it's open to
+   * this computer alone. An invite link made on the office's own computer (the desktop app, at
+   * 127.0.0.1) points at the first, since 127.0.0.1 would mean the invited person's own computer.
+   */
+  origins?: string[];
 }
 
 export interface TeamMember {

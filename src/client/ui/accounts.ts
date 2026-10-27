@@ -6,7 +6,18 @@ import { h, openModal, timeAgo } from './dom';
 import { confirmDialog } from './prompt';
 import { copyButton } from './team';
 
-export const inviteLink = (v: AccountInvite) => `${location.origin}/join#${v.token}`;
+/** This page is the office's own computer (the desktop app's window): an address that means the invited person's computer, to them. */
+const onThisComputer = () => /^(localhost|127\.\d+\.\d+\.\d+|\[::1\])$/.test(location.hostname);
+
+/** Where an invite sends someone: this page's address, or from the office's own computer, the office's address on the network (see AccountsState.origins). */
+export const inviteLink = (v: AccountInvite) => `${(onThisComputer() && store.accounts?.origins?.[0]) || location.origin}/join#${v.token}`;
+
+/** What to know about the invite links from here: the office's own computer only makes ones that work when it's open to the network. */
+function linkNote(origins: string[] | undefined): HTMLElement | null {
+  if (!onThisComputer()) return null;
+  if (!origins?.length) return h('p.note', {}, '⚠️ This office is open to this computer only, so nobody else can use an invite link yet. In the Agent Office app: Online-Lobby → Lobby auf diesem Computer für andere öffnen.');
+  return h('p.note', {}, `Links go to ${origins[0]}, where others reach this computer${origins.length > 1 ? ` (or ${origins.slice(1).join(', ')}: swap it in for someone who comes another way, like Tailscale)` : ''}. They open it in a browser, or paste it into the app's Online-Lobby.`);
+}
 
 function expiresIn(t: number): string {
   const d = Math.round((t - Date.now()) / 86_400_000);
@@ -63,6 +74,8 @@ export function openAccounts(net: Net) {
       const v = fresh;
       body.append(h('div.cmd', {}, h('pre', {}, inviteLink(v)), copyButton('Copy', () => inviteLink(v))));
     }
+    const where = linkNote(s.origins);
+    if (where) body.append(where);
     if (store.invites) body.append(h('p.note', {}, 'On this office they also need a way in first: see 👥 Invite teammates.'));
 
     const list = h('ul.team-list');

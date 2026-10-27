@@ -156,7 +156,8 @@ export type FloorServerMsg =
   | ({ t: 'floor.enter'; peers: PeerInfo[] } & FloorView)
   | { t: 'floors'; floors: FloorInfo[] }
   /** Sent to whoever asked. */
-  | { t: 'floor.repos'; repos: RepoChoice[]; error?: string }
+  /** `mine`: listed with your own GitHub sign-in, so they're your repositories, and a floor you add is cloned as you. */
+  | { t: 'floor.repos'; repos: RepoChoice[]; error?: string; mine?: boolean }
   /** Sent to whoever asked for the floor, once it's cloned (or couldn't be). */
   | { t: 'floor.added'; repo: string; floor?: string; error?: string }
   /** The projects folder moved (see floor.projectsDir). */

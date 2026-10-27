@@ -1,4 +1,4 @@
-# Online-Lobby: das Office auf deinem Umbrel
+# Online-Lobby: das Office auf deinem Umbrel (oder deinem PC)
 
 Zurück zur [README](../README.md) · [Windows-App](windows-app.md) · [Mac-App](mac-app.md) · [Umbrel-App im Detail](umbrel.md)
 
@@ -67,8 +67,37 @@ Tailscale Serve oder einem Reverse Proxy mit Zertifikat).
 2. Gib jedem ein **eigenes Konto**: im Office ☰ → **🔑 Accounts** → Einladungslink. Der Link
    funktioniert einmal; sie wählen ihr eigenes Passwort.
 3. Sie installieren die App (oder nehmen den Browser), wählen **Online-Lobby** und tragen dieselbe
-   Adresse ein. **Online-Lobby → Adresse der Lobby kopieren** gibt dir die Adresse zum Verschicken.
+   Adresse ein, oder fügen gleich den Einladungslink ins Adressfeld ein: Dann öffnet die App die Seite,
+   auf der sie ihr Konto anlegen. **Online-Lobby → Adresse der Lobby kopieren** gibt dir die Adresse zum
+   Verschicken.
 4. Wenn alle ein Konto haben: das gemeinsame Passwort in 🔑 Accounts ausschalten.
+
+## Ohne Umbrel: die Lobby auf deinem PC hosten
+
+Das Office aus der App („🖥️ Auf diesem Computer“) ist zuerst nur für deinen eigenen Computer da
+(`127.0.0.1`): Niemand sonst kommt hinein, auch nicht im selben WLAN oder über Tailscale. Um Mitspieler
+hereinzulassen:
+
+1. Menü **Online-Lobby → Lobby auf diesem Computer für andere öffnen**, und die Rückfrage bestätigen.
+   Das Office startet neu, jetzt für alle Netzwerke deines Computers, mit einem eigenen Lobby-Passwort.
+2. **Windows fragt**, ob „Node.js“ im Netzwerk erreichbar sein darf: für **private Netzwerke zulassen**.
+   Steht dein WLAN in Windows auf „Öffentlich“, stell es auf „Privat“ (Einstellungen → Netzwerk und
+   Internet → WLAN → dein Netz → Netzwerkprofil). Auf dem Mac: eingehende Verbindungen erlauben.
+3. Die App zeigt die **Einladung**: deine Adressen (z. B. `192.168.178.20:4600` im WLAN und
+   `100.78.135.198:4600` über Tailscale) und das Passwort. **Einladung kopieren** und verschicken. Später
+   wieder: **Online-Lobby → Mitspieler einladen (Adresse und Passwort) …**
+4. Dein Mitspieler wählt in seiner App **🌐 Online-Lobby**, trägt die Adresse ein und meldet sich mit dem
+   Passwort an. Im selben WLAN die WLAN-Adresse; die Tailscale-Adresse nur, wenn er in deinem Tailnet ist
+   (deinen Computer in Tailscale mit ihm teilen: Machines → ⋯ → Share).
+5. Besser mit eigenem Konto (für sein eigenes GitHub, seine Projekte und seine KI): ☰ → **🔑 Accounts →
+   Make invite link**. Der Link zeigt automatisch auf deine Netzwerk-Adresse (nicht auf `127.0.0.1`). Dein
+   Mitspieler fügt ihn in seiner App unter **🌐 Online-Lobby** ins Adressfeld ein, und die App öffnet direkt
+   die Seite, auf der er Name und Passwort wählt.
+
+Wer mit dem Passwort hereinkommt, ist Admin und kann Worker einstellen, die **auf deinem Computer**
+Befehle ausführen. Lade nur Leute ein, denen du das zutraust, und gib ihnen am besten eigene Konten (☰ →
+🔑 Accounts). Alle Worker laufen dann auf deinem PC; soll er geschont werden, nimm die Umbrel-App.
+**Online-Lobby → Lobby auf diesem Computer für andere öffnen** noch einmal schließt die Lobby wieder.
 
 ## 4. Wessen KI? Die des Hosts oder die eigene
 
@@ -86,6 +115,26 @@ Jeder Worker läuft mit dem Claude-Abo von dem, der ihn eingestellt hat:
   Passwort) laufen alle Worker auf der Anmeldung des Office.
 
 GitHub bleibt pro Person: Kommentare, Commits und Pull Requests erscheinen unter dem eigenen Namen.
+
+## 5. Projekte der Mitspieler als Etage
+
+Jeder Spieler kann sein eigenes Projekt als Etage ins Haus holen, auch ein privates:
+
+1. Der Mitspieler meldet sich in der Lobby unter ☰ → **🔐 Your sign-ins** mit **seinem** GitHub an
+   (*Sign in with GitHub*, Code bei github.com/login/device eingeben). Sein GitHub auf seinem eigenen PC
+   zählt nicht: Die Lobby klont auf dem Rechner, auf dem sie läuft.
+2. Im Aufzug (**E**) → *Projekt hinzufügen* sieht er dann **seine** Repositorys und fügt eins hinzu. Es
+   wird mit seiner Anmeldung geklont und ist für alle in der Lobby eine Etage.
+3. **Du arbeitest mit deinem Claude daran:** Jeder Worker läuft mit dem Claude dessen, der ihn
+   einstellt, auf jeder Etage. Setz auf seiner Etage einen Worker an einen Tisch, und er arbeitet mit
+   deinem Abo an seinem Projekt.
+4. Damit deine Worker dort auch **pushen und Pull Requests öffnen** und die Issue- und PR-Tafeln das
+   Repository lesen können, braucht dein GitHub-Konto Zugriff darauf: Der Mitspieler lädt dich auf
+   GitHub als Collaborator ein (Repository → *Settings → Collaborators → Add people*). Ohne das arbeiten
+   deine Worker trotzdem am Code, nur Push und PRs gehen dann über seine Worker.
+
+Ohne Konto (nur mit dem gemeinsamen Passwort) läuft alles über das GitHub des Hosts: Dann gehen nur
+Repositorys, die der Host sehen kann.
 
 ## Gut zu wissen
 

@@ -10,7 +10,8 @@ App gibt es auch [für den Mac](mac-app.md).
 
 Das Office läuft entweder auf diesem Computer, oder die App tritt einer **[Online-Lobby](online-lobby.md)**
 bei, einem Office auf deinem Umbrel oder einem Server. Dann laufen die Worker dort, dein PC zeigt nur
-das Office, und deine Mitspieler kommen in dieselbe Lobby.
+das Office, und deine Mitspieler kommen in dieselbe Lobby. Oder du hostest die Lobby auf deinem PC:
+**Online-Lobby → Lobby auf diesem Computer für andere öffnen** ([so geht's](online-lobby.md#ohne-umbrel-die-lobby-auf-deinem-pc-hosten)).
 
 ## Installieren
 
@@ -76,8 +77,13 @@ Verknüpfung oder *Mit Claude-Abo anmelden …* an – danach starten alle Worke
 - Die App (Electron, `desktop/main.cjs`) startet das Office mit dem mitgelieferten `node.exe`
   genau wie der Befehl `agent-office` – nur auf `127.0.0.1` (nur dieser Computer), Port 4600 oder
   der nächste freie – und meldet ihr Fenster über einen Einmal-Link an. Kein Passwort nötig.
+- Mit *Lobby auf diesem Computer für andere öffnen* (`desktop/hosting.cjs`) startet es stattdessen auf
+  `0.0.0.0` (alle Netzwerke dieses Computers) mit einem Lobby-Passwort, das die App sich merkt und über
+  die Umgebung (nicht die Kommandozeile) übergibt. Das eigene Passwort des Office bleibt dabei
+  unverändert, beim Schließen der Lobby gilt wieder alles wie vorher.
 - In einer Online-Lobby (`desktop/lobby.cjs`) startet sie kein Office: Das Fenster zeigt die Lobby,
-  du meldest dich dort mit ihrem Passwort oder deinem Konto an. Eine Lobby über `http://` (im Heimnetz
+  du meldest dich dort mit ihrem Passwort oder deinem Konto an. Statt der Adresse geht auch ein
+  Einladungslink aus 🔑 Accounts: Dann öffnet die App gleich die Seite fürs eigene Konto. Eine Lobby über `http://` (im Heimnetz
   oder Tailnet) zählt in der App als sicher, damit Sprache und Bildschirm teilen gehen; beim ersten
   Beitritt zu so einer Lobby startet die App dafür einmal neu. Gemerkte Lobbys stehen im Menü
   **Online-Lobby**, mit *Adresse der Lobby kopieren* zum Verschicken an Mitspieler.
