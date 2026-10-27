@@ -8,7 +8,9 @@ const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 14;
 const MAX_ATTEMPTS = 10;
 const WINDOW_MS = 5 * 60_000;
 /** Sign-in links not used yet; making one more forgets the oldest. */
-const MAX_LINKS = 8;
+const MAX_LINKS = 32;
+/** A sign-in link handed from one signed-in place to another browser (see linkKey) works this long. */
+const HANDOFF_TTL_MS = 5 * 60_000;
 
 /** A signed-in browser: with its own account, or (no account) with the shared office password. */
 export interface Session {
@@ -17,8 +19,11 @@ export interface Session {
 
 export class Auth {
   private attempts = new Map<string, { count: number; resetAt: number }>();
-  /** Hashes of the one-time sign-in links' keys that haven't been used yet. */
-  private links = new Set<string>();
+  /**
+   * The one-time sign-in links that haven't been used yet, by their key's hash: the account each
+   * signs in (none: the shared password), and until when a handed-off one works.
+   */
+  private links = new Map<string, { accountId?: string; until?: number }>();
   /** Signs shared-password sessions. Derived from the password too, so changing it logs those out. */
   private key: Buffer;
   /** Signs account sessions, which outlive a change of the shared password. */
@@ -67,19 +72,25 @@ export class Auth {
   }
 
   /**
-   * The key of a sign-in link that works once, for whoever started the office in a terminal: it
-   * signs in like the shared password. Only its hash is kept, in memory, so a restart forgets it.
+   * The key of a sign-in link that works once. Without `handoff`, for whoever started the office in
+   * a terminal: it signs in like the shared password. With one, the same session for another browser
+   * (the desktop app's connector opens the office in the normal browser with it), for a few minutes.
+   * Only its hash is kept, in memory, so a restart forgets it.
    */
-  linkKey(): string {
+  linkKey(handoff?: Session): string {
     const key = randomBytes(24).toString('base64url');
-    if (this.links.size >= MAX_LINKS) this.links.delete(this.links.values().next().value!);
-    this.links.add(linkHash(key));
+    if (this.links.size >= MAX_LINKS) this.links.delete(this.links.keys().next().value!);
+    this.links.set(linkHash(key), handoff ? { accountId: handoff.account?.id, until: Date.now() + HANDOFF_TTL_MS } : {});
     return key;
   }
 
-  /** Uses up a sign-in link: true the first time its key is given, never again. */
-  useLinkKey(key: string): boolean {
-    return !!key && this.links.delete(linkHash(key));
+  /** Uses up a sign-in link: who it signs in the first time its key is given (in time), never again. */
+  useLinkKey(key: string): { accountId?: string } | undefined {
+    const hash = linkHash(key);
+    const link = key ? this.links.get(hash) : undefined;
+    if (!link) return undefined;
+    this.links.delete(hash);
+    return link.until && link.until < Date.now() ? undefined : { accountId: link.accountId };
   }
 
   /** A session cookie's value: for that account, or for the shared password when there's none. */

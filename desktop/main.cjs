@@ -1,31 +1,28 @@
-// Agent Office as a desktop app, for Windows and macOS: starts the office (with the node it ships,
-// exactly like the `agent-office` command) on this computer only and signs its own window in, or
-// joins an online lobby, an office running on another machine (an Umbrel, a server), so the workers
-// run there instead (see lobby.cjs). Either way it offers Claude Code with the Claude subscription
-// login, so neither the office's workers nor the "Claude Code" shortcut need an Anthropic API key.
-const { app, BrowserWindow, Menu, clipboard, dialog, desktopCapturer, net, session, shell, systemPreferences } = require('electron');
+// Agent Office's connector, for Windows and macOS: a small window that connects you to a lobby (an
+// office on your Umbrel or a server, or one it starts on this computer), signs you in there with
+// your own account, and signs you in to your own Claude and GitHub for your workers. The office
+// itself opens in your normal browser, signed in as you (see controller.cjs). The office this app
+// starts on this computer runs with the node it ships, exactly like the `agent-office` command, with
+// Claude Code on the Claude subscription login, so no worker needs an Anthropic API key.
+const { app, BrowserWindow, Menu, Tray, clipboard, dialog, ipcMain, nativeImage, safeStorage, shell } = require('electron');
 const { spawn, execFile, execFileSync } = require('node:child_process');
 const fs = require('node:fs');
 const netSocket = require('node:net');
 const os = require('node:os');
 const path = require('node:path');
-const { APP_LINK, DOCS, escapeHtml, inviteOf, lobbyName, lobbyOrigin, needsSecureFlag, startPage, unreachable } = require('./lobby.cjs');
+const { DOCS } = require('./lobby.cjs');
+const { createController } = require('./controller.cjs');
 const { MAC, MAC_DIRS, installMacGit, loginShellPath, macGit, openTerminal, scriptName } = require('./platform.cjs');
 const { inviteText, newPassword, shareAddresses } = require('./hosting.cjs');
 
 const WIN = process.platform === 'win32';
-const ORANGE = '#d97757';
 
-// One office per computer: starting the app again brings its window back.
+// One connector per computer: starting the app again brings its window back.
 const primary = app.requestSingleInstanceLock();
 if (!primary) {
   app.quit();
 } else {
-  app.on('second-instance', () => {
-    if (!win) return;
-    if (win.isMinimized()) win.restore();
-    win.focus();
-  });
+  app.on('second-instance', () => showWindow());
 }
 
 // --- Where things are ------------------------------------------------------------------------------
@@ -61,14 +58,14 @@ const DEFAULTS = {
   home: path.join(os.homedir(), 'agent-office'),
   /** Workers sign in to Claude with the subscription (Pro/Max) login, never an ANTHROPIC_API_KEY. */
   subscriptionOnly: true,
-  /** 'local': the office runs on this computer. 'lobby': the window joins `lobby`. Null until picked on the start page. */
+  /** 'local': the office on this computer. 'lobby': the online lobby `lobby`. Null until one's picked. */
   mode: null,
   /** The online lobby last joined: its origin. */
   lobby: null,
   /** Online lobbies joined before, newest first: { name, url }. */
   lobbies: [],
-  /** An invite link's /join#<token>, to open once the app is back from restarting for its lobby. */
-  lobbyInvite: null,
+  /** Your session in each lobby (its cookie), by origin, sealed with the system's keychain where there is one. */
+  sessions: {},
   /** The office on this computer is open to the network (a lobby hosted here, see hosting.cjs), behind `sharePassword`. */
   share: false,
   sharePassword: null,
@@ -87,12 +84,6 @@ function saveSettings(patch) {
   fs.mkdirSync(path.dirname(settingsFile), { recursive: true });
   fs.writeFileSync(settingsFile, JSON.stringify(settings, null, 2));
 }
-
-// Voice and screen sharing only work on a secure origin. A lobby over plain http (an Umbrel at home
-// or on Tailscale) is told to count as one, and that can only be said before the app is ready: a
-// new one takes a restart of the app (see joinLobby).
-const secureAtStart = new Set(settings.lobbies.map((l) => l.url).filter(needsSecureFlag));
-if (secureAtStart.size) app.commandLine.appendSwitch('unsafely-treat-insecure-origin-as-secure', [...secureAtStart].join(','));
 
 // --- Environment ---------------------------------------------------------------------------------
 
@@ -183,14 +174,17 @@ function ghSignedIn() {
 // --- The office on this computer -----------------------------------------------------------------
 
 let win = null;
+let tray = null;
 let office = null;
 let officeInfo = null;
-/** The online lobby the window is in (its origin), or null for the office on this computer. */
-let lobby = null;
 let quitting = false;
+/** The app is on its way out, so closing the window closes it instead of keeping it in the tray. */
+let leaving = false;
 let restarting = false;
 const logLines = [];
 const signInWaiters = new Map();
+/** The office on this computer on its way up: asked for twice meanwhile, it still starts once. */
+let starting = null;
 
 function log(line) {
   logLines.push(line);
@@ -244,8 +238,10 @@ async function startOffice() {
       if (office === child) office = null;
       reject(new Error(`the office stopped (exit code ${code})`));
       if (!quitting && !restarting && officeInfo) {
-        dialog.showErrorBox('Agent Office', `Das Office wurde unerwartet beendet (Code ${code}).\n\n${logLines.slice(-15).join('\n')}`);
-        app.quit();
+        officeInfo = null;
+        const why = `Das Office auf diesem Computer wurde unerwartet beendet (Code ${code}).`;
+        dialog.showErrorBox('Agent Office', `${why}\n\n${logLines.slice(-15).join('\n')}`);
+        if (controller.isHere()) controller.leave(`${why} „Auf diesem Computer starten“ versucht es noch einmal; das Protokoll steht im Menü „Agent Office“.`);
       }
     });
   });
@@ -282,42 +278,41 @@ function stopOffice() {
   });
 }
 
-/** Starts the office again. `first` is shown once it's open, before the questions about what's missing (checkTools). */
+/** Starts the office on this computer again, when it's the one in use. `first` runs once it's back. */
 async function restartOffice(first) {
-  if (restarting || quitting) return;
-  if (lobby) return reloadOffice();
+  if (restarting || quitting || settings.mode !== 'local') return;
   restarting = true;
   try {
     await stopOffice();
-    showLoading('Agent Office wird neu gestartet …');
+    officeInfo = null;
     // Something may have been installed meanwhile (Git, gh, Claude Code): look for it afresh.
     loginShellPath(true);
-    await startOffice();
-    await openOffice();
-    await first?.();
-    checkTools();
-  } catch (err) {
-    showFailure(err);
   } finally {
     restarting = false;
   }
+  await controller.reconnectHere();
+  await first?.();
 }
 
-/** Runs the office on this computer (again), and shows it. */
-async function startLocal() {
-  lobby = null;
-  saveSettings({ mode: 'local' });
-  buildMenu();
-  if (office && officeInfo) return openOffice();
-  showLoading('Agent Office startet …');
-  try {
-    await startOffice();
-    await openOffice();
-    checkTools();
-  } catch (err) {
-    showFailure(err);
-  }
-}
+/** The office on this computer, as the connector uses it (see controller.cjs). */
+const here = {
+  running: () => !!office,
+  async start() {
+    if (!office || !officeInfo) await (starting ??= startOffice().finally(() => (starting = null)));
+    // What it needs from this computer, asked about once the window shows it (see checkTools).
+    setTimeout(checkTools, 1500);
+    return { origin: officeInfo.url, link: await freshSignIn() };
+  },
+  async stop() {
+    restarting = true;
+    await stopOffice().finally(() => (restarting = false));
+    officeInfo = null;
+  },
+  /** Where friends reach it: nowhere until it's opened to the network (toggleShare). */
+  inviteBase: () => (settings.share && officeInfo ? shareAddresses(Number(new URL(officeInfo.url).port))[0]?.url : undefined),
+  claude: () => openClaudeCode(['auth', 'login', '--claudeai']),
+  github: () => githubLogin(),
+};
 
 // --- A lobby hosted on this computer ------------------------------------------------------------------
 
@@ -360,7 +355,7 @@ async function showInvite() {
     type: 'info',
     title: 'Mitspieler einladen',
     message: 'Deine Lobby ist offen',
-    detail: `${text}\n\nMit dem Passwort kommen sie als Admin herein. Ein eigenes Konto (und ihre eigene KI) bekommt jeder unter ☰ → 🔑 Accounts.`,
+    detail: `${text}\n\nMit dem Passwort kommen sie als Admin herein. Besser: ein Einladungslink für ein eigenes Konto, mit eigenem Claude und GitHub (im Connector unter „Mitspieler einladen“).`,
     buttons: ['Einladung kopieren', 'Schließen'],
     defaultId: 0,
     cancelId: 1,
@@ -368,62 +363,38 @@ async function showInvite() {
   if (response === 0) clipboard.writeText(text);
 }
 
-// --- Online lobbies --------------------------------------------------------------------------------
 
-/**
- * Joins the online lobby at `input` (an address as typed, see lobbyOrigin): checks it's an office
- * that answers, keeps it in the list, stops the office on this computer (it's the lobby's workers
- * that run now) and shows the lobby, where you sign in with its password or your account. An invite
- * link (…/join#<token>) as `input` joins its lobby and opens it, to make the account.
- */
-async function joinLobby(input, name) {
-  const origin = lobbyOrigin(input);
-  // Kept through the restart a new lobby over http may take (see below), and used once.
-  const invite = inviteOf(input) ?? settings.lobbyInvite ?? null;
-  if (settings.lobbyInvite) saveSettings({ lobbyInvite: null });
-  if (!origin) return showStart({ error: `„${input ?? ''}“ ist keine Adresse, die die App versteht. Zum Beispiel: umbrel.local:4600 oder https://office.example.com`, address: input ?? '' });
-  showLoading(`Verbinde mit ${origin} …`);
-  const why = await unreachable(origin, net.fetch);
-  if (why) return showStart({ error: why, address: input });
-  const before = settings.lobbies.find((l) => l.url === origin);
-  const lobbies = [{ name: lobbyName(name || before?.name, origin), url: origin }, ...settings.lobbies.filter((l) => l.url !== origin)].slice(0, 12);
-  saveSettings({ mode: 'lobby', lobby: origin, lobbies });
-  if (office) {
-    restarting = true;
-    await stopOffice().finally(() => (restarting = false));
-  }
-  officeInfo = null;
-  if (needsSecureFlag(origin) && !secureAtStart.has(origin)) {
-    // So voice and screen sharing work there (see secureAtStart): back in a moment, in the lobby.
-    showLoading('Agent Office startet für die neue Lobby neu …');
-    if (invite) saveSettings({ lobbyInvite: invite });
-    app.relaunch();
-    return app.exit(0);
-  }
-  lobby = origin;
-  buildMenu();
-  await win?.loadURL(`${origin}${invite ?? '/'}`).catch(() => {});
-}
+// --- The connector -------------------------------------------------------------------------------
 
-function forgetLobby(url) {
-  saveSettings({ lobbies: settings.lobbies.filter((l) => l.url !== url), ...(settings.lobby === url ? { lobby: null } : {}) });
-  buildMenu();
-}
+/** A session cookie at rest: sealed with the system's keychain (Windows' DPAPI, the Mac's Keychain) where there is one. */
+const seal = (cookie) => (safeStorage.isEncryptionAvailable() ? { e: safeStorage.encryptString(cookie).toString('base64') } : { p: cookie });
+const unseal = (v) => (v?.e ? safeStorage.decryptString(Buffer.from(v.e, 'base64')) : (v?.p ?? null));
 
-/** Where to go: this computer or an online lobby (see lobby.cjs). */
-function showStart(extra = {}) {
-  buildMenu();
-  win?.loadURL(page('Agent Office', startPage({ lobbies: settings.lobbies, current: lobby ?? settings.lobby, here: settings.mode !== 'lobby', ...extra })));
-}
+let menuFor = '';
+const controller = createController({
+  settings: () => settings,
+  save: saveSettings,
+  seal,
+  unseal,
+  openExternal: (url) => shell.openExternal(url),
+  copy: (text) => clipboard.writeText(text),
+  here,
+  onChange(state) {
+    win?.webContents.send('connector:state', state);
+    // The menus say which lobby you're in: built again when that changes.
+    const now = JSON.stringify(controller.current());
+    if (now !== menuFor) buildMenu();
+  },
+});
 
-/** The start page's links and form (see lobby.cjs): they never load anything. */
-function handleAppLink(raw) {
-  const u = new URL(raw);
-  const action = u.pathname.replace(/^\/+/, '');
-  if (action === 'local') return startLocal();
-  if (action === 'join') return joinLobby(u.searchParams.get('url'), u.searchParams.get('name'));
-  if (action === 'forget') forgetLobby(u.searchParams.get('url'));
-  showStart();
+/** Only the connector's own page (ui/) may ask the app for anything. */
+const fromWindow = (e) => !!win && e.sender === win.webContents && !!e.senderFrame?.url.startsWith('file:');
+ipcMain.handle('connector:state', (e) => (fromWindow(e) ? controller.state() : null));
+ipcMain.handle('connector:do', (e, action, args) => (fromWindow(e) ? controller.do(String(action), args) : { error: 'Nicht erlaubt' }));
+
+async function openInBrowser() {
+  const r = await controller.do('office');
+  if (r.error) dialog.showErrorBox('Agent Office', r.error);
 }
 
 // --- Claude Code without an API key --------------------------------------------------------------
@@ -481,12 +452,12 @@ async function ask(title, message, detail, yes) {
  * What the office needs from this computer, asked about once it's open: Git (projects, worktrees,
  * and Claude Code's Git Bash), a GitHub sign-in for gh (the elevator's repository list, cloning,
  * issues and PRs) and Claude Code itself. One at a time, each skippable; asked again after every
- * restart of the office (an install or sign-in finishing restarts it), unless declined. Never in
+ * restart of the office (an install or sign-in finishing restarts it), unless declined. Never for
  * an online lobby: its workers run on its own machine.
  */
 let checking = false;
 async function checkTools() {
-  if (checking || !win || lobby) return;
+  if (checking || !win || settings.mode !== 'local') return;
   checking = true;
   try {
     await askForTools();
@@ -526,133 +497,135 @@ async function askForTools() {
       'Claude Code ist auf diesem Computer noch nicht installiert.',
       'Die Worker im Office laufen mit Claude Code. Du brauchst dafür keinen API-Key: Claude Code meldet sich mit deinem Claude-Abo (Pro oder Max) an.\n\n' +
         `Jetzt installieren und anmelden? Es öffnet sich ein ${MAC ? 'Terminal-Fenster' : 'Konsolenfenster'} mit dem offiziellen Installer; danach wählst du „Claude account with subscription“.\n\n` +
-        'Oder spiel in einer Online-Lobby (Menü „Online-Lobby“): Dort laufen die Worker auf dem Server, nicht auf diesem Computer.',
+        'Oder tritt im Connector einer Online-Lobby bei: Dort laufen die Worker auf dem Server, nicht auf diesem Computer.',
       'Installieren und anmelden',
     );
     if (yes) openClaudeCode();
   }
 }
 
-// --- Window --------------------------------------------------------------------------------------
 
-function page(title, body) {
-  const html = `<!doctype html><meta charset="utf-8"><title>${title}</title>
-<style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#1b1d2a;color:#e8e8f0;font:16px system-ui,sans-serif}
-main{max-width:640px;padding:24px;text-align:center}h1{font-size:22px}pre{text-align:left;white-space:pre-wrap;font-size:12px;background:#0f1018;padding:12px;border-radius:8px;max-height:40vh;overflow:auto}
-.dot{width:12px;height:12px;border-radius:50%;background:${ORANGE};display:inline-block;animation:p 1s infinite alternate}@keyframes p{to{opacity:.2}}</style>
-<main>${body}</main>`;
-  return `data:text/html;charset=utf-8,${encodeURIComponent(html)}`;
-}
-
-function showLoading(text) {
-  win?.loadURL(page('Agent Office', `<h1>🏢 ${escapeHtml(text)}</h1><span class="dot"></span>`));
-}
-
-function showFailure(err) {
-  win?.loadURL(
-    page(
-      'Agent Office',
-      `<h1>Agent Office konnte nicht starten</h1><p>${escapeHtml(err.message)}</p><pre>${escapeHtml(logLines.slice(-40).join('\n'))}</pre>` +
-        `<p>Menü „Agent Office → Neu starten“ versucht es noch einmal, oder <a style="color:#f0a487" href="${APP_LINK}start">tritt einer Online-Lobby bei</a>.</p>`,
-    ),
-  );
-}
-
-/** Shows the office: this computer's, signed in with a fresh link, or the lobby's. */
-async function openOffice() {
-  if (lobby) return reloadOffice();
-  const url = await freshSignIn();
-  if (url && win) await win.loadURL(url);
-}
-
-function reloadOffice() {
-  if (lobby) return win?.loadURL(`${lobby}/`).catch(() => {});
-  return openOffice();
-}
-
-/** The office the window shows: the lobby's origin, or this computer's. */
-const officeBase = () => lobby ?? officeInfo?.url ?? null;
-const isOffice = (url) => {
-  const base = officeBase();
-  return !!base && (url === base || url.startsWith(base + '/'));
-};
+// --- Window, tray and menus ----------------------------------------------------------------------
 
 function createWindow() {
   win = new BrowserWindow({
-    width: 1440,
-    height: 900,
-    minWidth: 900,
-    minHeight: 600,
+    width: 600,
+    height: 820,
+    minWidth: 440,
+    minHeight: 560,
     title: 'Agent Office',
     backgroundColor: '#1b1d2a',
-    autoHideMenuBar: false,
-    webPreferences: { contextIsolation: true, sandbox: true, nodeIntegration: false },
+    autoHideMenuBar: !MAC,
+    webPreferences: { contextIsolation: true, sandbox: true, nodeIntegration: false, preload: path.join(__dirname, 'preload.cjs') },
   });
-  // Links out of the office (GitHub, PRs, docs) open in the normal browser; the office's own pages
-  // (a doc or a terminal popped out) get a window of their own.
+  // The window never leaves its own page: links (the guide, GitHub's token page) open in the browser.
   win.webContents.setWindowOpenHandler(({ url }) => {
-    if (isOffice(url)) return { action: 'allow' };
     if (/^https?:/i.test(url)) shell.openExternal(url);
     return { action: 'deny' };
   });
   win.webContents.on('will-navigate', (e, url) => {
-    if (url.startsWith(APP_LINK)) {
-      e.preventDefault();
-      // Only from the app's own pages: a lobby's page never gets to switch lobbies or start the office here.
-      if (win.webContents.getURL().startsWith('data:')) handleAppLink(url);
-      return;
-    }
-    if (url.startsWith('data:') || isOffice(url)) return;
     e.preventDefault();
     if (/^https?:/i.test(url)) shell.openExternal(url);
   });
-  // The lobby went away (the Umbrel is off, the network's gone): back to where to go, saying so.
-  win.webContents.on('did-fail-load', (e, code, description, url, mainFrame) => {
-    if (!mainFrame || !lobby || code === -3 || !url.startsWith(lobby)) return;
-    showStart({ error: `Die Lobby ${lobby} ist nicht erreichbar (${description}).`, address: lobby });
+  // The office in the browser goes through this app (the passthrough, or the office running here),
+  // so on Windows closing the window keeps it going in the tray. A Mac app keeps going in the Dock.
+  win.on('close', (e) => {
+    if (leaving || MAC || !(controller.passthroughRunning() || office)) return;
+    e.preventDefault();
+    win.hide();
+    showTray(true);
   });
   win.on('closed', () => (win = null));
-  buildMenu();
+  win.loadFile(path.join(__dirname, 'ui', 'index.html'));
 }
 
-/** Microphone (voice), screen sharing, pointer lock (mouse-look), notifications: for the office only. */
-function allowOfficePermissions() {
-  const allowed = new Set(['media', 'pointerLock', 'fullscreen', 'notifications', 'clipboard-read', 'clipboard-sanitized-write', 'display-capture']);
-  session.defaultSession.setPermissionRequestHandler((wc, permission, callback) => {
-    if (!allowed.has(permission) || !isOffice(wc.getURL())) return callback(false);
-    // A Mac asks once whether the app may use the microphone, for voice.
-    if (MAC && permission === 'media' && systemPreferences.getMediaAccessStatus('microphone') !== 'granted') {
-      return systemPreferences.askForMediaAccess('microphone').then(callback, () => callback(false));
+function showWindow() {
+  if (!win) return createWindow();
+  if (win.isMinimized()) win.restore();
+  win.show();
+  win.focus();
+}
+
+let toldTray = false;
+/** The tray icon (Windows, Linux): the connector back, the office in the browser, or quit. `closed`: the window was just closed. */
+function showTray(closed) {
+  if (MAC) return;
+  try {
+    if (!tray) {
+      tray = new Tray(nativeImage.createFromPath(path.join(__dirname, 'ui', 'tray.png')));
+      tray.setToolTip('Agent Office');
+      tray.on('click', () => showWindow());
     }
-    callback(true);
-  });
-  session.defaultSession.setPermissionCheckHandler((wc, permission) => allowed.has(permission) && !!wc && isOffice(wc.getURL()));
-  session.defaultSession.setDisplayMediaRequestHandler(
-    (request, callback) => {
-      desktopCapturer
-        .getSources({ types: ['screen'] })
-        .then((sources) => callback(sources.length ? { video: sources[0] } : {}))
-        .catch(() => callback({}));
-    },
-    { useSystemPicker: true },
+  } catch (err) {
+    log(`no tray icon: ${err.message}`);
+    return;
+  }
+  tray.setContextMenu(
+    Menu.buildFromTemplate([
+      { label: 'Connector anzeigen', click: () => showWindow() },
+      { label: 'Office im Browser öffnen', enabled: !!controller.current(), click: () => openInBrowser() },
+      { type: 'separator' },
+      { label: 'Beenden', click: () => app.quit() },
+    ]),
   );
+  if (closed && WIN && !toldTray) {
+    toldTray = true;
+    tray.displayBalloon({ iconType: 'info', title: 'Agent Office läuft weiter', content: 'Dein Browser braucht den Connector fürs Office. Hier unten im Infobereich holst du ihn zurück oder beendest ihn.' });
+  }
 }
 
 function buildMenu() {
-  const inLobby = settings.mode === 'lobby' && !!settings.lobby;
+  const now = controller.current();
+  menuFor = JSON.stringify(now);
+  const atHere = settings.mode === 'local';
+  if (tray) showTray(false);
   const template = [
     {
       label: 'Agent Office',
       submenu: [
         ...(MAC ? [{ role: 'about', label: 'Über Agent Office' }, { type: 'separator' }] : []),
-        { label: 'Neu laden', accelerator: 'F5', click: () => reloadOffice() },
+        { label: 'Office im Browser öffnen', accelerator: 'CmdOrCtrl+O', enabled: !!now, click: () => openInBrowser() },
         {
-          label: 'Im Browser öffnen',
-          click: async () => {
-            const url = lobby ? `${lobby}/` : await freshSignIn();
-            if (url) shell.openExternal(url);
+          label: 'Lobby wechseln …',
+          accelerator: 'CmdOrCtrl+Shift+L',
+          click: () => {
+            showWindow();
+            controller.do('lobbies');
           },
         },
+        { label: 'Adresse der Lobby kopieren', enabled: !!now && !now.here, click: () => clipboard.writeText(now.origin) },
+        { type: 'separator' },
+        { label: 'Eine Lobby hosten (Umbrel-App) …', click: () => shell.openExternal(`${DOCS}online-lobby.md`) },
+        {
+          label: 'Protokoll anzeigen',
+          click: () => {
+            const file = path.join(app.getPath('userData'), 'office.log');
+            fs.writeFileSync(file, logLines.join(os.EOL));
+            shell.openPath(file);
+          },
+        },
+        { type: 'separator' },
+        ...(MAC ? [{ role: 'hide', label: 'Agent Office ausblenden' }, { role: 'hideOthers', label: 'Andere ausblenden' }, { type: 'separator' }] : []),
+        { role: 'quit', label: 'Beenden' },
+      ],
+    },
+    // Copy and paste with ⌘C / ⌘V need an Edit menu on a Mac.
+    ...(MAC ? [{ role: 'editMenu', label: 'Bearbeiten' }] : []),
+    {
+      label: 'Dieser Computer',
+      submenu: [
+        {
+          label: 'Office auf diesem Computer starten',
+          type: 'checkbox',
+          checked: atHere,
+          click: () => {
+            showWindow();
+            controller.do('here');
+          },
+        },
+        { label: 'Lobby auf diesem Computer für andere öffnen', type: 'checkbox', checked: settings.share, enabled: atHere, click: (item) => toggleShare(item.checked) },
+        { label: 'Mitspieler einladen (Adresse und Passwort) …', enabled: atHere && settings.share, click: () => showInvite() },
+        { label: 'Office neu starten', enabled: atHere, click: () => restartOffice() },
         { type: 'separator' },
         { label: 'Daten-Ordner öffnen', click: () => shell.openPath(settings.home) },
         {
@@ -664,44 +637,10 @@ function buildMenu() {
             restartOffice();
           },
         },
-        {
-          label: 'Protokoll anzeigen',
-          click: () => {
-            const file = path.join(app.getPath('userData'), 'office.log');
-            fs.writeFileSync(file, logLines.join(os.EOL));
-            shell.openPath(file);
-          },
-        },
-        { label: 'Neu starten', click: () => restartOffice() },
         { type: 'separator' },
-        ...(MAC ? [{ role: 'hide', label: 'Agent Office ausblenden' }, { role: 'hideOthers', label: 'Andere ausblenden' }, { type: 'separator' }] : []),
-        { role: 'quit', label: 'Beenden' },
-      ],
-    },
-    // Copy and paste with ⌘C / ⌘V need an Edit menu on a Mac. Not on Windows, where Ctrl+C belongs to the terminals.
-    ...(MAC ? [{ role: 'editMenu', label: 'Bearbeiten' }] : []),
-    {
-      label: 'Online-Lobby',
-      submenu: [
-        { label: 'Lobby beitreten oder wechseln …', accelerator: 'CmdOrCtrl+Shift+L', click: () => showStart() },
-        ...(settings.lobbies.length ? [{ type: 'separator' }] : []),
-        ...settings.lobbies.map((l) => ({ label: `${l.name}  (${l.url})`, type: 'checkbox', checked: inLobby && settings.lobby === l.url, click: () => joinLobby(l.url) })),
-        { type: 'separator' },
-        { label: 'Auf diesem Computer (lokales Office)', type: 'checkbox', checked: !inLobby, click: () => startLocal() },
-        { label: 'Lobby auf diesem Computer für andere öffnen', type: 'checkbox', checked: settings.share, enabled: !inLobby, click: (item) => toggleShare(item.checked) },
-        { label: 'Mitspieler einladen (Adresse und Passwort) …', enabled: !inLobby && settings.share, click: () => showInvite() },
-        { type: 'separator' },
-        { label: 'Adresse der Lobby kopieren', enabled: inLobby, click: () => clipboard.writeText(settings.lobby) },
-        { label: 'Eine Lobby hosten (Umbrel-App) …', click: () => shell.openExternal(`${DOCS}online-lobby.md`) },
-      ],
-    },
-    {
-      label: 'Claude Code',
-      submenu: [
         { label: 'Claude Code öffnen (ohne API-Key)', accelerator: 'CmdOrCtrl+Shift+C', click: () => openClaudeCode() },
-        { label: 'Mit Claude-Abo anmelden …', click: () => openClaudeCode(['auth', 'login', '--claudeai']) },
+        { label: 'Claude Code mit Claude-Abo anmelden …', click: () => openClaudeCode(['auth', 'login', '--claudeai']) },
         { label: 'Anmeldestatus prüfen', click: () => openClaudeCode(['auth', 'status']) },
-        { type: 'separator' },
         {
           label: 'Worker nur mit Claude-Abo (API-Key ignorieren)',
           type: 'checkbox',
@@ -712,14 +651,9 @@ function buildMenu() {
           },
         },
         { type: 'separator' },
-        { label: 'Hilfe: Claude Code mit Abo nutzen', click: () => shell.openExternal('https://code.claude.com/docs/en/setup') },
-      ],
-    },
-    {
-      label: 'GitHub',
-      submenu: [
-        { label: 'Bei GitHub anmelden …', click: () => githubLogin() },
+        { label: 'GitHub CLI anmelden …', click: () => githubLogin() },
         { label: MAC ? 'Git installieren (Apple-Befehlszeilentools) …' : 'Git for Windows installieren …', click: () => installGit() },
+        { label: 'Hilfe: Claude Code mit Abo nutzen', click: () => shell.openExternal('https://code.claude.com/docs/en/setup') },
       ],
     },
     {
@@ -729,7 +663,6 @@ function buildMenu() {
         { role: 'zoomOut', label: 'Verkleinern' },
         { role: 'resetZoom', label: 'Originalgröße' },
         { type: 'separator' },
-        { role: 'togglefullscreen', label: 'Vollbild' },
         { role: 'toggleDevTools', label: 'Entwicklertools' },
       ],
     },
@@ -740,21 +673,25 @@ function buildMenu() {
 
 // --- Lifecycle -----------------------------------------------------------------------------------
 
-app.whenReady().then(async () => {
+app.whenReady().then(() => {
   if (!primary) return;
-  allowOfficePermissions();
+  buildMenu();
   createWindow();
-  if (settings.mode === 'lobby' && settings.lobby) return joinLobby(settings.lobby);
-  if (settings.mode === 'local') return startLocal();
-  // First start: where should the office run?
-  showStart();
+  controller.start();
 });
 
-app.on('window-all-closed', () => app.quit());
+// Windows: closing the last window quits (unless the tray keeps it, see createWindow). A Mac app
+// keeps going without one, and its Dock icon brings the window back.
+app.on('window-all-closed', () => {
+  if (!MAC) app.quit();
+});
+app.on('activate', () => showWindow());
 
 app.on('before-quit', (e) => {
-  if (quitting || !office) return;
+  leaving = true;
+  if (quitting) return;
+  if (!office) return void controller.close();
   e.preventDefault();
   quitting = true;
-  stopOffice().finally(() => app.quit());
+  Promise.all([stopOffice(), controller.close()]).finally(() => app.quit());
 });

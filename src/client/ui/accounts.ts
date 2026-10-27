@@ -9,12 +9,24 @@ import { copyButton } from './team';
 /** This page is the office's own computer (the desktop app's window): an address that means the invited person's computer, to them. */
 const onThisComputer = () => /^(localhost|127\.\d+\.\d+\.\d+|\[::1\])$/.test(location.hostname);
 
-/** Where an invite sends someone: this page's address, or from the office's own computer, the office's address on the network (see AccountsState.origins). */
-export const inviteLink = (v: AccountInvite) => `${(onThisComputer() && store.accounts?.origins?.[0]) || location.origin}/join#${v.token}`;
+/**
+ * The lobby's own address, when this page comes from it through the desktop app's connector on
+ * this computer (desktop/passthrough.cjs answers this, never the office).
+ */
+let viaConnector: string | undefined;
+const askConnector = () =>
+  fetch('/.well-known/agent-office-connector.json', { cache: 'no-store' })
+    .then((r) => (r.ok ? r.json() : null))
+    .then((j: { lobby?: unknown } | null) => void (viaConnector = typeof j?.lobby === 'string' && /^https?:\/\/[^/?#]+$/.test(j.lobby) ? j.lobby : undefined))
+    .catch(() => {});
+
+/** Where an invite sends someone: this page's address, or from this computer, the lobby's (through the connector) or the office's on the network (see AccountsState.origins). */
+export const inviteLink = (v: AccountInvite) => `${(onThisComputer() && (viaConnector ?? store.accounts?.origins?.[0])) || location.origin}/join#${v.token}`;
 
 /** What to know about the invite links from here: the office's own computer only makes ones that work when it's open to the network. */
 function linkNote(origins: string[] | undefined): HTMLElement | null {
   if (!onThisComputer()) return null;
+  if (viaConnector) return h('p.note', {}, `Links go to ${viaConnector}, the lobby's address: the Agent Office app on this computer passes the office on to your browser.`);
   if (!origins?.length) return h('p.note', {}, '⚠️ This office is open to this computer only, so nobody else can use an invite link yet. In the Agent Office app: Online-Lobby → Lobby auf diesem Computer für andere öffnen.');
   return h('p.note', {}, `Links go to ${origins[0]}, where others reach this computer${origins.length > 1 ? ` (or ${origins.slice(1).join(', ')}: swap it in for someone who comes another way, like Tailscale)` : ''}. They open it in a browser, or paste it into the app's Online-Lobby.`);
 }
@@ -195,4 +207,5 @@ export function openAccounts(net: Net) {
   render();
   setTimeout(() => nameInput.focus(), 30);
   net.send({ t: 'accounts.get' });
+  if (onThisComputer() && !viaConnector) void askConnector().then(() => viaConnector && render());
 }

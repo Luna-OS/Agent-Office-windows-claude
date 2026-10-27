@@ -94,7 +94,8 @@ export const authRoutes = {
       return send(res, 200, { password }, signedIn(ctx, req));
     },
   },
-  // A sign-in link the office printed in its terminal (/login#key=…), traded for a session once.
+  // A sign-in link (/login#key=…), traded for a session once: printed in the office's terminal, or
+  // handed to this browser by someone signed in elsewhere (the desktop app's connector, see Auth.linkKey).
   link: {
     method: 'POST',
     path: '/api/link',
@@ -102,11 +103,13 @@ export const authRoutes = {
     async handle(ctx, { req, res }) {
       const guess = await readGuess(ctx, req, res);
       if (!guess) return;
-      if (!ctx.accounts.sharedPassword || !ctx.auth.useLinkKey(str(guess.body.key, 128))) {
-        return send(res, 410, { error: 'That sign-in link was already used. Sign in with the office password.' });
+      const link = ctx.auth.useLinkKey(str(guess.body.key, 128));
+      const account = link?.accountId ? ctx.accounts.get(link.accountId) : undefined;
+      if (!link || (link.accountId ? !account : !ctx.accounts.sharedPassword)) {
+        return send(res, 410, { error: 'That sign-in link was already used, or is too old. Sign in with your password, or open the office from the app again.' });
       }
       ctx.auth.recordSuccess(guess.ip);
-      return send(res, 200, { ok: true }, signedIn(ctx, req));
+      return send(res, 200, { ok: true }, signedIn(ctx, req, account?.id));
     },
   },
   logout: { method: 'POST', path: '/api/logout', auth: 'public', handle: (ctx, { req, res }) => send(res, 200, { ok: true }, { 'set-cookie': ctx.auth.clearCookie(req) }) },

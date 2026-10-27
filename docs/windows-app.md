@@ -1,17 +1,17 @@
 # Agent Office als Windows-App
 
-Zurück zur [README](../README.md) · [Mac-App](mac-app.md) · [Online-Lobby](online-lobby.md)
+Zurück zur [README](../README.md) · [Connector](connector.md) · [Mac-App](mac-app.md) · [Online-Lobby](online-lobby.md)
 
 Diese Version von [Agent Office](https://github.com/AgentSystemLabs/agent-office) gibt es als
-normale Windows-App mit Installer: kein Terminal, kein `npm`, kein eigenes Node.js nötig. Dazu
-kommt eine Verknüpfung **„Claude Code (ohne API-Key)“**, die Claude Code mit deinem
-**Claude-Abo** (Pro, Max, Team oder Enterprise) startet statt mit einem Anthropic-API-Key. Dieselbe
-App gibt es auch [für den Mac](mac-app.md).
+normale Windows-App mit Installer: kein Terminal, kein `npm`, kein eigenes Node.js nötig. Die App ist
+ein **[Connector](connector.md)**: Sie verbindet dich mit einer **[Online-Lobby](online-lobby.md)**
+(einem Office auf deinem Umbrel oder einem Server, wo auch die Worker laufen), meldet dich dort mit
+deinem **eigenen Claude und GitHub** an und öffnet das Office in deinem normalen Browser. Dieselbe App
+gibt es auch [für den Mac](mac-app.md).
 
-Das Office läuft entweder auf diesem Computer, oder die App tritt einer **[Online-Lobby](online-lobby.md)**
-bei, einem Office auf deinem Umbrel oder einem Server. Dann laufen die Worker dort, dein PC zeigt nur
-das Office, und deine Mitspieler kommen in dieselbe Lobby. Oder du hostest die Lobby auf deinem PC:
-**Online-Lobby → Lobby auf diesem Computer für andere öffnen** ([so geht's](online-lobby.md#ohne-umbrel-die-lobby-auf-deinem-pc-hosten)).
+Ohne Server startet sie das Office auch auf diesem Computer. Dafür bringt sie Node.js und die GitHub
+CLI mit, und eine Verknüpfung **„Claude Code (ohne API-Key)“**, die Claude Code mit deinem
+**Claude-Abo** (Pro, Max, Team oder Enterprise) startet statt mit einem Anthropic-API-Key.
 
 ## Installieren
 
@@ -22,20 +22,20 @@ das Office, und deine Mitspieler kommen in dieselbe Lobby. Oder du hostest die L
    den Ordner kannst du ändern. Windows SmartScreen kennt die unsignierte App nicht: *Weitere
    Informationen → Trotzdem ausführen*.
 3. Der Installer legt auf dem Desktop und im Startmenü an:
-   - **Agent Office**: das 3D-Office in einem eigenen Fenster
+   - **Agent Office**: der Connector
    - **Claude Code (ohne API-Key)**: eine Konsole mit Claude Code, angemeldet über dein Claude-Abo
 
-Die **GitHub CLI** (`gh`) bringt die App selbst mit: damit listet das Office im Aufzug deine
-Repositorys, klont sie und zeigt Issues und Pull Requests. Hast du `gh` selbst installiert, wird
-deine Version benutzt.
+Beim ersten Start zeigt der Connector **🌐 Lobby beitreten** (Adresse eintragen, z. B.
+`100.78.107.162:4600`, oder einen Einladungslink einfügen) und **🖥️ Ohne Server** (das Office auf
+diesem Computer). Wie es weitergeht: [Connector](connector.md). Der Connector merkt sich, wo du zuletzt
+warst; wer die App schon vor dem Connector benutzt hat, landet wie bisher im Office auf diesem Computer.
 
-Beim ersten Start fragt die App, wo das Office laufen soll: **🖥️ Auf diesem Computer** oder
-**🌐 Online-Lobby** (Adresse eintragen, z. B. `umbrel.local:4600`). Gewechselt wird später über das
-Menü **Online-Lobby**; die App merkt sich, wo du zuletzt warst. Wer die App schon vor den Lobbys
-benutzt hat, landet wie bisher im Office auf diesem Computer.
+Schließt du das Fenster, während der Browser das Office über den Connector bekommt, läuft er im
+**Infobereich** (unten rechts) weiter: Klick aufs Symbol holt ihn zurück, Rechtsklick → **Beenden**
+beendet ihn.
 
 Im Office auf diesem Computer prüft die App, was noch fehlt, und bietet es nacheinander an (jeweils
-mit „Später“ überspringbar; in einer Online-Lobby fragt sie nicht, dort läuft alles auf dem Server):
+mit „Später“ überspringbar; für eine Online-Lobby fragt sie nicht, dort läuft alles auf dem Server):
 
 1. **Git for Windows**: für Projekte und Worker-Worktrees, und Claude Code braucht es unter Windows
    auch selbst. Installiert per `winget install --id Git.Git -e`.
@@ -44,9 +44,11 @@ mit „Später“ überspringbar; in einer Online-Lobby fragt sie nicht, dort l�
 3. **Claude Code**: mit dem offiziellen Installer (`irm https://claude.ai/install.ps1 | iex`). Die
    Verknüpfung macht das ebenfalls.
 
-Nach einer Installation oder Anmeldung startet das Office von selbst neu und findet das neue
-Programm, ohne dass du dich bei Windows neu anmelden musst. Dasselbe geht jederzeit über das Menü
-**GitHub → Bei GitHub anmelden …** bzw. **Git for Windows installieren …**.
+Die **GitHub CLI** (`gh`) bringt die App selbst mit: damit listet das Office im Aufzug deine
+Repositorys, klont sie und zeigt Issues und Pull Requests. Hast du `gh` selbst installiert, wird
+deine Version benutzt. Nach einer Installation oder Anmeldung startet das Office von selbst neu und
+findet das neue Programm, ohne dass du dich bei Windows neu anmelden musst. Dasselbe geht jederzeit
+über das Menü **Dieser Computer → GitHub CLI anmelden …** bzw. **Git for Windows installieren …**.
 
 ## Claude Code ohne API-Key
 
@@ -62,36 +64,36 @@ Die App sorgt deshalb dafür, dass nur das Abo benutzt wird:
   wählst du **„Claude account with subscription“** und bestätigst im Browser; danach bleibt Claude
   Code angemeldet. Am Rest des Computers ändert sich nichts.
 - **Die Worker im Office** laufen mit derselben Anmeldung: die App startet das Office ohne diese
-  Variablen, also mit dem Abo-Login von `claude`. Abschaltbar unter *Claude Code → Worker nur mit
+  Variablen, also mit dem Abo-Login von `claude`. Abschaltbar unter *Dieser Computer → Worker nur mit
   Claude-Abo (API-Key ignorieren)*, falls du doch einen API-Key nutzen willst.
-- **Menü „Claude Code“** in der App:
+- **Menü „Dieser Computer“** in der App (Alt zeigt die Menüleiste):
   - *Claude Code öffnen (ohne API-Key)* (Strg+Umschalt+C): dieselbe Konsole wie die Verknüpfung
-  - *Mit Claude-Abo anmelden …*: `claude auth login --claudeai`
+  - *Claude Code mit Claude-Abo anmelden …*: `claude auth login --claudeai`
   - *Anmeldestatus prüfen*: `claude auth status`
 
-Zeigt ein Worker im Office „Claude isn't signed in on this machine“, melde dich einmal über die
-Verknüpfung oder *Mit Claude-Abo anmelden …* an – danach starten alle Worker mit dem Abo.
+In einer Online-Lobby gilt das nicht: Dort meldest du dich im Connector unter **🔐 Deine Anmeldungen**
+mit deinem eigenen Claude an, und deine Worker laufen damit auf dem Server.
+
+Zeigt ein Worker im Office auf diesem Computer „Claude isn't signed in on this machine“, melde dich
+einmal über die Verknüpfung oder *Claude Code mit Claude-Abo anmelden …* an – danach starten alle
+Worker mit dem Abo.
 
 ## Wie die App funktioniert
 
-- Die App (Electron, `desktop/main.cjs`) startet das Office mit dem mitgelieferten `node.exe`
-  genau wie der Befehl `agent-office` – nur auf `127.0.0.1` (nur dieser Computer), Port 4600 oder
-  der nächste freie – und meldet ihr Fenster über einen Einmal-Link an. Kein Passwort nötig.
+- Die App (Electron, `desktop/main.cjs`) zeigt den Connector (`desktop/controller.cjs`, `desktop/ui/`);
+  wie er mit der Lobby spricht und das Office im Browser öffnet, steht unter [Connector](connector.md).
+- Das Office auf diesem Computer startet sie mit dem mitgelieferten `node.exe` genau wie der Befehl
+  `agent-office`, nur auf `127.0.0.1` (nur dieser Computer), Port 4600 oder der nächste freie, und
+  meldet den Connector über einen Einmal-Link an. Kein Passwort nötig.
 - Mit *Lobby auf diesem Computer für andere öffnen* (`desktop/hosting.cjs`) startet es stattdessen auf
   `0.0.0.0` (alle Netzwerke dieses Computers) mit einem Lobby-Passwort, das die App sich merkt und über
   die Umgebung (nicht die Kommandozeile) übergibt. Das eigene Passwort des Office bleibt dabei
   unverändert, beim Schließen der Lobby gilt wieder alles wie vorher.
-- In einer Online-Lobby (`desktop/lobby.cjs`) startet sie kein Office: Das Fenster zeigt die Lobby,
-  du meldest dich dort mit ihrem Passwort oder deinem Konto an. Statt der Adresse geht auch ein
-  Einladungslink aus 🔑 Accounts: Dann öffnet die App gleich die Seite fürs eigene Konto. Eine Lobby über `http://` (im Heimnetz
-  oder Tailnet) zählt in der App als sicher, damit Sprache und Bildschirm teilen gehen; beim ersten
-  Beitritt zu so einer Lobby startet die App dafür einmal neu. Gemerkte Lobbys stehen im Menü
-  **Online-Lobby**, mit *Adresse der Lobby kopieren* zum Verschicken an Mitspieler.
 - Daten liegen wie bei der normalen Installation in `%USERPROFILE%\agent-office` (änderbar unter
-  *Agent Office → Daten-Ordner ändern …*); App-Einstellungen in `%APPDATA%\agent-office-desktop`.
-- *Agent Office → Im Browser öffnen* öffnet das Office mit einem frischen Anmelde-Link im normalen
-  Browser. Links nach außen (GitHub, PRs) öffnen sich immer im Browser.
-- Beim Beenden der App werden das Office und seine Worker beendet. Eine Online-Lobby läuft weiter.
+  *Dieser Computer → Daten-Ordner ändern …*); App-Einstellungen, die gemerkten Lobbys und deine
+  Anmeldungen dort (mit Windows' Datenschutz-API verschlüsselt) in `%APPDATA%\agent-office-desktop`.
+- Beim Beenden der App werden das Office auf diesem Computer und seine Worker beendet. Eine
+  Online-Lobby läuft weiter.
 - Die Grafik stellst du im Office unter ⚙️ Settings → **You → Graphics** ein: **⚖️ Balanced** ist
   der Standard, **🍃 Eco** schont schwächere PCs und Laptops.
 
@@ -113,4 +115,4 @@ npm run dist           # → desktop\release\Agent-Office-Setup-<version>.exe
   die Claude-Code-Verknüpfung und die GitHub-Hilfsskripte (`desktop\tools`). Ein `afterPack`-Hook kopiert das in den `resources`-Ordner der App.
 - `npm start` startet die App aus dem Checkout (mit dem `node` aus dem PATH und dem `dist/` im
   Repository-Root).
-- `npm run icons` zeichnet die Icons (`build/icon.ico`, `claude/claude-code.ico`) neu.
+- `npm run icons` zeichnet die Icons (`build/icon.ico`, `ui/tray.png`, `claude/claude-code.ico`) neu.

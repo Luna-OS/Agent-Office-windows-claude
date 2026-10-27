@@ -3,8 +3,9 @@
 Zurück zur [README](../README.md) · [Online-Lobby](online-lobby.md)
 
 Die Umbrel-App „Agent Office“ ist das Office als [Online-Lobby](online-lobby.md) auf einem
-[Umbrel](https://umbrel.com): Die Worker laufen dort, alle Spieler treten mit der Windows- oder
-Mac-App oder im Browser bei. Diese Seite beschreibt, woraus die App besteht, wie sie in einen
+[Umbrel](https://umbrel.com): Die Worker laufen dort, alle Spieler treten mit dem
+[Connector](connector.md) für Windows oder macOS oder im Browser bei, jeder mit dem eigenen Claude und
+GitHub. Diese Seite beschreibt, woraus die App besteht, wie sie in einen
 Community App Store (wie deinen nrzStore) kommt und wie du sie aktualisierst.
 
 ## Woraus sie besteht
@@ -90,4 +91,4 @@ docker run -d -p 4600:4600 -v "$PWD/office-data:/data" \
   -e AGENT_OFFICE_PASSWORD=geheim ghcr.io/luna-os/agent-office:latest
 ```
 
-Dann `http://localhost:4600` öffnen oder in der App als Online-Lobby `localhost:4600` eintragen.
+Dann `http://localhost:4600` öffnen oder im Connector unter **Lobby beitreten** `localhost:4600` eintragen.

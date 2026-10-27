@@ -49,4 +49,6 @@ test("the office's own addresses for invite links: none when it's open to this c
   assert.deepEqual(networkOrigins({ host: '127.0.0.1', port: 4600, tls: undefined }, nics), []);
   assert.deepEqual(networkOrigins({ host: '0.0.0.0', port: 4601, tls: undefined }, nics), ['http://192.168.178.20:4601', 'http://100.78.135.198:4601']);
   assert.deepEqual(networkOrigins({ host: '192.168.178.20', port: 4600, tls: { cert: '', key: '' } }, nics), ['https://192.168.178.20:4600']);
+  // Behind a reverse proxy (the Umbrel app's), its own addresses are its container's: nobody comes in by those.
+  assert.deepEqual(networkOrigins({ host: '0.0.0.0', port: 4600, tls: undefined, trustProxy: true }, nics), []);
 });
