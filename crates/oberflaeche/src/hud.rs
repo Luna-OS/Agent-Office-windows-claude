@@ -107,9 +107,12 @@ pub fn Hud() -> impl IntoView {
                 </nav>
             </header>
             <crate::seitenleiste::Seitenleiste />
-            <crate::chat::Chat />
+            <Show when=move || crate::lokal::lokal().with(|l| l.tafel_chat) || z.chat_offen.get()><crate::chat::Chat /></Show>
             <Show when=move || z.fenster.with(Vec::is_empty) && !z.chat_offen.get()>
                 <div class="absolute top-1/2 left-1/2 size-2 -translate-1/2 rounded-full border-2 border-foreground bg-background/80"></div>
+            </Show>
+            <Show when=move || z.hinweis.with(Option::is_some) && z.fenster.with(Vec::is_empty)>
+                <div class="hud-panel absolute bottom-6 left-1/2 -translate-x-1/2 px-4 py-1.5 text-sm font-extrabold">{move || z.hinweis.get()}</div>
             </Show>
             <Meldungen />
             <Show when=move || z.war_verbunden.get() && !z.verbunden.get()>

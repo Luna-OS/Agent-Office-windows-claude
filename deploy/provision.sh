@@ -271,7 +271,7 @@ fi
 # plus "--name <name>" for a second office), so the office names it in the commands it suggests.
 # Run again by hand, this keeps the one from before.
 [[ -n "${DEPLOY_SCRIPT:-}" ]] ||
-  DEPLOY_SCRIPT=$(sudo sed -n 's/^OFFICE_DEPLOY_SKRIPT="\(.*\)"$/\1/p' /etc/open-agentic-office/env 2>/dev/null || true)
+  DEPLOY_SCRIPT=$(sudo sed -n 's/^OFFICE_DEPLOY_BEFEHL="\(.*\)"$/\1/p' /etc/open-agentic-office/env 2>/dev/null || true)
 [[ "$DEPLOY_SCRIPT" =~ ^deploy/[a-z0-9-]+\.sh(\ --name\ [a-z0-9-]+)?$ ]] || DEPLOY_SCRIPT=""
 # Run again without a Claude token or API key (deploy/*.sh up to resize or update, say), this keeps
 # the one it was given before, rather than signing the office out of Claude.
@@ -292,7 +292,8 @@ env_file=$(mktemp)
   [[ -n "$TS_HOST" ]] && printf 'OFFICE_TAILSCALE_HOST="%s"\n' "$TS_HOST"
   [[ -n "${CLAUDE_CODE_OAUTH_TOKEN:-}" ]] && printf 'CLAUDE_CODE_OAUTH_TOKEN="%s"\n' "$CLAUDE_CODE_OAUTH_TOKEN"
   [[ -n "${ANTHROPIC_API_KEY:-}" ]] && printf 'ANTHROPIC_API_KEY="%s"\n' "$ANTHROPIC_API_KEY"
-  [[ -n "$DEPLOY_SCRIPT" ]] && printf 'OFFICE_DEPLOY_SKRIPT="%s"\n' "$DEPLOY_SCRIPT"
+  [[ -n "$DEPLOY_SCRIPT" ]] && printf 'OFFICE_DEPLOY_BEFEHL="%s"\n' "$DEPLOY_SCRIPT"
+  printf 'OFFICE_SELBSTUPDATE="1"\nOFFICE_DEPLOY_SKRIPT="/usr/local/bin/open-agentic-office-update"\n'
   true
 } >"$env_file"
 sudo install -m 600 -o root -g root "$env_file" /etc/open-agentic-office/env
@@ -332,6 +333,36 @@ DIR=/opt/open-agentic-office
 REPO_URL="${APP_REPO:-https://github.com/Luna-OS/OpenAgenticOffice.git}"
 REF="${APP_REF:-main}"
 slug=$(printf '%s' "$REPO_URL" | sed -E 's#^https://github.com/##; s#\.git$##')
+MODUS="${1:-installieren}"
+if [[ "$MODUS" == pruefen ]]; then
+  # Vertrag mit dem Server (OFFICE_DEPLOY_SKRIPT): JSON auf stdout, Exit != 0 bei Fehler.
+  python3 - "$slug" "$REF" "$DIR/STAND" <<'PY'
+import json, sys, urllib.request
+slug, ref, stand = sys.argv[1:4]
+url = f"https://api.github.com/repos/{slug}/commits?sha={ref}&per_page=30"
+try:
+    with urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": "open-agentic-office"}), timeout=20) as r:
+        commits = json.load(r)
+except Exception as e:
+    sys.exit(f"GitHub nicht erreichbar: {e}")
+eintraege = [{"sha": c["sha"][:7], "betreff": c["commit"]["message"].splitlines()[0], "datum": c["commit"]["committer"]["date"]} for c in commits]
+try:
+    aktuell = open(stand).read().strip()[:7]
+except OSError:
+    aktuell = ""
+neueste = eintraege[0] if eintraege else None
+hinter = 0
+for e in eintraege:
+    if e["sha"] == aktuell:
+        break
+    hinter += 1
+else:
+    hinter = len(eintraege) if aktuell else 0
+cur = next((e for e in eintraege if e["sha"] == aktuell), {"sha": aktuell or "unbekannt", "betreff": "", "datum": ""})
+print(json.dumps({"aktuell": cur, "neueste": neueste if hinter else None, "aenderungen": eintraege[:hinter], "hinter": hinter}))
+PY
+  exit $?
+fi
 case "$(uname -m)" in
   x86_64) arch=x86_64 ;;
   aarch64 | arm64) arch=aarch64 ;;
@@ -366,7 +397,11 @@ fi
 rm -f "$DIR/open-agentic-office" "$DIR/office-agenten"
 rm -rf "$DIR/dist"
 cp -r "$tmp/neu"/. "$DIR"/
+curl -fsSL "https://api.github.com/repos/$slug/commits/$REF" 2>/dev/null | python3 -c 'import json,sys; print(json.load(sys.stdin)["sha"])' >"$DIR/STAND" 2>/dev/null || true
 echo "   Fertig: $("$DIR/open-agentic-office" --version 2>/dev/null || echo installiert)"
+# `ausfuehren` (vom Office über OFFICE_DEPLOY_SKRIPT gerufen): danach den Dienst neu starten.
+[[ "$MODUS" == ausfuehren ]] && sudo -n systemctl restart open-agentic-office
+exit 0
 SH
 sudo install -m 755 -o root -g root "$updater" /usr/local/bin/open-agentic-office-update
 rm -f "$updater"
@@ -443,8 +478,8 @@ write() { install -m 644 -o root -g root "$1" "$KEYS"; rm -f "$1"; }
 exec 9>/run/open-agentic-office-team.lock
 flock 9
 case "$cmd" in
-  list) awk '{print $NF}' "$KEYS" | sed -n 's/^open-agentic-office://p' | sort | uniq -c | awk '{print $2, $1}' ;;
-  add)
+  list | liste) awk '{print $NF}' "$KEYS" | sed -n 's/^open-agentic-office://p' | sort | uniq -c | awk '{print $2, $1}' ;;
+  add | hinzufuegen)
     valid
     # Each key may only open a tunnel to the office port: no shell, no other forwarding.
     keys=$(awk -v who="$who" -v port="$PORT" '
@@ -457,21 +492,21 @@ case "$cmd" in
     { awk -v tag="open-agentic-office:$who" '$NF != tag' "$KEYS"; printf '%s\n' "$keys"; } >"$tmp"
     write "$tmp"
     printf '%s\n' "$keys" | wc -l ;;
-  remove)
+  remove | entfernen)
     valid
     tmp=$(mktemp)
     awk -v tag="open-agentic-office:$who" '$NF != tag' "$KEYS" >"$tmp"
     if cmp -s "$tmp" "$KEYS"; then rm -f "$tmp"; echo "$who ist nicht eingeladen" >&2; exit 66; fi
     write "$tmp"
     pkill -u office || true ;;
-  fingerprint) ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub | awk '{print $2}' ;;
-  *) echo "usage: open-agentic-office-team list | add <name> | remove <name> | fingerprint" >&2; exit 64 ;;
+  fingerprint | fingerabdruck) ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub | awk '{print $2}' ;;
+  *) echo "Aufruf: open-agentic-office-team liste | hinzufuegen <name> | entfernen <name> | fingerabdruck" >&2; exit 64 ;;
 esac
 SH
 sudo install -m 755 -o root -g root "$team_sh" /usr/local/bin/open-agentic-office-team
 rm -f "$team_sh"
 sudoers=$(mktemp)
-echo "$RUN_USER ALL=(root) NOPASSWD: /usr/local/bin/open-agentic-office-team, /usr/local/bin/open-agentic-office-serve" >"$sudoers"
+echo "$RUN_USER ALL=(root) NOPASSWD: /usr/local/bin/open-agentic-office-team, /usr/local/bin/open-agentic-office-serve, /usr/bin/systemctl restart open-agentic-office" >"$sudoers"
 sudo visudo -cqf "$sudoers"
 sudo install -m 440 -o root -g root "$sudoers" /etc/sudoers.d/open-agentic-office
 rm -f "$sudoers"

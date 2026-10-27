@@ -27,6 +27,8 @@ pub struct Wunsch {
     pub provider: Option<String>,
     pub modell: Option<String>,
     pub aufwand: Option<String>,
+    /// Das Konto, auf dessen Anmeldungen er läuft.
+    pub konto: Option<String>,
 }
 
 /// Legt einen Arbeiter an und startet ihn. Gibt seine ID zurück oder sagt auf Deutsch, was fehlt.
@@ -93,6 +95,7 @@ pub async fn anlegen(ag: &Agenten, etage: &str, von: &str, w: Wunsch) -> Result<
             aufgabe: w.prompt.as_deref().and_then(crate::arbeiter::aufgabe_aus_prompt),
             verbrauch: None,
             letzte_eingabe: None,
+            konto: w.konto.clone(),
             hinweis: None,
         };
         e.arbeiter.insert(id.clone(), Arbeiter::neu(info));
@@ -154,8 +157,9 @@ pub fn fortsetzen(ag: &Agenten, etage: &str, id: &str, prompt: Option<String>) -
 /// Startet das Terminal eines Arbeiters mit seinem Provider (oder einer Shell).
 pub fn pty_starten(ag: &Agenten, etage: &str, id: &str, prompt: Option<String>, fortsetzen: Option<String>) -> Result<(), String> {
     let mut z = ag.innen.zustand();
+    let eigene = z.prompts.clone();
     let e = z.etagen.get_mut(etage).ok_or("Diese Etage gibt es nicht (mehr)")?;
-    let anleitung = anleitung::fuer(e, id);
+    let anleitung = anleitung::fuer(e, id, &eigene);
     let projekt = e.verzeichnis.clone();
     let a = e.arbeiter.get_mut(id).ok_or("Diesen Arbeiter gibt es nicht")?;
     let verzeichnis = a.info.worktree.as_ref().map(|wt| worktree::absolut(&projekt, &wt.pfad)).unwrap_or(projekt);
@@ -228,11 +232,21 @@ pub fn pty_starten(ag: &Agenten, etage: &str, id: &str, prompt: Option<String>, 
 
 fn umgebung_setzen(befehl: &mut Befehl, innen: &Innen, etage: &str, a: &Arbeiter, token: &str) {
     let u = &mut befehl.umgebung;
+    let befehl_entfernen = &mut befehl.entfernen;
     u.insert("OFFICE_ARBEITER_ID".into(), a.info.id.clone());
     u.insert("OFFICE_ARBEITER_NAME".into(), a.info.name.clone());
     u.insert("OFFICE_ETAGE".into(), etage.to_string());
     u.insert("OFFICE_HOOK_URL".into(), innen.hook_url.clone());
     u.insert("OFFICE_HOOK_TOKEN".into(), token.to_string());
+    // Die Anmeldungen des Kontos, das ihn angelegt hat; ein leerer Wert entfernt die Variable.
+    for (k, v) in innen.umgebung_von(a.info.konto.as_deref()) {
+        if v.is_empty() {
+            u.remove(&k);
+            befehl_entfernen.push(k);
+        } else {
+            u.insert(k, v);
+        }
+    }
     // Die CLI liegt vorne im PATH.
     if let Some(ordner) = innen.cli.parent() {
         let mut pfade = vec![ordner.to_path_buf()];

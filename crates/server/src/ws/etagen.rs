@@ -93,9 +93,12 @@ impl Domaene for EtagenDomaene {
                 let o = Arc::clone(o);
                 let von = von.to_string();
                 tokio::spawn(async move {
-                    let antwort = match git::repos_auflisten(&o.github_umgebung(&von)).await {
-                        Ok(repos) => Server::Repos { repos, fehler: None, eigene: false },
-                        Err(f) => Server::Repos { repos: Vec::new(), fehler: Some(f), eigene: false },
+                    let umgebung = o.github_umgebung(&von);
+                    // Eigene Repositories, wenn mit der eigenen GitHub-Anmeldung gelistet wird.
+                    let eigene = umgebung.iter().any(|(k, v)| k == "GH_CONFIG_DIR" && !v.is_empty());
+                    let antwort = match git::repos_auflisten(&umgebung).await {
+                        Ok(repos) => Server::Repos { repos, fehler: None, eigene },
+                        Err(f) => Server::Repos { repos: Vec::new(), fehler: Some(f), eigene },
                     };
                     o.an(&von, &e(antwort));
                 });
@@ -147,6 +150,7 @@ fn grundriss(o: &OfficeRef, von: &str, f: impl FnOnce(&mut protokoll::etagen::Gr
     let Some(p) = o.person(von) else { return };
     let Some(etage) = p.etage.filter(|e| e != DACH) else { return };
     if let Some(g) = o.etagen.grundriss_aendern(&etage, |g| f(g, &p.name)) {
+        o.fluegel_geaendert(&etage, g.fluegel);
         o.an_etage(Some(&etage), &e(Server::Grundriss { grundriss: g }), None);
         liste_an_alle(o);
     }

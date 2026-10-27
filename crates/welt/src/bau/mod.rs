@@ -1,3 +1,6 @@
+// Bau-Hilfen nehmen Ort und Größe als einzelne Zahlen (x, y, z, Breite, Höhe, Tiefe, Farbe):
+// so lesen sich die Bauanleitungen wie Maße auf einem Plan.
+#![allow(clippy::too_many_arguments)]
 //! Der Baukasten: einfache Formen in Cartoon-Farben, und was beim Bauen nebenbei anfällt
 //! (Kollisionskästen, benutzbare Dinge, benannte Teile, die sich später ändern).
 
@@ -15,14 +18,29 @@ use kiss3d::prelude::*;
 use crate::kollision::Kasten;
 use crate::register::Nutzbar;
 
-/// Eine Farbe aus "#rrggbb" (ungültig: Magenta, damit es auffällt).
+/// Eine Farbe aus "#rrggbb" (ungültig: Magenta, damit es auffällt). Die Hex-Werte sind sRGB wie im
+/// Original; kiss3d rechnet linear, darum wird umgerechnet.
 pub fn farbe(hex: &str) -> Color {
+    let h = hex.trim_start_matches('#');
+    let k = |i: usize| linear(u8::from_str_radix(h.get(i..i + 2).unwrap_or("ff"), 16).unwrap_or(255) as f32 / 255.0);
+    if h.len() != 6 {
+        return Color::new(1.0, 0.0, 1.0, 1.0);
+    }
+    Color::new(k(0), k(2), k(4), 1.0)
+}
+
+/// Eine Farbe aus "#rrggbb" ohne Umrechnung (für Text, den kiss3d direkt zeichnet).
+pub fn farbe_srgb(hex: &str) -> Color {
     let h = hex.trim_start_matches('#');
     let k = |i: usize| u8::from_str_radix(h.get(i..i + 2).unwrap_or("ff"), 16).unwrap_or(255) as f32 / 255.0;
     if h.len() != 6 {
         return Color::new(1.0, 0.0, 1.0, 1.0);
     }
     Color::new(k(0), k(2), k(4), 1.0)
+}
+
+fn linear(c: f32) -> f32 {
+    if c <= 0.04045 { c / 12.92 } else { ((c + 0.055) / 1.055).powf(2.4) }
 }
 
 /// Eine Farbe heller (t > 0) oder dunkler (t < 0) machen.
@@ -153,7 +171,7 @@ mod tests {
     fn hexfarben() {
         let c = farbe("#ff8000");
         assert_eq!((c.r, c.b), (1.0, 0.0));
-        assert!((c.g - 128.0 / 255.0).abs() < 1e-6);
+        assert!((c.g - 0.2158605).abs() < 1e-4, "sRGB 128 ist linear etwa 0.216");
         assert_eq!(farbe("kaputt").g, 0.0);
         assert!(toenen(c, 0.5).b > 0.4);
     }

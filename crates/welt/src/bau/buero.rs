@@ -9,7 +9,7 @@ use kiss3d::prelude::*;
 use super::einrichtung::{self, pflanze, sofa, sitzsack, stuhl};
 use super::{Bau, farbe, toenen};
 use crate::farben;
-use crate::grundriss::draussen::{BALL_RUHE, KORB_BRETT_X, KORB_Z, RING};
+use crate::grundriss::draussen::{KORB_BRETT_X, KORB_Z, RING};
 use crate::grundriss::sitze::{self, BESPRECHUNGS_TISCH};
 use crate::grundriss::*;
 
@@ -101,12 +101,15 @@ fn lounge(b: &mut Bau) {
     licht.set_emissive(farbe("#ff4d6d"));
     b.nutzbar("jukebox", "jukebox", [jx - 1.0, 1.0, jz], 1.8);
     let (ax, az) = ARCADE;
-    let mut a = b.gruppe(ax, 0.0, az, -FRAC_PI_2);
-    a.fester_block(0.0, 0.0, 0.0, 0.8, 1.9, 0.8, farbe("#3a0ca3"));
-    let mut schirm = a.flaeche(0.0, 1.35, 0.41, 0.6, 0.48, 0.0, farbe("#000000"));
-    schirm.set_emissive(farbe("#06d6a0"));
+    let schirm = {
+        let mut a = b.gruppe(ax, 0.0, az, -FRAC_PI_2);
+        a.fester_block(0.0, 0.0, 0.0, 0.8, 1.9, 0.8, farbe("#3a0ca3"));
+        a.block(0.0, 0.95, 0.5, 0.7, 0.08, 0.3, farbe("#f72585"));
+        let mut schirm = a.flaeche(0.0, 1.35, 0.41, 0.6, 0.48, 0.0, farbe("#000000"));
+        schirm.set_emissive(farbe("#06d6a0"));
+        schirm
+    };
     b.merken("arcade-schirm", schirm);
-    a.block(0.0, 0.95, 0.5, 0.7, 0.08, 0.3, farbe("#f72585"));
     b.nutzbar("arcade", "arcade", [ax - 1.0, 1.0, az], 1.6);
     // Das Hundekörbchen.
     let (hx, hz) = draussen_korb();
@@ -145,8 +148,6 @@ fn kueche_und_korb(b: &mut Bau) {
     let mut ring = b.saeule(rx, ry, rz, r, 0.03, farbe("#ff6b35"));
     ring.set_local_scale(1.0, 1.0, 1.0);
     b.saeule(rx, ry - 0.42, rz, r * 0.7, 0.42, Color::new(1.0, 1.0, 1.0, 0.5));
-    let (bx, bz) = BALL_RUHE;
-    b.nutzbar("ball", "ball", [bx, 0.3, bz], 1.3);
 }
 
 fn nordwand(b: &mut Bau) {

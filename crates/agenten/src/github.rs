@@ -31,8 +31,14 @@ impl GithubStand {
 
 /// Führt `gh` in `dir` aus.
 pub async fn gh(dir: &Path, args: &[&str]) -> Result<String> {
+    gh_mit(dir, args, &[]).await
+}
+
+/// Wie [`gh`], mit der Umgebung eines Kontos.
+pub async fn gh_mit(dir: &Path, args: &[&str], umgebung: &[(String, String)]) -> Result<String> {
     let mut cmd = Command::new("gh");
     cmd.args(args).current_dir(dir).kill_on_drop(true).env("GH_PROMPT_DISABLED", "1").env("NO_COLOR", "1");
+    crate::worktree::umgebung_anwenden(&mut cmd, umgebung);
     #[cfg(windows)]
     cmd.creation_flags(0x0800_0000);
     let aus = tokio::time::timeout(Duration::from_secs(60), cmd.output())
@@ -212,9 +218,9 @@ pub async fn issue_uebernehmen(dir: &Path, nummer: u64) -> Result<String> {
 }
 
 /// Pusht den Branch eines Worktrees und öffnet (oder findet) seinen Pull Request.
-pub async fn pr_oeffnen(worktree: &Path, branch: &str, ziel: Option<&str>, titel: Option<&str>) -> Result<(u64, String)> {
-    crate::worktree::git(worktree, &["push", "-u", "origin", branch]).await?;
-    if let Ok(vorhanden) = gh(worktree, &["pr", "view", branch, "--json", "number,url"]).await
+pub async fn pr_oeffnen(worktree: &Path, branch: &str, ziel: Option<&str>, titel: Option<&str>, umgebung: &[(String, String)]) -> Result<(u64, String)> {
+    crate::worktree::git_mit(worktree, &["push", "-u", "origin", branch], umgebung).await?;
+    if let Ok(vorhanden) = gh_mit(worktree, &["pr", "view", branch, "--json", "number,url"], umgebung).await
         && let Ok(v) = serde_json::from_str::<Value>(&vorhanden)
         && let Some(n) = v.get("number").and_then(Value::as_u64)
     {
@@ -227,7 +233,7 @@ pub async fn pr_oeffnen(worktree: &Path, branch: &str, ziel: Option<&str>, titel
     if let Some(t) = titel {
         args.extend(["--title", t]);
     }
-    let url = gh(worktree, &args).await?;
+    let url = gh_mit(worktree, &args, umgebung).await?;
     let url = url.lines().rev().find(|z| z.starts_with("http")).unwrap_or(&url).trim().to_string();
     let nummer = url.rsplit('/').next().and_then(|n| n.parse().ok()).unwrap_or(0);
     Ok((nummer, url))

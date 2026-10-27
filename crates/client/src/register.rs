@@ -29,4 +29,5 @@ pub fn verteilen(n: &ServerNachricht) {
 pub fn anmelden() {
     eintragen("oberflaeche", oberflaeche::empfangen);
     eintragen("welt", crate::welt_anbindung::nachricht);
+    eintragen("medien", crate::medien_anbindung::nachricht);
 }

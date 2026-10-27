@@ -43,9 +43,10 @@ pub fn pruefen() {
         match http::holen("/api/anmeldung").await {
             Ok(a) => {
                 let info: AnmeldeInfo = serde_json::from_value(a.json).unwrap_or_default();
-                if info.angemeldet {
-                    ins_office();
-                } else if info.offen && http::schicken("/api/anmeldung", &json!({ "passwort": "" })).await.is_ok_and(|a| a.ok()) {
+                let offen_rein = !info.angemeldet
+                    && info.offen
+                    && http::schicken("/api/anmeldung", &json!({ "passwort": "" })).await.is_ok_and(|a| a.ok());
+                if info.angemeldet || offen_rein {
                     ins_office();
                 } else {
                     z.phase.set(Phase::Anmelden(info));

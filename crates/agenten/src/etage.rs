@@ -23,6 +23,8 @@ pub struct Etage {
     /// Die Sitzplätze, wie sie der Server kennt (für „nächster freier Tisch“).
     pub tische: Vec<String>,
     pub github: GithubStand,
+    /// Die Server, die Arbeiter gestartet haben.
+    pub dienste: Vec<protokoll::agenten::Dienst>,
 }
 
 impl Etage {
@@ -103,6 +105,7 @@ pub fn anmelden(ag: &Agenten, id: &str, verzeichnis: PathBuf) {
         board: geladen.board,
         tische: Vec::new(),
         github: GithubStand::default(),
+        dienste: Vec::new(),
     };
     z.etagen.insert(id.to_string(), etage);
     drop(z);

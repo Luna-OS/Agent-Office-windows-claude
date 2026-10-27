@@ -3,7 +3,7 @@
 
 use leptos::prelude::*;
 use protokoll::ClientNachricht;
-use protokoll::etagen::{Client as E, EtageInfo};
+use protokoll::etagen::{self, Client as E, EtageInfo};
 
 use crate::bruecke::senden;
 use crate::modal::{self, Fenster, Rahmen};
@@ -26,7 +26,7 @@ fn Etage(e: EtageInfo) -> impl IntoView {
         let id = id.clone();
         move |_| {
             if !klont && !hier {
-                schicken(E::Gehen { etage: id.clone(), an: None });
+                crate::bruecke::befehl(crate::bruecke::Befehl::ZurEtage(id.clone()));
                 modal::schliessen(&Fenster::Aufzug);
             }
         }
@@ -78,6 +78,10 @@ pub fn Aufzug() -> impl IntoView {
     view! {
         <Rahmen fenster=Fenster::Aufzug titel="🛗 Etagen" breite="max-w-xl">
             <div class="flex flex-col gap-3">
+                <Knopf art=KnopfArt::Umriss class="h-11 w-full" on:click=move |_| {
+                    crate::bruecke::befehl(crate::bruecke::Befehl::ZurEtage(etagen::DACH.into()));
+                    modal::schliessen(&Fenster::Aufzug);
+                }>"🌇 Dachterrasse: Bar, DJ, Leinwand"</Knopf>
                 <ul class="flex flex-col gap-2">
                     {move || {
                         let mut l = z.etagen.get();

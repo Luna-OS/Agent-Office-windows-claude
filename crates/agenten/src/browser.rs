@@ -14,13 +14,28 @@ fn etage_von(von: &Absender) -> String {
     von.etage.clone().unwrap_or_else(|| STANDARD_ETAGE.to_string())
 }
 
-pub fn begruessung(ag: &Agenten, von: &Absender) -> Vec<ServerNachricht> {
-    let etage = etage_von(von);
-    let z = ag.innen.zustand();
-    let mut aus = vec![
+/// Was fürs ganze Gebäude gilt (beim Verbinden).
+pub fn begruessung(ag: &Agenten) -> Vec<ServerNachricht> {
+    let mut z = ag.innen.zustand();
+    // Die Limits liest das Office erst, wenn jemand da ist, der sie sieht.
+    if !z.limits_laufen {
+        z.limits_laufen = true;
+        crate::nutzung::starten(ag);
+    }
+    vec![
         ServerNachricht::Arbeiter(ArbSrv::Provider { provider: provider::uebersicht(), standard: provider::STANDARD.into() }),
         crate::nach_merge::nachricht(&z.nach_merge),
-    ];
+        ServerNachricht::Agenten(AgSrv::Nutzung { stand: z.nutzung.clone() }),
+        ServerNachricht::Agenten(AgSrv::Limits { stand: z.limits.clone() }),
+        ServerNachricht::Agenten(AgSrv::Prompts { liste: crate::prompts::liste(&z.prompts) }),
+    ]
+}
+
+/// Der Stand einer Etage (beim Betreten).
+pub fn etage_betreten(ag: &Agenten, von: &Absender) -> Vec<ServerNachricht> {
+    let etage = etage_von(von);
+    let z = ag.innen.zustand();
+    let mut aus = Vec::new();
     let Some(e) = z.etagen.get(&etage) else { return aus };
     aus.push(ServerNachricht::Arbeiter(ArbSrv::Liste { arbeiter: e.arbeiter.values().map(|a| a.info.clone()).collect() }));
     aus.push(ServerNachricht::Agenten(AgSrv::Stand {
@@ -28,6 +43,7 @@ pub fn begruessung(ag: &Agenten, von: &Absender) -> Vec<ServerNachricht> {
         feed: e.arbeiter.values().map(|a| a.feed_eintrag()).collect(),
     }));
     aus.push(ServerNachricht::Aufgaben(AufSrv::Stand { board: e.board.board.clone() }));
+    aus.push(ServerNachricht::Agenten(AgSrv::Dienste { liste: e.dienste.clone() }));
     aus.push(e.github.nachricht());
     aus
 }
@@ -59,7 +75,7 @@ async fn arbeiter(ag: &Agenten, von: &Absender, etage: &str, m: ArbCl) -> Result
                 (p, Some(n)) => Some(issue_auftrag(ag, etage, n, p)),
                 (p, None) => p,
             };
-            let wunsch = start::Wunsch { tisch: Some(tisch), prompt, worktree, art, provider, modell, aufwand };
+            let wunsch = start::Wunsch { tisch: Some(tisch), prompt, worktree, art, provider, modell, aufwand, konto: von.konto.clone() };
             start::anlegen(ag, etage, &von.name, wunsch).await?;
             if let Some(n) = issue {
                 issue_uebernehmen(ag, etage, n);
@@ -93,6 +109,13 @@ async fn arbeiter(ag: &Agenten, von: &Absender, etage: &str, m: ArbCl) -> Result
         ArbCl::Eingabe { arbeiter, daten } => steuerung::eingabe(ag, etage, &arbeiter, &daten, &von.name),
         ArbCl::Groesse { arbeiter, spalten, zeilen } => steuerung::groesse(ag, etage, &arbeiter, spalten, zeilen),
         ArbCl::NachMergeGehen { an } => crate::nach_merge::setzen(ag, von, an),
+        ArbCl::AenderungenAbfragen { arbeiter } => {
+            crate::aenderungen::stand_senden(ag, &von.verbindung, etage, &arbeiter_id(ag, etage, &arbeiter)?).await?
+        }
+        ArbCl::DiffAbfragen { ref arbeiter, .. } | ArbCl::Committen { ref arbeiter, .. } | ArbCl::Verwerfen { ref arbeiter, .. } => {
+            let id = arbeiter_id(ag, etage, arbeiter)?;
+            crate::aenderungen::verarbeiten(ag, &von.verbindung, etage, &id, m).await?
+        }
         ArbCl::ProviderAbfragen => ag.innen.senden(
             Ziel::Verbindung(von.verbindung.clone()),
             ServerNachricht::Arbeiter(ArbSrv::Provider { provider: provider::uebersicht(), standard: provider::STANDARD.into() }),
@@ -106,8 +129,18 @@ fn agenten(ag: &Agenten, von: &Absender, etage: &str, m: AgCl) -> Result<(), Str
         AgCl::Senden { an, text } => {
             kommunikation::senden(ag, etage, &von.name, None, an.as_deref(), &text)?;
         }
+        AgCl::PromptSetzen { id, text } => {
+            let mut z = ag.innen.zustand();
+            crate::prompts::setzen(&mut z.prompts, &id, text)?;
+            crate::prompts::speichern(&ag.innen.daten, &z.prompts);
+            ag.innen.senden(Ziel::Alle, ServerNachricht::Agenten(AgSrv::Prompts { liste: crate::prompts::liste(&z.prompts) }));
+        }
+        AgCl::LimitsAuffrischen => {
+            let ag = ag.clone();
+            ag.innen.laufzeit.clone().spawn(async move { crate::nutzung::limits_auffrischen(&ag).await });
+        }
         AgCl::Abfragen => {
-            for n in begruessung(ag, von).into_iter().filter(|n| matches!(n, ServerNachricht::Agenten(_))) {
+            for n in etage_betreten(ag, von).into_iter().filter(|n| matches!(n, ServerNachricht::Agenten(_))) {
                 ag.innen.senden(Ziel::Verbindung(von.verbindung.clone()), n);
             }
         }
@@ -158,7 +191,7 @@ async fn github_nachricht(ag: &Agenten, von: &Absender, etage: &str, m: GhCl) ->
         }
         GhCl::IssueVergeben { nummer, tisch, provider } => {
             let prompt = Some(issue_auftrag(ag, etage, nummer, None));
-            let wunsch = start::Wunsch { tisch, prompt, provider, ..Default::default() };
+            let wunsch = start::Wunsch { tisch, prompt, provider, konto: von.konto.clone(), ..Default::default() };
             start::anlegen(ag, etage, &von.name, wunsch).await?;
             issue_uebernehmen(ag, etage, nummer);
         }
@@ -171,10 +204,12 @@ async fn github_nachricht(ag: &Agenten, von: &Absender, etage: &str, m: GhCl) ->
 fn issue_auftrag(ag: &Agenten, etage: &str, nummer: u64, zusatz: Option<String>) -> String {
     let z = ag.innen.zustand();
     let issue = z.etagen.get(etage).and_then(|e| e.github.issues.iter().find(|i| i.nummer == nummer).cloned());
-    let mut text = match issue {
-        Some(i) => format!("Bearbeite GitHub-Issue #{nummer}: {}\n\n{}", i.titel, i.text),
-        None => format!("Bearbeite GitHub-Issue #{nummer} (Details: gh issue view {nummer})."),
+    let (titel, inhalt) = match issue {
+        Some(i) => (i.titel, i.text),
+        None => (String::new(), format!("Details: gh issue view {nummer}")),
     };
+    let n = nummer.to_string();
+    let mut text = crate::prompts::text(&z.prompts, "issue", &[("nummer", &n), ("titel", &titel), ("text", &inhalt)]);
     if let Some(z) = zusatz {
         text.push_str(&format!("\n\n{z}"));
     }
@@ -191,7 +226,7 @@ fn issue_uebernehmen(ag: &Agenten, etage: &str, nummer: u64) {
 }
 
 async fn pr_oeffnen(ag: &Agenten, etage: &str, id: &str) -> Result<(), String> {
-    let (pfad, wt, titel) = {
+    let (pfad, wt, titel, konto) = {
         let mut z = ag.innen.zustand();
         let e = z.etagen.get_mut(etage).ok_or("Diese Etage gibt es nicht (mehr)")?;
         let dir = e.verzeichnis.clone();
@@ -202,10 +237,12 @@ async fn pr_oeffnen(ag: &Agenten, etage: &str, id: &str) -> Result<(), String> {
         }
         a.info.pr_oeffnet = true;
         let titel = a.info.aufgabe.as_ref().map(|t| t.name.clone());
+        let konto = a.info.konto.clone();
         ag.innen.arbeiter_melden(&z.etagen[etage], id);
-        (worktree::absolut(&dir, &wt.pfad), wt, titel)
+        (worktree::absolut(&dir, &wt.pfad), wt, titel, konto)
     };
-    let ergebnis = github::pr_oeffnen(&pfad, &wt.branch, wt.von.as_deref(), titel.as_deref()).await;
+    let umgebung = ag.innen.umgebung_von(konto.as_deref());
+    let ergebnis = github::pr_oeffnen(&pfad, &wt.branch, wt.von.as_deref(), titel.as_deref(), &umgebung).await;
     let mut z = ag.innen.zustand();
     if let Some(a) = z.arbeiter_mut(etage, id) {
         a.info.pr_oeffnet = false;
@@ -239,9 +276,9 @@ pub fn warteschlange_anstossen(ag: &Agenten, etage: &str) {
                 }
                 a
             };
-            let prompt = aufgabe.prompt.clone().unwrap_or_else(|| match &aufgabe.notiz {
-                Some(n) => format!("{}\n\n{n}", aufgabe.titel),
-                None => aufgabe.titel.clone(),
+            let prompt = aufgabe.prompt.clone().unwrap_or_else(|| {
+                let notiz = aufgabe.notiz.clone().unwrap_or_default();
+                crate::prompts::text(&ag.innen.zustand().prompts, "warteschlange", &[("titel", &aufgabe.titel), ("notiz", &notiz)])
             });
             let wunsch = start::Wunsch { prompt: Some(prompt), provider: aufgabe.provider.clone(), ..Default::default() };
             let ergebnis = start::anlegen(&ag, &etage, "Warteschlange", wunsch).await;

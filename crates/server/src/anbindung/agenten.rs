@@ -77,12 +77,24 @@ impl Anbindung for AgentenAnbindung {
     fn etage_abgemeldet(&self, id: &str) {
         self.0.etage_abmelden(id);
     }
+
+    fn zahlen(&self, etage: &str) -> Option<crate::etagen::Zahlen> {
+        let (arbeiter, beschaeftigt, wartend) = self.0.zahlen(etage);
+        Some(crate::etagen::Zahlen { arbeiter: arbeiter as u32, beschaeftigt: beschaeftigt as u32, wartend: wartend as u32 })
+    }
+
+    fn fluegel_geaendert(&self, id: &str, fluegel: u32) {
+        self.0.tische_setzen(id, crate::etagen::arbeitsplaetze(fluegel));
+    }
 }
 
 /// Ereignisse von `agenten` an die Browser verteilen.
 pub fn verbinden(o: &OfficeRef, a: Agenten) {
     let mut rx = a.ereignisse();
     o.anbinden(Arc::new(AgentenAnbindung(a.clone())));
+    // Arbeiter eines Kontos laufen mit dessen eigenen Anmeldungen (leerer Wert = Variable entfernen).
+    let schwach = Arc::downgrade(o);
+    a.konto_umgebung_setzen(Arc::new(move |konto: &str| schwach.upgrade().map(|o| crate::ws::anmeldungen::umgebung(&o, konto, None)).unwrap_or_default()));
     let _ = o.agenten.set(a);
     let o = o.clone();
     tokio::spawn(async move {

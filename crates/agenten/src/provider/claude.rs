@@ -145,6 +145,7 @@ pub(crate) mod tests {
             aufgabe: None,
             verbrauch: None,
             letzte_eingabe: None,
+            konto: None,
             hinweis: None,
         }
     }

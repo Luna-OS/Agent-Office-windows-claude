@@ -131,6 +131,19 @@ async fn agenten_reden_miteinander() {
     })
     .await;
 
+    // Bruno startet einen Server: er erscheint als sein Dienst.
+    let server = if cfg!(windows) {
+        "powershell -NoProfile -Command \"$l=[System.Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback,0);$l.Start();Start-Sleep 60\""
+    } else {
+        "python3 -c 'import socket,time;s=socket.socket();s.bind((\"127.0.0.1\",0));s.listen();time.sleep(60)'"
+    };
+    ag.nachricht(&luna, tippe(server)).await;
+    warte(&mut rx, 40, |e| match &e.nachricht {
+        ServerNachricht::Agenten(AgSrv::Dienste { liste }) => liste.iter().any(|d| d.name == "Bruno" && d.port > 0).then_some(()),
+        _ => None,
+    })
+    .await;
+
     // Ada bekommt die Nachricht in ihr Terminal getippt, sobald sie Zeit hat.
     let mut gesehen = String::new();
     warte(&mut rx, 60, |e| match &e.nachricht {

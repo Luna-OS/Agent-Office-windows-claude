@@ -36,6 +36,10 @@ pub struct Kontext {
     pub aenderungen: Aenderungen,
     /// Die Etage wurde in diesem Frame neu gebaut: Features legen ihre Figuren neu an.
     pub neu_gebaut: bool,
+    /// Benutzbares, das sich bewegt (Hund, Ball, Autos …), jeden Frame neu gesammelt.
+    pub dinge: Vec<Nutzbar>,
+    /// Die laufende Aktivität (Name), vom Register.
+    pub aktiv: Option<&'static str>,
     /// Worauf man zielt.
     pub ziel: Option<Nutzbar>,
     pub beschriftungen: Vec<Beschriftung>,
@@ -47,12 +51,14 @@ pub struct Kontext {
     /// Eine Aktivität, die ein Feature beginnen will (die Schleife reicht sie an das Register weiter).
     pub beginnen: Option<Box<dyn Aktivitaet<Kontext>>>,
     pub alle_stoppen: bool,
+    /// Man sitzt gerade (Hüfthöhe), für die eigene Figur.
+    pub ich_sitze: Option<f32>,
     /// Eine Aktivität hält den Spieler fest (Sitzen, Auto, Teleskop): kein Laufen.
     pub spieler_fest: bool,
     /// Eine Aktivität stellt die Kamera selbst (Auge, Blickrichtung), nur für diesen Frame.
     pub kamera_ziel: Option<([f32; 3], [f32; 3])>,
     /// Bilder für Bildschirme, die in diesem Frame ankamen.
-    pub bilder: Vec<(crate::api::Bildschirm, Option<(u32, u32, Vec<u8>)>)>,
+    pub bilder: Vec<(crate::api::Bildschirm, crate::api::Bild)>,
 }
 
 impl Kontext {
@@ -71,6 +77,8 @@ impl Kontext {
             eingabe: Eingabe::default(),
             aenderungen: Aenderungen::default(),
             neu_gebaut: false,
+            dinge: Vec::new(),
+            aktiv: None,
             ziel: None,
             beschriftungen: Vec::new(),
             zeit: 0.0,
@@ -79,6 +87,7 @@ impl Kontext {
             beginnen: None,
             alle_stoppen: false,
             spieler_fest: false,
+            ich_sitze: None,
             kamera_ziel: None,
             bilder: Vec::new(),
         }

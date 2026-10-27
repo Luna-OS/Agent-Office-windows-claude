@@ -41,7 +41,9 @@ fn boden_und_decke(b: &mut Bau, pal: &EtagenPalette, fluegel: u32) {
     }
     // Decke, mit Loch für die Leiter.
     let decke = toenen(farbe(pal.wand), 0.3);
-    b.block(cx, WANDHOEHE, cz, BODEN.breite(), PLATTE, BODEN.tiefe(), decke);
+    let mut d = b.block(cx, WANDHOEHE, cz, BODEN.breite(), PLATTE, BODEN.tiefe(), decke);
+    // Von unten bekommt die Decke kein Sonnenlicht: etwas Eigenleuchten, sonst wirkt sie grau.
+    d.set_emissive(toenen(decke, -0.55));
     // Lampen unter der Decke.
     for lx in [-12.0, -4.0, 4.0, 12.0] {
         for lz in [-6.0, 0.0, 6.0] {
@@ -77,7 +79,7 @@ fn wand(b: &mut Bau, pal: &EtagenPalette, seite: Seite, alle: &[Oeffnung], flueg
     }
     loecher.sort_by(|a, b| a.u.total_cmp(&b.u));
 
-    let mut stueck = |b: &mut Bau, u0: f32, u1: f32, y0: f32, y1: f32| {
+    let stueck = |b: &mut Bau, u0: f32, u1: f32, y0: f32, y1: f32| {
         if u1 - u0 < 0.01 || y1 - y0 < 0.01 {
             return;
         }
@@ -193,7 +195,7 @@ fn empore(b: &mut Bau, pal: &EtagenPalette) {
         b.kasten(Kasten::um(px, pz, 0.2, 0.2, EMPORE_Y - 0.2));
     }
     // Glasbrüstung an Nord- und Westkante (Lücke für die Treppe).
-    let mut glas = |b: &mut Bau, x: f32, z: f32, breite: f32, rot: f32| {
+    let glas = |b: &mut Bau, x: f32, z: f32, breite: f32, rot: f32| {
         let mut g = b.flaeche(x, EMPORE_Y + 0.5, z, breite, 1.0, rot, Color::new(0.84, 0.95, 1.0, 0.22));
         g.enable_backface_culling(false);
     };
@@ -218,7 +220,7 @@ fn empore(b: &mut Bau, pal: &EtagenPalette) {
     // Besprechungsraum: Glas von den Pfosten bis zur Außenwand, Tür in der Nordwand (x 10..11.4).
     let (tx0, tx1) = (10.0, 11.4);
     let gh = EMPORE_Y - 0.25;
-    let mut scheibe = |b: &mut Bau, x0: f32, x1: f32| {
+    let scheibe = |b: &mut Bau, x0: f32, x1: f32| {
         let mut g = b.flaeche((x0 + x1) / 2.0, gh / 2.0, e.min_z + 0.15, x1 - x0, gh, 0.0, Color::new(0.84, 0.95, 1.0, 0.2));
         g.enable_backface_culling(false);
         b.kasten(Kasten::neu(x0, x1, e.min_z + 0.1, e.min_z + 0.2, gh));

@@ -50,6 +50,8 @@ pub struct Sitz {
     pub tv: bool,
 }
 
+// Eine Zeile der Tabelle unten; die vielen Zahlen sind genau die Spalten des Originals.
+#[allow(clippy::too_many_arguments)]
 const fn sitz(id: &'static str, name: &'static str, x: f32, y: f32, z: f32, rot_y: f32, plaetze: &'static [f32], huefte: f32, tiefe: f32, raus: f32) -> Sitz {
     Sitz { id, name, x, y, z, rot_y, plaetze, huefte, tiefe, raus, dach: false, bar: false, tv: false }
 }

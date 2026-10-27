@@ -37,6 +37,10 @@ pub struct Konfig {
     pub tailscale_host: Option<String>,
     /// Update-Skript für "Office aktualisieren".
     pub deploy_skript: Option<String>,
+    /// Wie das Deploy-Skript aufgerufen wurde (nur zum Anzeigen in vorgeschlagenen Befehlen).
+    pub deploy_befehl: Option<String>,
+    /// `einrichten`: die Fragen der Erst-Einrichtung noch einmal stellen.
+    pub einrichten: bool,
 }
 
 /// Was die Kommandozeile verlangt.
@@ -54,6 +58,7 @@ OpenAgenticOffice – ein 3D-Büro für deine KI-Arbeiter
 
 Aufruf:
   open-agentic-office [OPTIONEN] [PROJEKTORDNER]
+  open-agentic-office einrichten [OPTIONEN]   Erst-Einrichtung (Projekte-Ordner, GitHub, Etagen) noch einmal
   open-agentic-office konten <liste | einladen [NAME] [--admin] | entziehen NAME |
                              rolle NAME admin|mitglied | passwort an|aus> [--daten ORDNER]
 
@@ -145,7 +150,13 @@ pub fn lesen(args: impl IntoIterator<Item = String>) -> Result<Befehl> {
         oeffentlicher_host: umgebung("OFFICE_OEFFENTLICHER_HOST"),
         tailscale_host: umgebung("OFFICE_TAILSCALE_HOST").map(|h| h.to_lowercase().trim_end_matches('.').to_string()),
         deploy_skript: umgebung("OFFICE_DEPLOY_SKRIPT"),
+        deploy_befehl: umgebung("OFFICE_DEPLOY_BEFEHL"),
+        einrichten: false,
     };
+    if args.first().map(String::as_str) == Some("einrichten") {
+        args.remove(0);
+        k.einrichten = true;
+    }
     let mut it = args.into_iter();
     while let Some(a) = it.next() {
         let mut wert = |name: &str| it.next().ok_or_else(|| anyhow!("{name} braucht einen Wert"));

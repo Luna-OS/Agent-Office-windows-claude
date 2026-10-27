@@ -61,7 +61,7 @@ impl Figur {
         };
         let bein_l = glied(&mut wurzel, -0.11, 0.78, 0.5, 0.075, hose);
         let bein_r = glied(&mut wurzel, 0.11, 0.78, 0.5, 0.075, hose);
-        let mut schuhe = |b: &SceneNode3d| {
+        let schuhe = |b: &SceneNode3d| {
             let mut s = b.clone().add_cube(0.14, 0.08, 0.22);
             s.set_position(Vec3::new(0.0, -0.74, 0.04));
             s.set_color(farbe("#2b2d42"));
@@ -177,7 +177,7 @@ impl Figur {
 }
 
 fn frisur(kopf: &mut SceneNode3d, art: u8, c: Color) {
-    let mut teil = |k: &mut SceneNode3d, r: f32, pos: Vec3, skala: Vec3| {
+    let teil = |k: &mut SceneNode3d, r: f32, pos: Vec3, skala: Vec3| {
         let mut s = k.add_sphere(r);
         s.set_position(pos);
         s.set_local_scale(skala.x, skala.y, skala.z);
@@ -209,11 +209,6 @@ fn frisur(kopf: &mut SceneNode3d, art: u8, c: Color) {
         // Glatze mit Haarkranz.
         _ => teil(kopf, 0.225, Vec3::new(0.0, -0.02, -0.04), Vec3::new(1.02, 0.5, 1.0)),
     }
-}
-
-/// Eine Figur so drehen, dass sie von (x, z) zu (zx, zz) schaut.
-pub fn blick_zu(x: f32, z: f32, zx: f32, zz: f32) -> f32 {
-    (zx - x).atan2(zz - z)
 }
 
 /// Ein Winkel weich zu einem anderen hin (kürzester Weg).

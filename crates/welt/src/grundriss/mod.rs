@@ -216,6 +216,8 @@ pub const WHITEBOARD: (f32, f32) = (5.4, -5.4);
 pub const KUECHE: Flaeche = Flaeche::neu(-17.0, -10.75, 11.7, 12.7);
 /// Wo man an der Kaffeemaschine steht (E schenkt einen Becher ein).
 pub const KAFFEEMASCHINE: (f32, f32) = (-15.7, 10.9);
+/// Der Kühlschrank in der Küche (für sein Brummen).
+pub const KUEHLSCHRANK: (f32, f32) = (-11.3, 12.2);
 /// Das Teleskop auf der Empore, mit Blick über den Großraum.
 pub const TELESKOP: (f32, f32) = (9.6, 8.6);
 /// Wo man ohne Etage (oder nach dem Laden) steht.

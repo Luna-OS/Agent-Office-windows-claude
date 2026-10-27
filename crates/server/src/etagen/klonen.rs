@@ -80,7 +80,7 @@ pub async fn klonen(repo: &str, ziel: &Path, umgebung: &[(String, String)], mut 
     }
     let mut cmd = tokio::process::Command::new("gh");
     cmd.arg("repo").arg("clone").arg(repo).arg(ziel).args(["--", "--progress"]);
-    cmd.envs(umgebung.iter().map(|(k, v)| (k, v)));
+    crate::anmeldungen::anwenden(&mut cmd, umgebung);
     cmd.env("GIT_TERMINAL_PROMPT", "0").env("GH_PROMPT_DISABLED", "1");
     cmd.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::piped()).kill_on_drop(true);
     let mut kind = match cmd.spawn() {

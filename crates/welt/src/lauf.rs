@@ -46,7 +46,11 @@ pub async fn starten() {
         kx.css = grafik::css_groesse(&fenster);
 
         // Was von außen kam.
-        let (nachrichten, bilder, zur_etage) = EINGANG.with_borrow_mut(|e| (std::mem::take(&mut e.nachrichten), std::mem::take(&mut e.bilder), e.zur_etage.take()));
+        let (nachrichten, bilder, zur_etage, perspektive) =
+            EINGANG.with_borrow_mut(|e| (std::mem::take(&mut e.nachrichten), std::mem::take(&mut e.bilder), e.zur_etage.take(), e.perspektive.take()));
+        if let Some(ich) = perspektive {
+            kx.kamera.abstand = if ich { 0.0 } else { 3.0 };
+        }
         kx.aenderungen = Default::default();
         for n in &nachrichten {
             let a = kx.zustand.anwenden(n);
@@ -70,22 +74,28 @@ pub async fn starten() {
         let tasten = std::mem::take(&mut kx.eingabe.tasten);
         for (code, gedrueckt) in &tasten {
             let genommen = reg.taste_gedrueckt(&mut kx, code, *gedrueckt);
-            if !genommen && *gedrueckt && code == "KeyE" {
-                if let Some(z) = kx.ziel.clone() {
-                    reg.nutzen(&mut kx, &z);
-                }
+            if !genommen
+                && *gedrueckt
+                && code == "KeyE"
+                && let Some(z) = kx.ziel.clone()
+            {
+                reg.nutzen(&mut kx, &z);
             }
             weiterreichen(&mut kx, &mut reg);
         }
-        if kx.eingabe.klicks > 0 && reg.laufen_frei() {
-            if let Some(z) = kx.ziel.clone() {
-                reg.nutzen(&mut kx, &z);
-                weiterreichen(&mut kx, &mut reg);
-            }
+        if kx.eingabe.klicks > 0
+            && reg.laufen_frei()
+            && let Some(z) = kx.ziel.clone()
+        {
+            reg.nutzen(&mut kx, &z);
+            weiterreichen(&mut kx, &mut reg);
         }
         kx.eingabe.tasten = tasten;
 
         kx.beschriftungen.clear();
+        kx.bewegliche.clear();
+        kx.dinge.clear();
+        kx.aktiv = reg.aktivitaet();
         kx.spieler_fest = !reg.laufen_frei();
         reg.frame(&mut kx, dt);
         weiterreichen(&mut kx, &mut reg);
@@ -129,6 +139,11 @@ fn zusammenfuehren(z: &mut crate::zustand::Aenderungen, a: crate::zustand::Aende
     z.spielzeug |= a.spielzeug;
     z.leinwand |= a.leinwand;
     z.emotes.extend(a.emotes);
+    z.hupen.extend(a.hupen);
+    z.golf.extend(a.golf);
+    if a.sitz_belegt.is_some() {
+        z.sitz_belegt = a.sitz_belegt;
+    }
 }
 
 fn zeichnen_beschriftungen(fenster: &mut Window, kx: &Kontext) {

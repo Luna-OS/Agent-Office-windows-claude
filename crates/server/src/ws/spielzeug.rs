@@ -212,8 +212,10 @@ fn bearbeiten(o: &OfficeRef, von: &str, c: Client) {
         }
         Client::AutoFahren { auto, x, z, rot_y, tempo, lenkung } => {
             let (x, z, rot_y, tempo, lenkung) = (eingabe::zahl(x, 200.0), eingabe::zahl(z, 200.0), eingabe::zahl(rot_y, 100.0), eingabe::zahl(tempo, 100.0), eingabe::zahl(lenkung, 2.0));
+            let lage = welt::grundriss::draussen::AutoLage { x, z, rot_y, tempo, lenkung };
             let ok = o.spielzeug.mit(et, |e| match e.autos.get_mut(auto as usize) {
-                Some(a) if a.fahrer.as_deref() == Some(von) => {
+                // Nur wer fährt, und nur auf befahrbarem Grund (sonst schummelt der Browser).
+                Some(a) if a.fahrer.as_deref() == Some(von) && welt::grundriss::draussen::auf_dem_asphalt(&lage) => {
                     (a.x, a.z, a.rot_y, a.tempo, a.lenkung) = (x, z, rot_y, tempo, lenkung);
                     true
                 }

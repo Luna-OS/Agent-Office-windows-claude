@@ -74,6 +74,8 @@ pub struct Office {
     pub anbindungen: Mutex<Vec<Arc<dyn Anbindung>>>,
     /// Die Agenten (für das Herunterfahren).
     pub agenten: std::sync::OnceLock<agenten::Agenten>,
+    /// Eigene Claude-/GitHub-Anmeldungen je Konto.
+    pub anmeldungen: crate::anmeldungen::AnmeldungenRef,
 }
 
 /// Was eine angebundene Bibliothek vom Office erfährt bzw. ihm liefert.
@@ -81,12 +83,10 @@ pub trait Anbindung: Send + Sync {
     /// Eine Etage ist da (beim Start, nach einem Klon, nach dem Übernehmen).
     fn etage_angemeldet(&self, _id: &str, _ordner: &std::path::Path) {}
     fn etage_abgemeldet(&self, _id: &str) {}
+    /// Der Ausbau des Hinterbüros einer Etage hat sich geändert (beim Anmelden auch einmal).
+    fn fluegel_geaendert(&self, _id: &str, _fluegel: u32) {}
     /// Arbeiter-Zahlen für die Aufzugtafel.
     fn zahlen(&self, _etage: &str) -> Option<Zahlen> {
-        None
-    }
-    /// Umgebungsvariablen für gh/git im Namen eines Kontos (eigene GitHub-Anmeldung).
-    fn github_umgebung(&self, _konto: &str) -> Option<Vec<(String, String)>> {
         None
     }
 }
@@ -230,6 +230,13 @@ impl Office {
     pub fn etage_angemeldet(&self, def: &EtageDef) {
         for a in self.anbindungen() {
             a.etage_angemeldet(&def.id, &def.ordner);
+            a.fluegel_geaendert(&def.id, def.grundriss.fluegel);
+        }
+    }
+
+    pub fn fluegel_geaendert(&self, id: &str, fluegel: u32) {
+        for a in self.anbindungen() {
+            a.fluegel_geaendert(id, fluegel);
         }
     }
 
@@ -244,9 +251,9 @@ impl Office {
     }
 
     /// gh/git-Umgebung für die Verbindung `von`: die eigene GitHub-Anmeldung ihres Kontos, sonst die des Office.
-    pub fn github_umgebung(&self, von: &str) -> Vec<(String, String)> {
+    pub fn github_umgebung(self: &Arc<Self>, von: &str) -> Vec<(String, String)> {
         let Some(konto) = self.sitzung_von(von).and_then(|s| s.konto) else { return Vec::new() };
-        self.anbindungen().iter().find_map(|a| a.github_umgebung(&konto)).unwrap_or_default()
+        crate::ws::anmeldungen::umgebung(self, &konto, Some(protokoll::konten::AnmeldeArt::Github))
     }
 
     /// Schließt alle Verbindungen, deren Sitzung nicht mehr gilt (Konto entzogen, Passwort aus).

@@ -10,12 +10,16 @@ Im Datenordner:
 
 | Datei / Ordner | Inhalt |
 | --- | --- |
-| `einstellungen.json` | Server-Einstellungen, auch der Hash des gemeinsamen Passworts |
+| `zugang.json` | Hash des gemeinsamen Passworts |
+| `einstellungen.json` | Server-Einstellungen |
+| `bestenliste.json` | Bestenliste des Spielautomaten (fürs ganze Gebäude) |
+| `medien/` | Zustand der Medien (Bildschirm teilen, Dach) |
+| `karten/*.json` | Eigene Karten |
 | `sitzung.key` | Schlüssel, mit dem die Sitzungs-Cookies signiert werden |
 | `konten.json` | Konten und offene Einladungen |
 | `etagen.json` | Die Liste der Etagen (Checkout, Farben) |
 | `etagen/<id>/` | Zustand der Etage: Arbeiter (`workers.json`), Schwarzes Brett, Spielsachen, Jukebox (`jukebox.json`) |
-| `homes/<konto>/` | Die eigenen Claude-, GitHub- und Git-Anmeldungen jedes Kontos (das Konto zu entziehen löscht sie) |
+| `homes/<konto>/` | `claude/`, `gh/`, `gitconfig` und `anmeldungen.json`: die eigenen Anmeldungen jedes Kontos (das Konto zu entziehen löscht sie) |
 | `hook-port` | Port des Hook-Servers vom letzten Start (nur Loopback) |
 
 Das Office startest du in einem Projektordner mit `open-agentic-office ~/code/mein-projekt`: Dieses Projekt wird zur Etage. Worktrees der Arbeiter liegen in `<projekt>/.office/worktrees/<name>-<id>` auf dem Branch `office/<name>-<id>`.
@@ -52,7 +56,12 @@ Weitere Umgebungsvariablen:
 | --- | --- |
 | `OFFICE_TURN` | TURN-Server für Sprache, kommagetrennt, z. B. `turn:nutzer:pass@host:3478` (Standard: STUN `stun.l.google.com:19302`) |
 | `OFFICE_HOOK_PORT` | Port des Loopback-Hook-Servers festlegen |
-| `OFFICE_SELBSTUPDATE=1` | Das Office aktualisiert sich selbst (kommt später) |
+| `OFFICE_LOG` | Log-Stufe, z. B. `debug` |
+| `OFFICE_SELBSTUPDATE=1` | Schaltet **☰ → Office aktualisieren** frei |
+| `OFFICE_DEPLOY_SKRIPT` | Pfad des Update-Skripts; der Server ruft `<skript> pruefen` (JSON mit `aktuell`, `neueste`, `aenderungen`, `hinter`) und `<skript> ausfuehren` (installiert und startet den Dienst neu). `deploy/provision.sh` setzt es auf `/usr/local/bin/open-agentic-office-update` |
+| `OFFICE_DEPLOY_BEFEHL` | Name des Skripts, mit dem du das Office bereitgestellt hast (z. B. `deploy/aws.sh`), damit das Office in vorgeschlagenen Befehlen darauf verweist |
+| `OFFICE_OEFFENTLICHER_HOST` | Adresse, unter der Teammitglieder das Office erreichen (für Tunnel-Befehl und Links) |
+| `OFFICE_TAILSCALE_HOST` | Name des Office im Tailnet |
 
 Die Health-Prüfung für Skripte ist `GET /api/gesundheit` (oder `/api/health`), öffentlich, Antwort `{"ok":true}`.
 

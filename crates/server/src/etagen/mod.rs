@@ -314,7 +314,7 @@ impl Etagen {
 pub fn schild_setzen(g: &mut Grundriss, tisch: &str, text: &str, farbe: Option<&str>, von: &str) -> bool {
     let tisch: String = tisch.chars().take(40).collect();
     let text: String = text.trim().chars().take(32).collect();
-    if tisch.is_empty() {
+    if welt::grundriss::tisch_nach_id(&tisch).is_none() {
         return false;
     }
     if text.is_empty() {
@@ -323,6 +323,12 @@ pub fn schild_setzen(g: &mut Grundriss, tisch: &str, text: &str, farbe: Option<&
     let farbe = farbe.filter(|f| crate::ws::eingabe::ist_farbe(f)).unwrap_or("#f4d35e").to_string();
     g.schilder.insert(tisch, Schild { text, farbe, von: von.into(), um: jetzt_ms() });
     true
+}
+
+/// Die Arbeitsplätze (Schreibtische, Sitzsäcke) einer Etage mit diesem Ausbau, für `agenten`.
+pub fn arbeitsplaetze(fluegel: u32) -> Vec<String> {
+    use welt::grundriss::TischArt;
+    welt::grundriss::alle_tische().into_iter().filter(|t| t.fluegel <= fluegel && matches!(t.art, TischArt::Schreibtisch | TischArt::Sitzsack)).map(|t| t.id).collect()
 }
 
 /// Hinterbüro um eine Reihe erweitern (`+1`) oder zurückbauen (`-1`).
@@ -357,8 +363,10 @@ mod tests {
     #[test]
     fn grundriss() {
         let mut g = Grundriss::default();
-        assert!(schild_setzen(&mut g, "tisch:1", "Backend", Some("#ff0000"), "Luna"));
-        assert!(!schild_setzen(&mut g, "tisch:2", "", None, "Luna"));
+        let tisch = welt::grundriss::alle_tische()[0].id.clone();
+        assert!(schild_setzen(&mut g, &tisch, "Backend", Some("#ff0000"), "Luna"));
+        assert!(!schild_setzen(&mut g, "gibt-es-nicht", "Backend", None, "Luna"));
+        assert!(schild_setzen(&mut g, &tisch, "", None, "Luna"));
         assert!(fluegel_aendern(&mut g, 1));
         assert!(!fluegel_aendern(&mut g, -5) || g.fluegel == 0);
     }

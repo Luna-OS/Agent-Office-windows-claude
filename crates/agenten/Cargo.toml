@@ -21,6 +21,8 @@ vt100 = "0.16"
 rand = "0.9"
 ureq = { version = "3", features = ["json"] }
 tracing = "0.1"
+listeners = "0.6"
+sysinfo = { version = "0.39", default-features = false, features = ["system"] }
 
 [dev-dependencies]
 tempfile = "3"

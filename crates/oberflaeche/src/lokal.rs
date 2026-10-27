@@ -72,3 +72,8 @@ pub fn aendern(f: impl FnOnce(&mut Lokal)) {
         let _ = s.set_item(SCHLUESSEL, &t);
     }
 }
+
+/// Für Teile ohne Leptos (Medien): Lautstärke, stumm, Voice stumm beitreten (nicht reaktiv).
+pub fn audio() -> (f32, bool, bool) {
+    lokal().with_untracked(|l| (l.lautstaerke, l.stumm, l.voice_stumm))
+}

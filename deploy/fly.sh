@@ -354,7 +354,7 @@ kill_timeout = 30
 
 [env]
   OAO_ADMIN_KEYS = "$(cat "$KEY_FILE.pub")"
-  OFFICE_DEPLOY_SKRIPT = "deploy/fly.sh$NAME_FLAG"
+  OFFICE_DEPLOY_BEFEHL = "deploy/fly.sh$NAME_FLAG"
   OFFICE_OEFFENTLICHER_HOST = "$SSH_HOST:$SSH_PORT"
   OAO_SSHD_PORT = "$SSHD_PORT"
   # Flys init ist PID 1, also sammelt tini als Subreaper ein, was Arbeiter hinterlassen.

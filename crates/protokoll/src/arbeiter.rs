@@ -147,6 +147,9 @@ pub struct ArbeiterInfo {
     pub verbrauch: Option<Verbrauch>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub letzte_eingabe: Option<LetzteEingabe>,
+    /// Das Konto, das ihn angelegt hat (seine Anmeldungen bei Claude/GitHub nutzt er).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub konto: Option<String>,
     /// Hinweis, warum er hängt (Login, Vertrauensabfrage ...), auf Deutsch.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hinweis: Option<String>,
@@ -178,6 +181,46 @@ pub struct WorktreeStand {
     /// Geänderte Dateien (höchstens 50), für den Status-Feed.
     #[serde(default)]
     pub dateien: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fehler: Option<String>,
+}
+
+/// Eine Datei, die ein Arbeiter gegenüber dem Abzweig seines Branches geändert hat.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GeaenderteDatei {
+    pub pfad: String,
+    /// Der alte Pfad, wenn die Datei umbenannt wurde.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub von: Option<String>,
+    /// `M` geändert, `A` neu, `D` gelöscht, `R` umbenannt, `T` Typ geändert, `?` neu und nie committet.
+    pub status: String,
+    pub plus: u32,
+    pub minus: u32,
+    pub binaer: bool,
+    /// Noch nicht committet.
+    pub offen: bool,
+}
+
+/// Was ein Arbeiter geändert hat (Änderungen-Fenster).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Aenderungen {
+    pub arbeiter: String,
+    /// Aktueller Branch (`HEAD`, wenn losgelöst).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub branch: Option<String>,
+    /// Wogegen verglichen wird (Abzweig-Commit oder `HEAD`).
+    pub basis: String,
+    /// Commits seit dem Abzweig.
+    pub voraus: u32,
+    /// Betreff des neuesten Commits, wenn `voraus > 0`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub betreff: Option<String>,
+    pub dateien: Vec<GeaenderteDatei>,
+    /// So viele Dateien wurden weggelassen (mehr als 300).
+    pub weitere: u32,
+    /// Ziel-Branch eines Pull Requests.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pr_ziel: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fehler: Option<String>,
 }
@@ -243,6 +286,18 @@ pub enum Client {
     ProviderAbfragen,
     /// Arbeiter, deren Pull Request gemergt ist, gehen von selbst heim (für das ganze Office).
     NachMergeGehen { an: bool },
+    /// Was hat er geändert? Antwort `Server::Aenderungen`.
+    AenderungenAbfragen { arbeiter: String },
+    /// Diff einer Datei; Antwort `Server::Diff`.
+    DiffAbfragen { arbeiter: String, datei: String },
+    /// Alles committen (`git add -A`).
+    Committen { arbeiter: String, nachricht: String },
+    /// Nicht committete Änderungen verwerfen: eine Datei oder alle (nur im eigenen Worktree).
+    Verwerfen {
+        arbeiter: String,
+        #[serde(default)]
+        datei: Option<String>,
+    },
 }
 
 /// Nachrichten an den Browser.
@@ -260,6 +315,16 @@ pub enum Server {
     /// Neue Ausgabe; geht nur an die Zuschauer.
     TerminalDaten { arbeiter: String, daten: String },
     Provider { provider: Vec<ProviderInfo>, standard: String },
+    Aenderungen { stand: Aenderungen },
+    Diff {
+        arbeiter: String,
+        datei: String,
+        diff: String,
+        /// Zu groß, abgeschnitten.
+        gekuerzt: bool,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        fehler: Option<String>,
+    },
     /// Einstellungen der Arbeiter (beim Betreten und nach jeder Änderung).
     Einstellungen {
         nach_merge_gehen: bool,

@@ -9,6 +9,7 @@ mod kopf;
 mod maus;
 mod reiter;
 mod sitzung;
+mod tastenfeld;
 pub mod tasten;
 
 use leptos::prelude::*;
@@ -136,7 +137,7 @@ pub fn TerminalFenster(arbeiter: String) -> impl IntoView {
             kopf=view! { <kopf::Kopf arbeiter=kopf_id info=info /> }.into_any()
         >
             <reiter::Leiste arbeiter=arbeiter.clone() />
-            <div class="relative h-[70vh]">
+            <div class=if crate::lite::ist_lite() { "relative h-[55vh]" } else { "relative h-[70vh]" }>
                 <div
                     node_ref=flaeche
                     class="terminal absolute inset-0 overflow-hidden rounded-lg p-2 outline-none"
@@ -160,6 +161,7 @@ pub fn TerminalFenster(arbeiter: String) -> impl IntoView {
                 ></div>
                 <reiter::Seiten arbeiter=arbeiter.clone() />
             </div>
+            {(crate::lite::ist_lite() || tastenfeld::beruehrung()).then(|| view! { <tastenfeld::Tastenfeld arbeiter=arbeiter.clone() /> })}
             <Show when=move || info.with(Option::is_none)>
                 <p class="text-muted-foreground mt-2 text-sm">"Dieser Arbeiter ist nicht mehr da."</p>
             </Show>

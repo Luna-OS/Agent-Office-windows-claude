@@ -15,7 +15,16 @@ thread_local! {
 fn adresse() -> String {
     let ort = web_sys::window().expect("Browserfenster").location();
     let schema = if ort.protocol().unwrap_or_default() == "https:" { "wss" } else { "ws" };
-    format!("{schema}://{}/ws", ort.host().unwrap_or_default())
+    // Nach einem Abbruch auf dieselbe Etage zurück; die 2D-Ansicht steht nirgends.
+    let mut abfrage = Vec::new();
+    if let Some(e) = oberflaeche::zustand::zustand().etage_jetzt() {
+        abfrage.push(format!("etage={}", js_sys::encode_uri_component(&e)));
+    }
+    if oberflaeche::ist_lite() {
+        abfrage.push("lite=1".into());
+    }
+    let abfrage = if abfrage.is_empty() { String::new() } else { format!("?{}", abfrage.join("&")) };
+    format!("{schema}://{}/ws{abfrage}", ort.host().unwrap_or_default())
 }
 
 /// Baut die Verbindung auf (eine alte wird vorher geschlossen).

@@ -66,12 +66,32 @@ pub fn installieren(reg: &mut Register<Kontext>) {
         let blick = kx.spieler.blickrichtung();
         let kaesten = kx.kaesten();
         let ziel = kx.kamera_ziel.take();
+        let (kopf, richtung) = ziel.unwrap_or((auge, blick));
         match ziel {
             Some((a, b)) => kx.kamera.setzen(a, b, |_, _| f32::INFINITY),
             None => kx.kamera.setzen(auge, blick, |von, richtung| strahl(&kaesten, von, richtung)),
         }
+        let umgebung = umgebung(kx.zustand.auf_dem_dach(), kx.spieler.pos());
+        crate::api::hoerer_melden(crate::api::Hoerer { kopf, blick: richtung, umgebung });
         let _ = AUGENHOEHE;
     });
+}
+
+/// Drinnen, in der Garage, draußen oder auf dem Dach.
+pub fn umgebung(dach: bool, p: [f32; 3]) -> crate::api::Umgebung {
+    use crate::api::Umgebung as U;
+    use crate::grundriss::{BODEN, PLATTE, draussen::GEBAEUDE, im_fluegel};
+    if dach {
+        return U::Dach;
+    }
+    if p[1] < -PLATTE - 0.5 {
+        return if GEBAEUDE.enthaelt(p[0], p[2]) { U::Garage } else { U::Draussen };
+    }
+    if BODEN.enthaelt(p[0], p[2]) || im_fluegel(p[0], p[2], crate::grundriss::FLUEGEL_REIHEN) {
+        U::Drinnen
+    } else {
+        U::Draussen
+    }
 }
 
 /// Wie weit ein Strahl von `von` in `richtung` frei ist (für die Kamera hinter dem Kopf).

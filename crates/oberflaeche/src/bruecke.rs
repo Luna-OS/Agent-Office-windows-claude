@@ -17,6 +17,26 @@ pub struct Bruecke {
     /// `true`: ein Fenster ging auf, die Welt gibt die Maus frei und hört nicht mehr auf Tasten.
     /// `false`: das letzte Fenster ging zu, die Welt fängt die Maus sofort wieder.
     pub fenster: Rc<dyn Fn(bool)>,
+    /// Etwas, das der Client selbst tun muss (Bildschirm teilen, Voice …).
+    pub befehl: Rc<dyn Fn(Befehl)>,
+}
+
+/// Was die Oberfläche beim Client in Auftrag gibt.
+#[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
+pub enum Befehl {
+    TeilenStarten,
+    TeilenStoppen,
+    VoiceBeitreten,
+    VoiceVerlassen,
+    StummUmschalten,
+    /// V gedrückt (Push-to-Talk) bzw. losgelassen.
+    SprechenStart,
+    SprechenStopp,
+    /// Mit dem Aufzug zu einer Etage fahren (die Welt spielt die Fahrt und schickt `Gehen`).
+    ZurEtage(String),
+    /// Ich-Perspektive (`true`) oder Schulterblick.
+    Perspektive(bool),
 }
 
 thread_local! {
@@ -45,4 +65,9 @@ pub(crate) fn verbinden() {
 
 pub(crate) fn fenster(offen: bool) {
     mit(|b| (b.fenster)(offen));
+}
+
+/// Gibt dem Client einen Auftrag.
+pub fn befehl(b: Befehl) {
+    mit(|br| (br.befehl)(b));
 }

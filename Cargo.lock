@@ -30,11 +30,13 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "axum",
+ "listeners",
  "portable-pty",
  "protokoll",
  "rand",
  "serde",
  "serde_json",
+ "sysinfo 0.39.6",
  "tempfile",
  "tokio",
  "tracing",
@@ -2535,6 +2537,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32a66949e030da00e8c7d4434b251670a91556f4144941d37452769c25d58a53"
 
 [[package]]
+name = "listeners"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "504c4ecfa20498c07ae4ff19b632d212e1fdcef83195b8e9eb2552306c42205f"
+dependencies = [
+ "byteorder",
+ "cc",
+ "libc",
+ "rustix 1.1.6",
+ "windows 0.62.2",
+]
+
+[[package]]
 name = "litemap"
 version = "0.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2993,6 +3008,7 @@ version = "0.1.0"
 dependencies = [
  "js-sys",
  "leptos",
+ "medien",
  "protokoll",
  "serde",
  "serde_json",
@@ -4454,13 +4470,14 @@ dependencies = [
  "hmac",
  "medien",
  "open",
+ "portable-pty",
  "protokoll",
  "rand",
  "scrypt",
  "serde",
  "serde_json",
  "sha2",
- "sysinfo",
+ "sysinfo 0.37.2",
  "tempfile",
  "tokio",
  "tokio-tungstenite 0.27.0",
@@ -4469,6 +4486,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "ureq",
+ "welt",
 ]
 
 [[package]]
@@ -4819,6 +4837,20 @@ dependencies = [
  "objc2-core-foundation",
  "objc2-io-kit",
  "windows 0.61.3",
+]
+
+[[package]]
+name = "sysinfo"
+version = "0.39.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d2071df9448915b71c4fe6d25deaf1c22f12bd234f01540b77312bb8e41361e6"
+dependencies = [
+ "libc",
+ "memchr",
+ "ntapi",
+ "objc2-core-foundation",
+ "objc2-io-kit",
+ "windows 0.62.2",
 ]
 
 [[package]]
@@ -5785,7 +5817,6 @@ name = "welt"
 version = "0.1.0"
 dependencies = [
  "console_error_panic_hook",
- "image",
  "js-sys",
  "kiss3d",
  "log",

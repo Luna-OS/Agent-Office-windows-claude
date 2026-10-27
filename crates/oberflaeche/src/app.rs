@@ -16,6 +16,7 @@ pub fn App() -> impl IntoView {
             }.into_any(),
             Phase::Anmelden(info) => view! { <crate::anmeldung::Anmeldeseite info=info /> }.into_any(),
             Phase::Beitreten(token) => view! { <crate::beitreten::Beitrittsseite token=token /> }.into_any(),
+            Phase::Office if crate::lite::ist_lite() => view! { <crate::lite::Lite /> }.into_any(),
             Phase::Office => view! { <crate::hud::Hud /> }.into_any(),
         }}
         <div id="fenster">

@@ -135,8 +135,10 @@ pub fn verbrauch_auffrischen(ag: &Agenten, etage: &str, id: &str) {
         let mut z = ag.innen.zustand();
         let Some(a) = z.arbeiter_mut(&etage, &id) else { return };
         if a.info.verbrauch.as_ref() != Some(&v) {
-            a.info.verbrauch = Some(v);
+            let alt = a.info.verbrauch.replace(v.clone());
             ag.innen.arbeiter_melden(&z.etagen[&etage], &id);
+            drop(z);
+            crate::nutzung::buchen(&ag, alt.as_ref(), &v);
         }
     });
 }

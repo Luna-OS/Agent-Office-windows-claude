@@ -9,7 +9,7 @@ use protokoll::praesenz::{Emote, Ort, Person};
 use protokoll::{ServerNachricht, dach, spielzeug};
 
 /// Was sich durch eine Nachricht geändert hat, damit die 3D-Seite nur das Nötige neu baut.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct Aenderungen {
     /// Andere Etage (oder Dach): alles neu bauen, Spieler versetzen.
     pub etage: bool,
@@ -20,6 +20,12 @@ pub struct Aenderungen {
     pub spielzeug: bool,
     pub leinwand: bool,
     pub emotes: Vec<(String, Emote)>,
+    /// Autos, die gehupt haben (Index).
+    pub hupen: Vec<u32>,
+    /// Golf-Abschläge: wer, Gier, Neigung, Kraft.
+    pub golf: Vec<(String, f32, f32, f32)>,
+    /// Der Platz, auf den man sich setzen wollte, ist besetzt (von wem).
+    pub sitz_belegt: Option<String>,
 }
 
 /// Der Weltzustand.
@@ -118,6 +124,7 @@ impl Zustand {
                 a.personen |= self.personen.remove(id).is_some();
             }
             S::PersonEmote { id, emote } => a.emotes.push((id.clone(), *emote)),
+            S::SitzBelegt { von, .. } => a.sitz_belegt = Some(von.clone()),
             _ => {}
         }
     }
@@ -193,6 +200,8 @@ impl Zustand {
             S::Arcade { arcade } => st.arcade = arcade.clone(),
             S::ArcadeBild { bild } => st.arcade.bild = Some(bild.clone()),
             S::WbLeute { leute } => st.whiteboard_leute = leute.clone(),
+            S::Hupe { auto } => a.hupen.push(*auto),
+            S::Golf { id, gier, neigung, kraft } => a.golf.push((id.clone(), *gier, *neigung, *kraft)),
             _ => a.spielzeug = false,
         }
     }

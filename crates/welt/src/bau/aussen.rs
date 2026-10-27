@@ -44,20 +44,12 @@ fn gebaeude(b: &mut Bau, index: usize, etagen: usize, strasse: f32, dach: bool) 
     // Darüber: die Etagen über einem, und das Dach-Geländer ganz oben.
     if !dach {
         for i in (index + 1)..etagen.max(index + 1) {
-            let y0 = (i - index) as f32 * STOCKWERK - PLATTE;
-            huelle_band(b, cx, cz, y0, STOCKWERK, aussen);
+            // Über der eigenen Decke (die liegt bei WANDHOEHE..WANDHOEHE + PLATTE).
+            let y0 = (i - index) as f32 * STOCKWERK + 0.01;
+            huelle_band(b, cx, cz, y0, STOCKWERK - 0.02, aussen);
         }
         let oben = (etagen.max(index + 1) - index) as f32 * STOCKWERK - PLATTE;
         b.block(cx, oben, cz, g.breite() + 0.4, 0.3, g.tiefe() + 0.4, toenen(aussen, -0.2));
-    }
-    // Die eigene Etage von außen: Außenputz knapp vor den Innenwänden.
-    let h = WANDHOEHE + PLATTE;
-    for (x, z, bx, bz) in [
-        (cx, g.min_z - 0.02, g.breite() + 0.08, 0.04),
-        (g.min_x - 0.02, cz, 0.04, g.tiefe()),
-        (g.max_x + 0.02, cz, 0.04, g.tiefe()),
-    ] {
-        let _ = (x, z, bx, bz, h);
     }
 }
 

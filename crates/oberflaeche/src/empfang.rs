@@ -17,6 +17,8 @@ pub fn empfangen(n: &ServerNachricht) {
         ServerNachricht::Einstellungen(m) => einstellungen(m),
         ServerNachricht::Konten(m) => konten(m),
         ServerNachricht::Github(m) => crate::fenster::github::empfangen(m),
+        ServerNachricht::Medien(m) => medien(m),
+        ServerNachricht::Dach(m) => dach(m),
         ServerNachricht::Fehler { text } => melden(text.clone(), praesenz::Stufe::Fehler),
         _ => {}
     }
@@ -77,7 +79,7 @@ fn etagen(m: &etagen::Server) {
             None => melden(format!("{repo} ist jetzt eine Etage."), praesenz::Stufe::Info),
         },
         S::Grundriss { grundriss } => z.grundriss.set(grundriss.clone()),
-        S::ProjekteOrdner { .. } => {}
+        _ => {}
     }
 }
 
@@ -100,6 +102,17 @@ fn arbeiter(m: &arbeiter::Server) {
         }
         S::TerminalDaten { arbeiter, daten } => crate::terminal::daten(arbeiter, daten),
         S::Provider { provider, standard } => z.provider.set((provider.clone(), standard.clone())),
+        S::Aenderungen { stand } => crate::fenster::aenderungen::stand_erhalten(stand),
+        S::Diff { arbeiter, datei, diff, gekuerzt, fehler } => crate::fenster::aenderungen::diff_erhalten(crate::fenster::aenderungen::Diff {
+            arbeiter: arbeiter.clone(),
+            datei: datei.clone(),
+            diff: diff.clone(),
+            gekuerzt: *gekuerzt,
+            fehler: fehler.clone(),
+        }),
+        S::Einstellungen { nach_merge_gehen, .. } => z.nach_merge_gehen.set(*nach_merge_gehen),
+        #[allow(unreachable_patterns)]
+        _ => {}
     }
 }
 
@@ -121,12 +134,19 @@ fn agenten(m: &agenten::Server) {
             None => l.push(eintrag.clone()),
         }),
         S::FeedEntfernt { arbeiter } => z.feed.update(|l| l.retain(|e| &e.arbeiter != arbeiter)),
+        S::Nutzung { stand } => z.nutzung.set(Some(stand.clone())),
+        S::Limits { stand } => z.limits.set(Some(stand.clone())),
+        S::Prompts { liste } => z.prompts.set(liste.clone()),
+        S::Dienste { liste } => z.dienste.set(liste.clone()),
+        #[allow(unreachable_patterns)]
+        _ => {}
     }
 }
 
 fn aufgaben(m: &aufgaben::Server) {
-    match m {
-        aufgaben::Server::Stand { board } => zustand().board.set(board.clone()),
+    #[allow(irrefutable_let_patterns)]
+    if let aufgaben::Server::Stand { board } = m {
+        zustand().board.set(board.clone());
     }
 }
 
@@ -141,6 +161,8 @@ fn einstellungen(m: &einstellungen::Server) {
         S::Himmel { stand } => e.update(|s| s.iter_mut().for_each(|s| s.himmel = Some(stand.clone()))),
         S::Thema { stand } => e.update(|s| s.iter_mut().for_each(|s| s.thema = stand.clone())),
         S::Karte { stand } => e.update(|s| s.iter_mut().for_each(|s| s.karte = stand.clone())),
+        #[allow(unreachable_patterns)]
+        _ => {}
     }
 }
 
@@ -157,5 +179,24 @@ fn konten(m: &konten::Server) {
             crate::modal::oeffnen(crate::modal::Fenster::Konten);
         }
         S::Link { pfad } => crate::fenster::konten::link_erhalten(pfad),
+        #[allow(unreachable_patterns)]
+        _ => {}
+    }
+}
+
+fn medien(m: &protokoll::medien::Server) {
+    let z = zustand();
+    use protokoll::medien::Server as S;
+    match m {
+        S::Bildschirme { liste } => z.bildschirme.set(liste.clone()),
+        S::Jukebox { zustand } => z.jukebox.set(Some(zustand.clone())),
+        _ => {}
+    }
+}
+
+fn dach(m: &protokoll::dach::Server) {
+    #[allow(irrefutable_let_patterns)]
+    if let protokoll::dach::Server::Leinwand { zustand: l } = m {
+        zustand().leinwand.set(l.clone());
     }
 }

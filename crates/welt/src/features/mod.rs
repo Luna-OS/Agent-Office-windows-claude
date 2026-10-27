@@ -1,0 +1,33 @@
+//! Die Features der Welt, jedes ein Modul mit `installieren`, in dieser Reihenfolge registriert
+//! (die Reihenfolge ist die der Ticks innerhalb einer Phase und der Tastenbindungen).
+
+pub mod arbeiter;
+pub mod aufzug;
+pub mod autos;
+pub mod golf;
+pub mod ball;
+pub mod hund;
+pub mod leinwand;
+pub mod moebel;
+pub mod personen;
+pub mod sitzen;
+pub mod steuerung;
+pub mod zielen;
+
+use crate::register::Register;
+use crate::welt::Kontext;
+
+pub fn installieren(reg: &mut Register<Kontext>, _kx: &mut Kontext) {
+    steuerung::installieren(reg);
+    zielen::installieren(reg);
+    personen::installieren(reg);
+    arbeiter::installieren(reg);
+    aufzug::installieren(reg);
+    hund::installieren(reg);
+    ball::installieren(reg);
+    autos::installieren(reg);
+    golf::installieren(reg);
+    sitzen::installieren(reg);
+    moebel::installieren(reg);
+    leinwand::installieren(reg);
+}

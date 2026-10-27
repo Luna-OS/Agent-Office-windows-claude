@@ -4,6 +4,7 @@
 use leptos::prelude::*;
 use wasm_bindgen::JsCast;
 
+use crate::bruecke::{Befehl, befehl};
 use crate::modal::{self, Fenster};
 use crate::zustand::zustand;
 
@@ -15,7 +16,20 @@ const KUERZEL: &[(&str, fn())] = &[
     ("t", chat_oeffnen),
     ("T", chat_oeffnen),
     ("/", || modal::oeffnen(Fenster::Palette)),
+    ("v", voice_taste),
+    ("V", voice_taste),
+    ("m", || befehl(Befehl::StummUmschalten)),
+    ("M", || befehl(Befehl::StummUmschalten)),
 ];
+
+/// V: außerhalb des Voice beitreten, drinnen sprechen, solange V gedrückt ist.
+fn voice_taste() {
+    if zustand().voice.get_untracked() {
+        befehl(Befehl::SprechenStart);
+    } else {
+        befehl(Befehl::VoiceBeitreten);
+    }
+}
 
 fn chat_oeffnen() {
     zustand().chat_offen.set(true);
@@ -51,9 +65,23 @@ pub(crate) fn anmelden() {
         if modal::offen() && !(key == "Tab" && zustand().fenster.with_untracked(|s| s.last() == Some(&Fenster::Menue))) {
             return;
         }
+        if e.repeat() {
+            return;
+        }
         if let Some((_, tun)) = KUERZEL.iter().find(|(k, _)| *k == key) {
             e.prevent_default();
             tun();
+        }
+    });
+    // V losgelassen (oder das Fenster verliert den Fokus): nicht mehr sprechen.
+    let _ = window_event_listener(leptos::ev::keyup, |e| {
+        if e.key().eq_ignore_ascii_case("v") && zustand().voice.get_untracked() {
+            befehl(Befehl::SprechenStopp);
+        }
+    });
+    let _ = window_event_listener(leptos::ev::blur, |_| {
+        if zustand().voice.get_untracked() {
+            befehl(Befehl::SprechenStopp);
         }
     });
 }

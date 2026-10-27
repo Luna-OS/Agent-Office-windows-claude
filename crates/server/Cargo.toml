@@ -17,6 +17,7 @@ path = "src/lib.rs"
 protokoll.workspace = true
 agenten.workspace = true
 medien = { workspace = true, features = ["server"] }
+welt = { workspace = true, default-features = false }
 serde.workspace = true
 serde_json.workspace = true
 anyhow = "1"
@@ -36,6 +37,7 @@ chrono = { version = "0.4", default-features = false, features = ["clock", "std"
 sysinfo = { version = "0.37", default-features = false, features = ["system"] }
 ureq = { version = "3", features = ["json"] }
 tower = { version = "0.5", features = ["util"] }
+portable-pty = "0.9"
 
 [dev-dependencies]
 tempfile = "3"

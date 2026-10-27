@@ -29,10 +29,9 @@ fn stand() -> RwSignal<Stand> {
 }
 
 pub fn empfangen(m: &Server) {
-    match m {
-        Server::Stand { issues, prs, fehler, laedt } => {
-            stand().set(Stand { issues: issues.clone(), prs: prs.clone(), fehler: fehler.clone(), laedt: *laedt })
-        }
+    #[allow(irrefutable_let_patterns)]
+    if let Server::Stand { issues, prs, fehler, laedt } = m {
+        stand().set(Stand { issues: issues.clone(), prs: prs.clone(), fehler: fehler.clone(), laedt: *laedt });
     }
 }
 

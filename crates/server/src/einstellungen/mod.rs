@@ -2,6 +2,8 @@
 
 pub mod himmel;
 pub mod maschine;
+pub mod update;
+pub mod vorhersage;
 
 use std::path::PathBuf;
 use std::sync::Mutex;
@@ -23,6 +25,8 @@ pub struct Gespeichert {
     pub arbeiter_limit: Option<u32>,
     /// Wohin neue Etagen geklont werden (aus den Einstellungen gesetzt).
     pub projekte_ordner: Option<(String, String, u64)>,
+    /// Die Erst-Einrichtung im Terminal ist durch (oder übersprungen).
+    pub eingerichtet: bool,
 }
 
 pub struct Einstellungen {
@@ -59,7 +63,7 @@ impl Einstellungen {
             d: Mutex::new(d),
             himmel: himmel::HimmelWetter::neu(k.stadt.clone()),
             maschine: maschine::Rechner::default(),
-            update: Mutex::new(Update::default()),
+            update: Mutex::new(update::anfang(k.selbstupdate, k.deploy_skript.as_deref())),
             obergrenze: k.max_arbeiter,
         }
     }

@@ -44,6 +44,7 @@ pub fn fragt_cursor(daten: &[u8]) -> bool {
 
 /// Ein laufendes Terminal.
 pub struct Pty {
+    pid: Option<u32>,
     master: Box<dyn MasterPty + Send>,
     schreiber: Antworter,
     killer: Box<dyn ChildKiller + Send + Sync>,
@@ -79,6 +80,7 @@ impl Pty {
             .with_context(|| format!("{} konnte nicht gestartet werden", befehl.programm.display()))?;
         drop(paar.slave);
         let killer = kind.clone_killer();
+        let pid = kind.process_id();
         let mut leser = paar.master.try_clone_reader().context("Terminal-Ausgabe nicht lesbar")?;
         let schreiber = Antworter(Arc::new(Mutex::new(paar.master.take_writer().context("Terminal-Eingabe nicht beschreibbar")?)));
         let antworter = schreiber.clone();
@@ -95,7 +97,12 @@ impl Pty {
             let code = kind.wait().ok().map(|s| s.exit_code() as i32);
             bei_ende(code);
         })?;
-        Ok(Pty { master: paar.master, schreiber, killer })
+        Ok(Pty { pid, master: paar.master, schreiber, killer })
+    }
+
+    /// Die Prozess-ID des Programms im Terminal.
+    pub fn pid(&self) -> Option<u32> {
+        self.pid
     }
 
     pub fn schreiben(&mut self, daten: &[u8]) -> Result<()> {

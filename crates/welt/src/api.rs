@@ -49,8 +49,9 @@ pub enum WeltAktion {
     LeinwandOeffnen,
     /// E am Hund mit gedrückter Umschalttaste: umbenennen.
     HundUmbenennen,
-    /// F: ein Bild aus dem Netz an die Wand hängen.
-    BildAufhaengen,
+    /// F: ein Bild aus dem Netz an die Wand hängen, dort wo man hinschaut (`url` ist leer; die
+    /// Oberfläche fragt nach URL und Titel und schickt `spielzeug::Client::DekorHinzufuegen`).
+    BildAufhaengen { platz: protokoll::spielzeug::DekorPlatz },
     /// H: die Steuerung.
     HilfeOeffnen,
     /// Eine kurze Meldung für die Hinweisleiste oder als Toast.
@@ -85,24 +86,72 @@ pub enum Bildschirm {
     Schreibtisch(String),
 }
 
+/// Wo man gerade ist, für den Hall und die Dämpfung der Klänge.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Umgebung {
+    Drinnen,
+    Garage,
+    Draussen,
+    Dach,
+}
+
+/// Die Ohren des Spielers, jeden Frame (für räumlichen Klang).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Hoerer {
+    /// Kopfposition in Weltkoordinaten (Etage bei y = 0).
+    pub kopf: [f32; 3],
+    /// Blickrichtung (Einheitsvektor).
+    pub blick: [f32; 3],
+    pub umgebung: Umgebung,
+}
+
+/// Ein Geräusch in der Welt, mit Ort (für lyras Klang-Rezepte).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Klang {
+    /// Der Basketball prallt auf (Boden, Wand, Brett).
+    BallAufprall { pos: [f32; 3] },
+    BallRing { pos: [f32; 3] },
+    /// Korb!
+    BallKorb { pos: [f32; 3] },
+    Golfschlag { pos: [f32; 3] },
+    /// Der Golfball ist im Loch.
+    GolfLoch { pos: [f32; 3] },
+    Bellen { pos: [f32; 3] },
+    Hupe { pos: [f32; 3] },
+    Motor { pos: [f32; 3], tempo: f32 },
+    Gong { pos: [f32; 3] },
+    Kaffee { pos: [f32; 3] },
+    Dart { pos: [f32; 3] },
+    Axt { pos: [f32; 3] },
+    Lufthorn { pos: [f32; 3] },
+    Aufzug { pos: [f32; 3] },
+}
+
 type Rueckruf<T> = Option<Rc<dyn Fn(T)>>;
+type AbstaendeFn = Rc<dyn Fn(&[(String, f32)])>;
+/// Ein Bild für einen Bildschirm (Breite, Höhe, RGBA) oder `None` = schwarz.
+pub type Bild = Option<(u32, u32, Vec<u8>)>;
 
 #[derive(Default)]
 pub(crate) struct Ausgang {
     aktion: Rueckruf<WeltAktion>,
     senden: Rueckruf<ClientNachricht>,
     leinwand: Rueckruf<LeinwandBlick>,
-    abstaende: Option<Rc<dyn Fn(&[(String, f32)])>>,
+    abstaende: Option<AbstaendeFn>,
     hinweis: Rueckruf<Option<String>>,
+    hoerer: Rueckruf<Hoerer>,
+    klang: Rueckruf<Klang>,
 }
 
 /// Was von außen hereinkommt und im nächsten Frame verarbeitet wird.
 #[derive(Default)]
 pub(crate) struct Eingang {
     pub nachrichten: VecDeque<ServerNachricht>,
-    pub bilder: Vec<(Bildschirm, Option<(u32, u32, Vec<u8>)>)>,
+    pub bilder: Vec<(Bildschirm, Bild)>,
     pub gesperrt: bool,
     pub zur_etage: Option<String>,
+    /// Ich-Ansicht (true) oder hinter dem Kopf (false), aus den Einstellungen der Oberfläche.
+    pub perspektive: Option<bool>,
 }
 
 thread_local! {
@@ -135,6 +184,16 @@ pub fn bei_hinweis(f: impl Fn(Option<String>) + 'static) {
     AUSGANG.with_borrow_mut(|a| a.hinweis = Some(Rc::new(f)));
 }
 
+/// Jeden Frame: wo die Ohren sind (für lyras räumlichen Klang).
+pub fn bei_hoerer(f: impl Fn(Hoerer) + 'static) {
+    AUSGANG.with_borrow_mut(|a| a.hoerer = Some(Rc::new(f)));
+}
+
+/// Wenn in der Welt etwas klingt (Ball, Hund, Hupe, Gong …).
+pub fn bei_klang(f: impl Fn(Klang) + 'static) {
+    AUSGANG.with_borrow_mut(|a| a.klang = Some(Rc::new(f)));
+}
+
 /// Eine Nachricht vom Server an die Welt geben (alle; die Welt nimmt sich, was sie braucht).
 pub fn nachricht(n: &ServerNachricht) {
     EINGANG.with_borrow_mut(|e| e.nachrichten.push_back(n.clone()));
@@ -165,6 +224,11 @@ pub fn bildschirm_leeren(ziel: Bildschirm) {
     });
 }
 
+/// Ich-Ansicht (`true`) oder Kamera hinter dem Kopf (`false`). Das Mausrad wechselt auch.
+pub fn perspektive_setzen(ich: bool) {
+    EINGANG.with_borrow_mut(|e| e.perspektive = Some(ich));
+}
+
 /// Mit dem Aufzug zu einer Etage fahren (aus der Etagenwahl der Oberfläche). Schickt
 /// `etagen::Client::Gehen` und spielt die Fahrt; die Ankunft kommt mit `Betreten`.
 pub fn zur_etage(etage: &str) {
@@ -186,6 +250,18 @@ pub(crate) fn senden(n: ClientNachricht) {
 pub(crate) fn leinwand_melden(b: LeinwandBlick) {
     if let Some(f) = AUSGANG.with_borrow(|o| o.leinwand.clone()) {
         f(b);
+    }
+}
+
+pub(crate) fn klang(k: Klang) {
+    if let Some(f) = AUSGANG.with_borrow(|o| o.klang.clone()) {
+        f(k);
+    }
+}
+
+pub(crate) fn hoerer_melden(h: Hoerer) {
+    if let Some(f) = AUSGANG.with_borrow(|o| o.hoerer.clone()) {
+        f(h);
     }
 }
 

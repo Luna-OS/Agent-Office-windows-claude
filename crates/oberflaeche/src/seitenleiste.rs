@@ -105,10 +105,11 @@ fn Personenliste() -> impl IntoView {
 
 #[component]
 pub fn Seitenleiste() -> impl IntoView {
+    let l = crate::lokal::lokal();
     view! {
         <aside class="absolute top-20 right-3 flex w-72 flex-col gap-3">
-            <Arbeiterliste />
-            <Personenliste />
+            <Show when=move || l.with(|l| l.tafel_arbeiter)><Arbeiterliste /></Show>
+            <Show when=move || l.with(|l| l.tafel_personen)><Personenliste /></Show>
         </aside>
     }
 }

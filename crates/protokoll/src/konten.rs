@@ -135,6 +135,38 @@ pub struct KontenStand {
     pub adressen: Vec<String>,
 }
 
+/// Wer per SSH-Tunnel ins Office darf (nur bei Offices, die mit deploy/provision.sh aufgesetzt sind).
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+pub struct TeamStand {
+    /// Warum Einladungen hier nicht gehen, wenn nicht.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub nicht_verfuegbar: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fehler: Option<String>,
+    /// Wohin getunnelt wird: office@203.0.113.7 oder ssh://office@host:port.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ssh: Option<String>,
+    /// Port des Office auf dem Rechner (Ziel des Tunnels).
+    pub port: u16,
+    /// Wie das Deploy-Skript aufgerufen wurde (z. B. "deploy/aws.sh --name x"), für vorgeschlagene Befehle.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deploy: Option<String>,
+    /// SHA256-Fingerabdruck des ED25519-Host-Schlüssels, zum Prüfen beim ersten Verbinden.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fingerabdruck: Option<String>,
+    pub mitglieder: Vec<TeamMitglied>,
+    /// Name im Tailscale-Netz: alle dort öffnen https://<name>.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tailnet: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TeamMitglied {
+    /// GitHub-Name (oder der Name, unter dem ein Schlüssel eingeladen wurde).
+    pub name: String,
+    pub schluessel: u32,
+}
+
 /// Nachrichten vom Browser. Alles mit Konten/Einladungen ist nur für Admins.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "typ", rename_all = "snake_case")]
@@ -163,6 +195,10 @@ pub enum Client {
     Abmelden { art: AnmeldeArt },
     /// Einen Einmal-Link für einen anderen Browser (Connector), fünf Minuten gültig; Antwort `Link`.
     LinkErzeugen,
+    /// SSH-Team (Admins): Stand holen, die SSH-Schlüssel eines GitHub-Nutzers einladen, jemanden entfernen.
+    TeamHolen,
+    TeamEinladen { github: String },
+    TeamEntfernen { name: String },
 }
 
 /// Nachrichten an den Browser.
@@ -185,4 +221,15 @@ pub enum Server {
     AnmeldungNoetig { art: AnmeldeArt, warum: String },
     /// Antwort auf `LinkErzeugen`: Pfad wie "/anmelden#schluessel=…".
     Link { pfad: String },
+    Team { stand: TeamStand },
+    /// An den, der eingeladen hat.
+    TeamEingeladen {
+        github: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        name: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        schluessel: Option<u32>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        fehler: Option<String>,
+    },
 }

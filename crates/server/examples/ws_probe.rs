@@ -19,7 +19,7 @@ async fn main() {
     ws.send(Message::Text(r#"{"domaene":"praesenz","nachricht":{"typ":"chat","text":"Hallo aus der Probe"}}"#.into())).await.expect("senden");
     while let Ok(Some(Ok(m))) = tokio::time::timeout(Duration::from_secs(2), ws.next()).await {
         if let Message::Text(t) = m {
-            let kurz: String = t.chars().take(160).collect();
+            let kurz: String = t.chars().take(4000).collect();
             println!("{kurz}");
         }
     }

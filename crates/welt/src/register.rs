@@ -29,6 +29,8 @@ pub type Code = String;
 type TickFn<C> = Box<dyn FnMut(&mut C, f32)>;
 type TasteFn<C> = Box<dyn FnMut(&mut C) -> bool>;
 type WennFn<C> = Box<dyn Fn(&C) -> bool>;
+type HinweisFn<C> = Box<dyn Fn(&C, &Nutzbar) -> Option<String>>;
+type NutzenFn<C> = Box<dyn FnMut(&mut C, &Nutzbar)>;
 
 /// Etwas in der Welt, das man benutzen kann: Art, Kennung, Ort und Reichweite.
 #[derive(Debug, Clone, PartialEq)]
@@ -43,8 +45,8 @@ pub struct Nutzbar {
 
 /// Was eine Art von Ding tut: was der Hinweis sagt, und was E daran macht.
 pub struct Interaktion<C> {
-    pub hinweis: Box<dyn Fn(&C, &Nutzbar) -> Option<String>>,
-    pub nutzen: Box<dyn FnMut(&mut C, &Nutzbar)>,
+    pub hinweis: HinweisFn<C>,
+    pub nutzen: NutzenFn<C>,
 }
 
 /// Etwas, mitten in dem man ist und das die Steuerung übernimmt (Auto, Golf, Teleskop, Sitzen …).
@@ -102,7 +104,7 @@ impl<C> Register<C> {
     }
 
     /// Eine Taste des Office: läuft, wenn `wenn` (falls gesetzt) zutrifft; `true` = verbraucht.
-    pub fn taste(&mut self, code: &'static str, wenn: Option<Box<dyn Fn(&C) -> bool>>, tun: impl FnMut(&mut C) -> bool + 'static) {
+    pub fn taste(&mut self, code: &'static str, wenn: Option<WennFn<C>>, tun: impl FnMut(&mut C) -> bool + 'static) {
         self.bindungen.push(Bindung { code, wenn, tun: Box::new(tun) });
     }
 
@@ -204,7 +206,7 @@ impl<C> Register<C> {
 }
 
 /// Das Ding, auf das man zielt: in Reichweite, und am ehesten in Blickrichtung.
-pub fn anvisieren<'a>(dinge: &'a [Nutzbar], auge: [f32; 3], blick: [f32; 3]) -> Option<&'a Nutzbar> {
+pub fn anvisieren(dinge: &[Nutzbar], auge: [f32; 3], blick: [f32; 3]) -> Option<&Nutzbar> {
     let mut bestes: Option<(&Nutzbar, f32)> = None;
     for d in dinge {
         let v = [d.pos[0] - auge[0], d.pos[1] - auge[1], d.pos[2] - auge[2]];

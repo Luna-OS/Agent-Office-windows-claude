@@ -71,7 +71,7 @@ struct GhRepo {
 pub async fn repos_auflisten(umgebung: &[(String, String)]) -> Result<Vec<RepoAuswahl>, String> {
     let mut cmd = tokio::process::Command::new("gh");
     cmd.args(["repo", "list", "--limit", "200", "--json", "nameWithOwner,description,isPrivate,pushedAt"]);
-    cmd.envs(umgebung.iter().map(|(k, v)| (k, v)));
+    crate::anmeldungen::anwenden(&mut cmd, umgebung);
     cmd.kill_on_drop(true);
     let aus = cmd.output().await.map_err(|e| format!("gh ließ sich nicht starten ({e}). Ist die GitHub-CLI installiert?"))?;
     if !aus.status.success() {

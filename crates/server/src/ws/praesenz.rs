@@ -30,7 +30,7 @@ impl Domaene for Praesenz {
             chat: o.chat_letzte(50),
             version: o.version.clone(),
             ich: o.zugang.ich(&s),
-            einladungen: !o.konfig.nur_lokal() || o.konfig.oeffentlicher_host.is_some() || o.konfig.tailscale_host.is_some(),
+            einladungen: crate::team::verfuegbar(&o.konfig) || o.konfig.tailscale_host.is_some(),
         })]
     }
 
@@ -40,6 +40,13 @@ impl Domaene for Praesenz {
         }
         fertig()
     }
+}
+
+/// Gibt es den Sitzplatz ("couch:1") auf dem Dach bzw. auf einer Büro-Etage?
+fn sitz_gibt_es(schluessel: &str, auf_dach: bool) -> bool {
+    use welt::grundriss::sitze;
+    let Some((id, _)) = schluessel.rsplit_once(':') else { return false };
+    sitze::platz_nach_schluessel(schluessel).is_some() && sitze::sitze().iter().any(|s| s.id == id && s.dach == auf_dach)
 }
 
 fn geaendert(o: &OfficeRef, von: &str, f: impl FnOnce(&mut protokoll::praesenz::Person) -> bool) {
@@ -81,7 +88,9 @@ fn bearbeiten(o: &OfficeRef, von: &str, c: Client) {
             });
         }
         Client::Sitzen { sitz } => {
-            let sitz = sitz.map(|s| eingabe::text(&s, 40)).filter(|s| !s.is_empty());
+            let auf_dach = o.etage_von(von).as_deref() == Some(DACH);
+            // Nur Plätze, die es dort gibt, wo man ist.
+            let sitz = sitz.map(|s| eingabe::text(&s, 40)).filter(|s| sitz_gibt_es(s, auf_dach));
             if let Some(s) = &sitz {
                 let etage = o.etage_von(von);
                 let ich = o.person(von);

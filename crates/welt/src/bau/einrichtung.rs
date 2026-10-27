@@ -26,7 +26,7 @@ pub fn schreibtisch(b: &mut Bau, x: f32, z: f32, rot_y: f32, stuhlfarbe: &str) -
     g.block(0.0, TISCH_HOEHE, -0.3, 0.2, 0.02, 0.15, fuss);
     g.block(0.0, TISCH_HOEHE, -0.33, 0.04, 0.25, 0.04, fuss);
     g.quader(0.0, TISCH_HOEHE + 0.42, -0.34, 0.68, 0.42, 0.04, farbe("#2b2d42"));
-    let mut bild = g.flaeche(0.0, TISCH_HOEHE + 0.42, -0.318, 0.62, 0.36, 0.0, farbe("#14213d"));
+    let mut bild = g.flaeche(0.0, TISCH_HOEHE + 0.42, -0.317, 0.62, 0.36, 0.0, farbe("#14213d"));
     bild.set_emissive(farbe("#14213d"));
     // Tastatur, Becher.
     g.block(0.0, TISCH_HOEHE, 0.08, 0.42, 0.02, 0.14, farbe("#e9ecef"));

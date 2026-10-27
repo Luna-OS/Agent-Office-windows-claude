@@ -74,11 +74,13 @@ impl Leinwand {
 mod tests {
     use super::*;
 
+    // Die Leinwand liegt über der Bühne, und der DJ passt darunter.
+    const _: () = assert!(LEINWAND.x - LEINWAND.breite / 2.0 >= BUEHNE.min_x - 0.01);
+    const _: () = assert!(LEINWAND.x + LEINWAND.breite / 2.0 <= BUEHNE.max_x + 0.01);
+    const _: () = assert!(LEINWAND.y - LEINWAND.hoehe / 2.0 > BUEHNE_HOEHE + 1.8);
+
     #[test]
-    fn leinwand_liegt_ueber_der_buehne() {
-        assert!(LEINWAND.x - LEINWAND.breite / 2.0 >= BUEHNE.min_x - 0.01);
-        assert!(LEINWAND.x + LEINWAND.breite / 2.0 <= BUEHNE.max_x + 0.01);
-        assert!(LEINWAND.y - LEINWAND.hoehe / 2.0 > BUEHNE_HOEHE + 1.8, "der DJ passt drunter");
+    fn leinwand_ecken_im_uhrzeigersinn() {
         let e = LEINWAND.ecken();
         assert!(e[0][0] < e[1][0] && e[0][1] > e[3][1]);
     }

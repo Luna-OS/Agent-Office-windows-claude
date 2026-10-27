@@ -2,6 +2,9 @@
 //! Neue Routen kommen als eigenes Modul mit einer `routen()`-Funktion und werden in [`tabelle`] eingetragen.
 
 pub mod anmeldung;
+pub mod buecher;
+pub mod connector;
+pub mod dateien;
 pub mod statisch;
 
 use std::net::{IpAddr, SocketAddr};
@@ -39,6 +42,9 @@ pub fn route(pfad: &'static str, zugriff: Zugriff, methoden: MethodRouter<Office
 /// Alle Routen des Servers.
 pub fn tabelle() -> Vec<Route> {
     let mut t = anmeldung::routen();
+    t.extend(connector::routen());
+    t.extend(dateien::routen());
+    t.extend(buecher::routen());
     t.push(route("/ws", Zugriff::Oeffentlich, axum::routing::get(crate::ws::verbindung::upgrade))); // prüft die Sitzung selbst (401)
     t
 }
@@ -101,6 +107,21 @@ pub fn client_ip(o: &OfficeRef, headers: &HeaderMap, verbindung: Option<SocketAd
         return ip;
     }
     verbindung.map(|c| c.ip()).unwrap_or(IpAddr::from([127, 0, 0, 1]))
+}
+
+/// Kommt ein POST vom Office selbst? (Origin passt zum Host; ohne Origin nur von Programmen wie dem Connector,
+/// die keinen Browser-Cookie fremder Seiten mitschicken können – die Sitzung ist trotzdem nötig.)
+pub fn gleicher_ursprung(o: &OfficeRef, headers: &HeaderMap) -> bool {
+    let host = o
+        .konfig
+        .proxy_vertrauen
+        .then(|| headers.get("x-forwarded-host").and_then(|v| v.to_str().ok()))
+        .flatten()
+        .or_else(|| headers.get(header::HOST).and_then(|v| v.to_str().ok()));
+    match headers.get(header::ORIGIN).and_then(|v| v.to_str().ok()) {
+        None => headers.get("sec-fetch-site").is_none(),
+        Some(origin) => origin.split_once("://").map(|(_, rest)| rest) == host,
+    }
 }
 
 /// Kam die Anfrage über https (direkt oder laut Proxy)?

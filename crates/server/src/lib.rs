@@ -3,6 +3,8 @@
 
 pub mod anbindung;
 pub mod anmeldung;
+pub mod anmeldungen;
+pub mod einrichtung;
 pub mod einstellungen;
 pub mod etagen;
 pub mod http;
@@ -11,6 +13,7 @@ pub mod konten_cli;
 pub mod office;
 pub mod speicher;
 pub mod spielzeug;
+pub mod team;
 pub mod webhook;
 pub mod ws;
 
@@ -55,6 +58,7 @@ pub async fn bauen(konfig: Konfig) -> Result<Gebaut> {
         version: VERSION.into(),
         anbindungen: Mutex::default(),
         agenten: Default::default(),
+        anmeldungen: anmeldungen::Anmeldungen::neu(&konfig.daten),
         konfig,
     });
     if let Some(ordner) = office.konfig.projekt_ordner.clone() {
@@ -62,6 +66,7 @@ pub async fn bauen(konfig: Konfig) -> Result<Gebaut> {
         tracing::info!("Etage {} aus {}", def.name, def.ordner.display());
     }
     anbindung::verbinden(&office, &mut angebunden);
+    ws::anmeldungen::beobachten(&office);
     for e in office.etagen.liste.lock().unwrap().clone() {
         office.etage_angemeldet(&e);
     }
@@ -93,25 +98,60 @@ pub fn hintergrund(o: &OfficeRef) {
         }
     });
     let a = o.clone();
-    tokio::spawn(async move {
-        let mut t = tokio::time::interval(Duration::from_secs(12 * 60));
-        loop {
-            t.tick().await;
-            use chrono::Datelike;
-            a.einstellungen.himmel.wandern(chrono::Local::now().month());
-            ws::einstellungen::himmel_an_alle(&a);
+    tokio::spawn(async move { wetter(a).await });
+}
+
+/// Das Wetter: mit `--stadt` von open-meteo (bei Fehlern ausgedacht), sonst ausgedacht.
+async fn wetter(o: OfficeRef) {
+    use chrono::Datelike;
+    let mut ort = None;
+    if let Some(stadt) = o.einstellungen.himmel.stadt.clone() {
+        match einstellungen::vorhersage::ort_suchen(&stadt).await {
+            Ok(x) => {
+                tracing::info!("Wetter von {}", x.name);
+                ort = Some(x);
+            }
+            Err(e) => tracing::warn!("Kein echtes Wetter: {e}"),
         }
-    });
+    }
+    loop {
+        let echt = match &ort {
+            Some(ort) => match einstellungen::vorhersage::wetter(ort).await {
+                Ok(h) => {
+                    o.einstellungen.himmel.setzen(h);
+                    true
+                }
+                Err(e) => {
+                    tracing::warn!("Wetter von open-meteo kam nicht: {e}");
+                    false
+                }
+            },
+            None => false,
+        };
+        if !echt {
+            o.einstellungen.himmel.wandern(chrono::Local::now().month());
+        }
+        ws::einstellungen::himmel_an_alle(&o);
+        tokio::time::sleep(if echt { einstellungen::vorhersage::ABSTAND } else { Duration::from_secs(12 * 60) }).await;
+    }
 }
 
 /// Startet das Office und lauscht, bis Strg+C kommt.
 pub async fn starten(konfig: Konfig) -> Result<()> {
     let oeffnen = konfig.oeffnen;
     let adresse = SocketAddr::new(konfig.host, konfig.port);
+    let einrichten = konfig.einrichten;
     let g = bauen(konfig).await?;
+    if einrichten {
+        einrichtung::noch_einmal(&g.office).await;
+    } else {
+        einrichtung::beim_start(&g.office).await;
+    }
     let lauscher = tokio::net::TcpListener::bind(adresse).await.with_context(|| format!("Port {} ist belegt oder nicht erlaubt", adresse.port()))?;
     let echt = lauscher.local_addr()?;
     hintergrund(&g.office);
+    let o = g.office.clone();
+    tokio::spawn(async move { einrichtung::projekt_beim_start(&o).await });
 
     let host = if echt.ip().is_unspecified() { "localhost".to_string() } else { echt.ip().to_string() };
     let url = format!("http://{host}:{}", echt.port());

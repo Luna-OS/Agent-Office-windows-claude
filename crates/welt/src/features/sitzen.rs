@@ -39,6 +39,10 @@ impl Aktivitaet<Kontext> for Sitzen {
     }
 
     fn tick(&mut self, kx: &mut Kontext, _dt: f32) -> bool {
+        if let Some(von) = kx.aenderungen.sitz_belegt.take() {
+            melden(WeltAktion::Meldung { text: format!("Da sitzt schon {von}.") });
+            return false;
+        }
         let p = &self.platz;
         kx.ich_sitze = Some(p.huefte);
         let auge = [p.x, p.y + p.huefte + 0.84, p.z];

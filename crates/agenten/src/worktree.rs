@@ -12,8 +12,25 @@ pub const BRANCH_PRAEFIX: &str = "office/";
 
 /// Führt `git` in `dir` aus und gibt die Ausgabe zurück (Fehler mit der Meldung von git).
 pub async fn git(dir: &Path, args: &[&str]) -> Result<String> {
+    git_mit(dir, args, &[]).await
+}
+
+/// Setzt eine Konto-Umgebung auf einen Befehl; ein leerer Wert entfernt die Variable.
+pub fn umgebung_anwenden(cmd: &mut Command, umgebung: &[(String, String)]) {
+    for (k, v) in umgebung {
+        if v.is_empty() {
+            cmd.env_remove(k);
+        } else {
+            cmd.env(k, v);
+        }
+    }
+}
+
+/// Wie [`git`], mit der Umgebung eines Kontos (dessen Git-/GitHub-Anmeldung).
+pub async fn git_mit(dir: &Path, args: &[&str], umgebung: &[(String, String)]) -> Result<String> {
     let mut cmd = Command::new("git");
     cmd.args(args).current_dir(dir).kill_on_drop(true);
+    umgebung_anwenden(&mut cmd, umgebung);
     #[cfg(windows)]
     cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
     let aus = cmd.output().await.context("git ist nicht installiert oder nicht im PATH")?;

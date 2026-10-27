@@ -85,7 +85,32 @@ impl Domaene for EinstellungenDomaene {
                 }
             }
             Client::UpdatePruefen | Client::UpdateStarten => {
-                o.hinweis(von, "Selbst-Updates gibt es in dieser Version noch nicht", Stufe::Info);
+                let starten = matches!(c, Client::UpdateStarten);
+                let skript = o.konfig.deploy_skript.clone().filter(|_| o.konfig.selbstupdate);
+                let Some(skript) = skript else {
+                    o.hinweis(von, "Dieses Office kann sich nicht selbst aktualisieren", Stufe::Info);
+                    return fertig();
+                };
+                if starten && !admin {
+                    o.hinweis(von, "Nur Admins können das Office aktualisieren", Stufe::Warnung);
+                    return fertig();
+                }
+                let o = o.clone();
+                return Box::pin(async move {
+                    let mut u = o.einstellungen.update.lock().unwrap().clone();
+                    if starten {
+                        u.phase = protokoll::einstellungen::UpdatePhase::Baut;
+                        u.von = Some(wer.clone());
+                        tracing::info!("{wer} aktualisiert das Office");
+                    } else {
+                        u.prueft = true;
+                    }
+                    *o.einstellungen.update.lock().unwrap() = u.clone();
+                    o.an_alle(&s(Server::Update { stand: Box::new(u.clone()) }), None);
+                    let u = if starten { crate::einstellungen::update::starten(&skript, u).await } else { crate::einstellungen::update::pruefen(&skript, u).await };
+                    *o.einstellungen.update.lock().unwrap() = u.clone();
+                    o.an_alle(&s(Server::Update { stand: Box::new(u) }), None);
+                });
             }
             Client::ThemaSetzen { wahl } => {
                 e.aendern(|d| {

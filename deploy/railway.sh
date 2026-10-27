@@ -453,7 +453,7 @@ cmd_up() {
   # SSH-Adresse in den Variablen, die Railway für den TCP-Proxy setzt.)
   rw variable set $(svc) --skip-deploys "RAILWAY_DOCKERFILE_PATH=$DOCKERFILE" \
     "OAO_ADMIN_KEYS=$(cat "$KEY_FILE.pub")" "OFFICE_BEANSPRUCH_TOKEN=$(cat "$CLAIM_FILE")" \
-    "OFFICE_DEPLOY_SKRIPT=deploy/railway.sh$NAME_FLAG" </dev/null >/dev/null || die "die Variablen des Dienstes konnten nicht gesetzt werden"
+    "OFFICE_DEPLOY_BEFEHL=deploy/railway.sh$NAME_FLAG" </dev/null >/dev/null || die "die Variablen des Dienstes konnten nicht gesetzt werden"
   [[ -z "$CLAUDE_TOKEN" ]] || printf '%s' "$CLAUDE_TOKEN" | rw variable set $(svc) --skip-deploys --stdin CLAUDE_CODE_OAUTH_TOKEN >/dev/null
   [[ -z "$ANTHROPIC_KEY" ]] || printf '%s' "$ANTHROPIC_KEY" | rw variable set $(svc) --skip-deploys --stdin ANTHROPIC_API_KEY >/dev/null
   # Railways Standard startet ein abgestürztes Office nur ein paar Mal neu.

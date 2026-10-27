@@ -4,6 +4,7 @@
 //! Die Reihenfolge zählt: `praesenz` begrüßt zuerst (Willkommen), `etagen` schickt beim Betreten
 //! zuerst `Betreten`, danach folgen die Stände der übrigen Domänen.
 
+pub mod anmeldungen;
 pub mod eingabe;
 pub mod einstellungen;
 pub mod etagen;
@@ -59,6 +60,7 @@ impl Register {
         let mut r = Self::default();
         r.eintragen(praesenz::Praesenz);
         r.eintragen(konten::KontenDomaene);
+        r.eintragen(anmeldungen::AnmeldungenDomaene);
         r.eintragen(einstellungen::EinstellungenDomaene);
         r.eintragen(etagen::EtagenDomaene);
         r.eintragen(spielzeug::SpielzeugDomaene);

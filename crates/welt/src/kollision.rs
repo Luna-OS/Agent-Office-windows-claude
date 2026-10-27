@@ -83,7 +83,7 @@ pub struct Koerper {
 }
 
 /// Was bei (x, z) mit Füßen auf Höhe `y` im Weg steht.
-pub fn blockiert<'a>(kaesten: &'a [Kasten], von: [f32; 3], x: f32, z: f32, y: f32, entkommen: bool) -> Option<&'a Kasten> {
+pub fn blockiert(kaesten: &[Kasten], von: [f32; 3], x: f32, z: f32, y: f32, entkommen: bool) -> Option<&Kasten> {
     let mut treffer: Option<&Kasten> = None;
     for k in kaesten {
         let unten = if k.unten.is_finite() { k.unten } else { 0.0 };

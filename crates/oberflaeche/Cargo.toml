@@ -9,6 +9,7 @@ license.workspace = true
 protokoll.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+medien.workspace = true
 leptos = { version = "0.8", features = ["csr"] }
 tw_merge = "0.1"
 vt100 = "0.18"
@@ -19,5 +20,5 @@ web-sys = { version = "0.3", features = [
   "Window", "Document", "Element", "HtmlElement", "HtmlInputElement", "HtmlTextAreaElement", "HtmlCanvasElement",
   "CanvasRenderingContext2d", "TextMetrics", "KeyboardEvent", "MouseEvent", "WheelEvent", "ClipboardEvent", "DataTransfer",
   "Storage", "Location", "Headers", "Request", "RequestInit", "RequestCredentials", "Response", "Navigator", "Clipboard",
-  "DomRect", "History", "Selection", "DragEvent", "ResizeObserver", "ResizeObserverEntry", "console",
+  "DomRect", "History", "MediaQueryList", "Selection", "DragEvent", "ResizeObserver", "ResizeObserverEntry", "console",
 ] }

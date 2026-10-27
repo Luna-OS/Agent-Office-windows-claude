@@ -6,7 +6,7 @@ use protokoll::spielzeug::{Ball, Wurf};
 /// So lange fliegt/rollt ein Ball höchstens, danach liegt er wieder unter dem Korb.
 pub const WURF_DAUER_MS: u64 = 20_000;
 /// Höchstgeschwindigkeit eines Wurfs in m/s (gegen Unsinn aus dem Netz).
-const MAX_TEMPO: f32 = 30.0;
+const MAX_TEMPO: f32 = welt::grundriss::draussen::BALL_MAX_TEMPO * 1.5;
 
 /// Der Ball, wie ihn ein Browser jetzt sehen soll (mit aktueller `vergangen_ms`).
 pub fn jetzt(b: &Ball, seit: u64, jetzt_ms: u64) -> Ball {

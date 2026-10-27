@@ -9,7 +9,7 @@ license.workspace = true
 # Ohne "3d" bleibt nur die reine Daten-Schicht (Grundriss, Kollision, Fahrphysik, Zustand),
 # z. B. für den Server: welt = { workspace = true, default-features = false }.
 default = ["3d"]
-3d = ["dep:kiss3d", "dep:log", "dep:web-time", "dep:image"]
+3d = ["dep:kiss3d", "dep:log", "dep:web-time", "dep:wgpu"]
 
 [dependencies]
 protokoll.workspace = true
@@ -18,20 +18,23 @@ serde_json.workspace = true
 kiss3d = { version = "0.47", optional = true }
 log = { version = "0.4", optional = true }
 web-time = { version = "1", optional = true }
-image = { version = "0.25", default-features = false, optional = true }
+wgpu = { version = "30", optional = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
 js-sys = "0.3"
 console_error_panic_hook = "0.1"
-wgpu = "30"
 web-sys = { version = "0.3", features = [
     "Window", "Navigator", "Document", "Element", "HtmlElement", "HtmlCanvasElement", "DomRect",
     "KeyboardEvent", "MouseEvent", "WheelEvent", "Event", "EventTarget", "AddEventListenerOptions",
-    "console", "Performance",
+    "console", "Performance", "Location",
 ] }
 
 [[example]]
 name = "minimal"
+required-features = ["3d"]
+
+[[example]]
+name = "vorschau"
 required-features = ["3d"]

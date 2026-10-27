@@ -622,7 +622,7 @@ cmd_up() {
   # einmal; Teammitglieder sollen per SSH zum Port des Servers verbinden; die Panels des Office
   # schlagen dieses Skript vor.
   local vars=("OAO_ADMIN_KEYS=$(cat "$KEY_FILE.pub")" "OFFICE_BEANSPRUCH_TOKEN=$(cat "$CLAIM_FILE")"
-    "OFFICE_OEFFENTLICHER_HOST=$SSH_HOST:$SSH_PORT" "OFFICE_DEPLOY_SKRIPT=deploy/dokploy.sh$NAME_FLAG")
+    "OFFICE_OEFFENTLICHER_HOST=$SSH_HOST:$SSH_PORT" "OFFICE_DEPLOY_BEFEHL=deploy/dokploy.sh$NAME_FLAG")
   [[ -z "$CLAUDE_TOKEN" ]] || vars+=("CLAUDE_CODE_OAUTH_TOKEN=$CLAUDE_TOKEN")
   [[ -z "$ANTHROPIC_KEY" ]] || vars+=("ANTHROPIC_API_KEY=$ANTHROPIC_KEY")
   set_env "${vars[@]}"

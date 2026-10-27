@@ -76,6 +76,9 @@ impl Domaene for KontenDomaene {
             o.hinweis(von, "Das dürfen nur Admins", Stufe::Warnung);
             return fertig();
         }
+        if matches!(c, Client::TeamHolen | Client::TeamEinladen { .. } | Client::TeamEntfernen { .. }) {
+            return Box::pin(team(o, von, c));
+        }
         let wer = o.person(von).map(|p| p.name).unwrap_or_default();
         let ergebnis: Result<(), String> = {
             let mut konten = o.zugang.konten.lock().unwrap();
@@ -96,6 +99,7 @@ impl Domaene for KontenDomaene {
                 }
                 Client::Entziehen { konto } => match konten.entziehen(&konto) {
                     Some(weg) => {
+                        o.anmeldungen.vergessen(&weg.id);
                         tracing::info!("{wer} hat das Konto {} entzogen", weg.name);
                         Ok(())
                     }
@@ -117,4 +121,25 @@ impl Domaene for KontenDomaene {
         konten_an_admins(o);
         fertig()
     }
+}
+
+/// Das SSH-Team (Admins): Stand, Einladen, Entfernen; danach bekommen alle Admins den neuen Stand.
+async fn team(o: &OfficeRef, von: &str, c: Client) {
+    match c {
+        Client::TeamEinladen { github } => {
+            let antwort = match crate::team::einladen(&o.konfig, &github).await {
+                Ok((name, schluessel)) => Server::TeamEingeladen { github, name: Some(name), schluessel: Some(schluessel), fehler: None },
+                Err(f) => Server::TeamEingeladen { github, name: None, schluessel: None, fehler: Some(f) },
+            };
+            o.an(von, &k(antwort));
+        }
+        Client::TeamEntfernen { name } => {
+            if let Err(f) = crate::team::entfernen(&o.konfig, &name).await {
+                o.hinweis(von, f, Stufe::Warnung);
+            }
+        }
+        _ => {}
+    }
+    let stand = crate::team::stand(&o.konfig).await;
+    o.an_admins(&k(Server::Team { stand }));
 }

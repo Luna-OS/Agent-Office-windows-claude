@@ -20,8 +20,8 @@ use crate::anmeldung::Sitzung;
 use crate::office::{Ausgang, DACH, EmoteEimer, OfficeRef, Verbindung};
 use crate::speicher::zufalls_id;
 
-/// Wo man im Aufzug ankommt (Mitte der Kabine, wie im Original).
-pub const AUFZUG: Ort = Ort { x: 8.5, y: 0.0, z: -11.8, rot_y: 0.0 };
+/// Wo man im Aufzug ankommt (Mitte der Kabine, aus `welt`).
+pub const AUFZUG: Ort = Ort { x: welt::grundriss::AUFZUG_ANKUNFT.0, y: 0.0, z: welt::grundriss::AUFZUG_ANKUNFT.1, rot_y: 0.0 };
 const MAX_FRAME: usize = 256 * 1024;
 
 pub async fn upgrade(State(o): State<OfficeRef>, headers: HeaderMap, Query(q): Query<HashMap<String, String>>, ws: WebSocketUpgrade) -> Response {

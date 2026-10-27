@@ -47,6 +47,8 @@ pub struct Zustand {
     pub chat: RwSignal<Vec<praesenz::ChatZeile>>,
     /// Das Chat-Eingabefeld hat den Fokus (T).
     pub chat_offen: RwSignal<bool>,
+    /// Die Hinweiszeile der Welt ("E: Terminal von Pixel öffnen").
+    pub hinweis: RwSignal<Option<String>>,
 
     pub etagen: RwSignal<Vec<etagen::EtageInfo>>,
     pub etage: RwSignal<Option<String>>,
@@ -60,10 +62,23 @@ pub struct Zustand {
     pub bus: RwSignal<Vec<agenten::BusNachricht>>,
     pub feed: RwSignal<Vec<agenten::FeedEintrag>>,
     pub board: RwSignal<aufgaben::Board>,
+    pub nutzung: RwSignal<Option<agenten::Nutzung>>,
+    pub limits: RwSignal<Option<agenten::Limits>>,
+    pub prompts: RwSignal<Vec<agenten::PromptInfo>>,
+    pub dienste: RwSignal<Vec<agenten::Dienst>>,
+    /// Arbeiter gehen heim, wenn ihr PR gemergt ist.
+    pub nach_merge_gehen: RwSignal<bool>,
 
     pub einstellungen: RwSignal<Option<einstellungen::Gesamt>>,
     pub konten: RwSignal<Option<konten::KontenStand>>,
     pub anmeldungen: RwSignal<Option<konten::Anmeldungen>>,
+
+    pub bildschirme: RwSignal<Vec<protokoll::medien::Bildschirm>>,
+    pub leinwand: RwSignal<protokoll::dach::LeinwandZustand>,
+    pub jukebox: RwSignal<Option<protokoll::medien::JukeboxZustand>>,
+    pub teilt: RwSignal<bool>,
+    pub voice: RwSignal<bool>,
+    pub stumm: RwSignal<bool>,
 }
 
 impl Zustand {
@@ -82,6 +97,7 @@ impl Zustand {
             personen: RwSignal::new(Vec::new()),
             chat: RwSignal::new(Vec::new()),
             chat_offen: RwSignal::new(false),
+            hinweis: RwSignal::new(None),
             etagen: RwSignal::new(Vec::new()),
             etage: RwSignal::new(None),
             projekt: RwSignal::new(None),
@@ -93,15 +109,31 @@ impl Zustand {
             bus: RwSignal::new(Vec::new()),
             feed: RwSignal::new(Vec::new()),
             board: RwSignal::new(aufgaben::Board::default()),
+            nutzung: RwSignal::new(None),
+            limits: RwSignal::new(None),
+            prompts: RwSignal::new(Vec::new()),
+            dienste: RwSignal::new(Vec::new()),
+            nach_merge_gehen: RwSignal::new(false),
             einstellungen: RwSignal::new(None),
             konten: RwSignal::new(None),
             anmeldungen: RwSignal::new(None),
+            bildschirme: RwSignal::new(Vec::new()),
+            leinwand: RwSignal::new(Default::default()),
+            jukebox: RwSignal::new(None),
+            teilt: RwSignal::new(false),
+            voice: RwSignal::new(false),
+            stumm: RwSignal::new(false),
         }
     }
 
     /// Der Name, unter dem man im Office ist.
     pub fn mein_name(&self) -> String {
         self.ich_selbst.with_untracked(|p| p.as_ref().map(|p| p.name.clone())).unwrap_or_default()
+    }
+
+    /// Die Etage, auf der man gerade ist (nicht reaktiv).
+    pub fn etage_jetzt(&self) -> Option<String> {
+        self.etage.get_untracked()
     }
 
     /// Ein Arbeiter nach ID.

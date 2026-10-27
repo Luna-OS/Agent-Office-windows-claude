@@ -9,7 +9,7 @@ use std::rc::Rc;
 use kiss3d::prelude::*;
 use protokoll::praesenz::{Emote, Person};
 
-use crate::bau::farbe;
+use crate::bau::farbe_srgb;
 use crate::figur::{Figur, Haltung, Look, winkel_hin};
 use crate::grundriss::sitze;
 use crate::register::{Phase, Register};
@@ -105,11 +105,8 @@ pub fn installieren(reg: &mut Register<Kontext>) {
                     a.emote = None;
                 }
             }
-            if p.stimme {
-                text.push_str(if p.stumm { " (stumm)" } else { " (Voice)" });
-            }
             let kopf = a.figur.kopf_welt();
-            kx.beschriften(text, [kopf.x, kopf.y + 0.2, kopf.z], farbe(&p.farbe));
+            kx.beschriften(text, [kopf.x, kopf.y + 0.2, kopf.z], farbe_srgb(&p.farbe));
             abstaende.push((id.clone(), (a.pos - ich).length()));
         }
         crate::api::abstaende_melden(&abstaende);

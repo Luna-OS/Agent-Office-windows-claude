@@ -8,8 +8,7 @@ const NAMEN: [&str; 10] = ["Keks", "Pfannkuchen", "Erdnuss", "Pfeffer", "Krümel
 const RASSEN: [Rasse; 5] = [Rasse::Welpe, Rasse::Corgi, Rasse::Dackel, Rasse::Mops, Rasse::Shiba];
 const FELLE: u32 = 6;
 const TEMPO: f32 = 1.2;
-/// Wo er laufen darf (Etage ohne Wände).
-const BEREICH: (f32, f32, f32, f32) = (-16.0, 16.0, -10.5, 11.0);
+use welt::grundriss::draussen::{HUND_KORB, HUND_PUNKTE};
 const WEDELN_MS: u64 = 3000;
 
 pub struct Hund {
@@ -41,7 +40,7 @@ fn laenge(weg: &[[f32; 2]]) -> f32 {
 impl Hund {
     pub fn neu(etage: &str, eigener_name: Option<String>) -> Self {
         let (name, fell, rasse) = vorgaben(etage);
-        Self { standard_name: name, eigener_name, fell, rasse, weg: vec![[2.0, 2.0]], tun: HundTun::Liegen, seit: 0, bis: 0, folgt: None, gestreichelt_von: None }
+        Self { standard_name: name, eigener_name, fell, rasse, weg: vec![[HUND_KORB.0, HUND_KORB.1]], tun: HundTun::Schlafen, seit: 0, bis: 0, folgt: None, gestreichelt_von: None }
     }
 
     pub fn name(&self) -> String {
@@ -112,12 +111,16 @@ impl Hund {
         if !leute.is_empty() && rng.random_bool(0.12) {
             self.folgt = Some(leute[rng.random_range(0..leute.len())].0.clone());
         }
-        let (x0, x1, z0, z1) = BEREICH;
-        let ziel = [rng.random_range(x0..x1), rng.random_range(z0..z1)];
+        let (px, pz) = HUND_PUNKTE[rng.random_range(0..HUND_PUNKTE.len())];
+        let mut ziel = [px + rng.random_range(-0.8..0.8), pz + rng.random_range(-0.8..0.8)];
         let (tun, pause) = match rng.random_range(0..10) {
             0..=2 => (HundTun::Schnueffeln, rng.random_range(2000..5000)),
             3..=4 => (HundTun::Sitzen, rng.random_range(4000..10_000)),
-            5 => (HundTun::Schlafen, rng.random_range(20_000..60_000)),
+            5 => {
+                // Ein Nickerchen im Körbchen.
+                ziel = [HUND_KORB.0, HUND_KORB.1];
+                (HundTun::Schlafen, rng.random_range(20_000..60_000))
+            }
             6 => (HundTun::Liegen, rng.random_range(10_000..30_000)),
             _ => (HundTun::Stehen, rng.random_range(1000..3000)),
         };

@@ -17,26 +17,9 @@ use crate::speicher::{laden, speichern};
 pub const MAX_DEKOR: usize = 60;
 pub const MAX_BESTE: usize = 10;
 
-/// Die Parkplätze der Garage wie im Original (x, z, rot_y).
-pub const PARKPLAETZE: [(f32, f32, f32); 9] = {
-    const HINTEN: f32 = -13.0 + 0.3 + 0.4 + 2.3;
-    const VORNE: f32 = 13.0 - 0.5 - 2.3;
-    const PI: f32 = std::f32::consts::PI;
-    [
-        (-14.4, HINTEN, PI),
-        (-8.0, HINTEN, PI),
-        (1.6, HINTEN, PI),
-        (11.2, HINTEN, PI),
-        (-14.4, VORNE, 0.0),
-        (-4.8, VORNE, 0.0),
-        (4.8, VORNE, 0.0),
-        (14.4, VORNE, 0.0),
-        (9.0, 18.2, PI / 2.0),
-    ]
-};
-
-fn autos_geparkt() -> Vec<Auto> {
-    PARKPLAETZE.iter().map(|&(x, z, rot_y)| Auto { x, z, rot_y, tempo: 0.0, lenkung: 0.0, fahrer: None, beifahrer: None }).collect()
+/// Die Autos auf ihren Parkplätzen (aus `welt`, Index = Auto-Nummer).
+pub fn autos_geparkt() -> Vec<Auto> {
+    welt::grundriss::draussen::AUTOS.iter().map(|p| Auto { x: p.x, z: p.z, rot_y: p.rot_y, tempo: 0.0, lenkung: 0.0, fahrer: None, beifahrer: None }).collect()
 }
 
 /// Was von einer Etage gespeichert wird.

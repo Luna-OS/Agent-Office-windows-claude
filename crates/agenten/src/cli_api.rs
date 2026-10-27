@@ -174,11 +174,12 @@ pub struct AnlegenAnfrage {
 
 /// Ein Agent holt sich Verstärkung: ein neuer Arbeiter mit einem Auftrag.
 pub async fn anlegen(State(ag): State<Agenten>, kopf: HeaderMap, Json(a): Json<AnlegenAnfrage>) -> Response {
-    let (etage, _, name) = ausweisen!(ag, kopf);
+    let (etage, ich, name) = ausweisen!(ag, kopf);
+    let konto = ag.innen.zustand().arbeiter_mut(&etage, &ich).and_then(|x| x.info.konto.clone());
     if a.prompt.trim().is_empty() {
         return fehler(StatusCode::BAD_REQUEST, "Sag, was der neue Arbeiter tun soll");
     }
-    let wunsch = start::Wunsch { tisch: a.tisch, prompt: Some(a.prompt), provider: a.provider, modell: a.modell, ..Default::default() };
+    let wunsch = start::Wunsch { tisch: a.tisch, prompt: Some(a.prompt), provider: a.provider, modell: a.modell, konto, ..Default::default() };
     match start::anlegen(&ag, &etage, &name, wunsch).await {
         Ok(id) => {
             let z = ag.innen.zustand();
