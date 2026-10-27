@@ -431,7 +431,7 @@ export class SignIns {
         l.claude = { status: 'busy' };
       } else l.claude = { status: 'none', error: lastWords(out) || 'Signing in stopped before it finished' };
       this.onChange(id);
-      void this.look(id, true);
+      if (exitCode === 0) void this.look(id, true); // a look now would wipe out why it stopped
     });
     l.flows.claude = flow;
     l.claude = { status: 'busy', pending: {} };
@@ -478,7 +478,7 @@ export class SignIns {
         l.github = { status: 'busy' };
       } else l.github = { status: 'none', error: lastWords(out) || 'Signing in stopped before it finished' };
       this.onChange(id);
-      void this.look(id, true);
+      if (exitCode === 0) void this.look(id, true); // a look now would wipe out why it stopped
     });
     l.flows.github = flow;
     l.github = { status: 'busy', pending: {} };

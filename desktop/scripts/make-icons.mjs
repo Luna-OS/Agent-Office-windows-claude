@@ -1,5 +1,6 @@
 // Draws the app's icons, without any image tools: build/icon.ico + build/icon.png (Agent Office, an
-// office building) and claude/claude-code.ico (the "Claude Code (ohne API-Key)" shortcut, a prompt).
+// office building), ui/tray.png (the connector's tray icon) and claude/claude-code.ico (the
+// "Claude Code (ohne API-Key)" shortcut, a prompt).
 // Run it again after changing a drawing: node desktop/scripts/make-icons.mjs
 import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
@@ -140,4 +141,6 @@ const pngsOf = (draw) => SIZES.map((size) => ({ size, data: png(render(draw, siz
 const office = pngsOf(DRAWINGS.office);
 write(path.join(desktop, 'build', 'icon.ico'), ico(office));
 write(path.join(desktop, 'build', 'icon.png'), png(render(DRAWINGS.office, 512), 512));
+// The connector's tray icon (Windows): small, so it stays sharp.
+write(path.join(desktop, 'ui', 'tray.png'), png(render(DRAWINGS.office, 32), 32));
 write(path.join(desktop, 'claude', 'claude-code.ico'), ico(pngsOf(DRAWINGS.claude)));

@@ -2,7 +2,7 @@
   "name": "agent-office-desktop",
   "productName": "Agent Office",
   "version": "0.1.0",
-  "description": "Agent Office as a desktop app for Windows and macOS: the office on this computer or an online lobby on a server, with Claude Code on the Claude subscription login (no API key).",
+  "description": "Agent Office's connector for Windows and macOS: joins a lobby on your Umbrel or a server (or starts the office on this computer), signs each player in with their own Claude and GitHub, and opens the office in the browser.",
   "main": "main.cjs",
   "private": true,
   "license": "MIT",
@@ -29,9 +29,14 @@
     },
     "files": [
       "main.cjs",
+      "controller.cjs",
+      "connector.cjs",
+      "passthrough.cjs",
+      "preload.cjs",
       "lobby.cjs",
       "platform.cjs",
       "hosting.cjs",
+      "ui/**",
       "package.json"
     ],
     "afterPack": "scripts/after-pack.cjs",
@@ -61,10 +66,7 @@
       "category": "public.app-category.developer-tools",
       "identity": "-",
       "hardenedRuntime": false,
-      "gatekeeperAssess": false,
-      "extendInfo": {
-        "NSMicrophoneUsageDescription": "Agent Office nutzt das Mikrofon für den Sprach-Chat mit deinem Team."
-      }
+      "gatekeeperAssess": false
     },
     "dmg": {
       "artifactName": "Agent-Office-${version}-mac-${arch}.${ext}",

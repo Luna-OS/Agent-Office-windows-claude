@@ -1,12 +1,13 @@
 # Agent Office als Mac-App
 
-Zurück zur [README](../README.md) · [Windows-App](windows-app.md) · [Online-Lobby](online-lobby.md)
+Zurück zur [README](../README.md) · [Connector](connector.md) · [Windows-App](windows-app.md) · [Online-Lobby](online-lobby.md)
 
-Die Mac-App ist dieselbe App wie die [Windows-App](windows-app.md): das 3D-Office in einem eigenen
-Fenster, ohne Terminal, ohne eigenes Node.js und mit eingebauter GitHub CLI. Claude Code läuft mit
-deinem **Claude-Abo** statt mit einem API-Key. Wahlweise läuft das Office auf diesem Mac, oder du trittst
-einer [Online-Lobby](online-lobby.md) bei, etwa auf deinem Umbrel. Dann laufen die Worker dort und
-nicht auf deinem Mac.
+Die Mac-App ist dieselbe App wie die [Windows-App](windows-app.md): ein **[Connector](connector.md)**,
+der dich mit einer [Online-Lobby](online-lobby.md) verbindet, etwa auf deinem Umbrel, dich dort mit
+deinem **eigenen Claude und GitHub** anmeldet und das Office in deinem normalen Browser öffnet. Die
+Worker laufen dann in der Lobby und nicht auf deinem Mac. Ohne Server startet sie das Office auch auf
+diesem Mac, ohne Terminal, ohne eigenes Node.js und mit eingebauter GitHub CLI; Claude Code läuft
+dann mit deinem **Claude-Abo** statt mit einem API-Key.
 
 ## Installieren
 
@@ -21,9 +22,12 @@ nicht auf deinem Mac.
      Sicherheit**: unten bei „Agent Office wurde blockiert“ auf **Trotzdem öffnen** klicken.
    - Oder im Terminal: `xattr -dr com.apple.quarantine "/Applications/Agent Office.app"`
 
-Beim ersten Start fragt die App, wo das Office laufen soll: **🖥️ Auf diesem Computer** oder
-**🌐 Online-Lobby** (siehe [Online-Lobby](online-lobby.md)). Im lokalen Office prüft sie, was noch
-fehlt, und bietet es nacheinander an (jeweils mit „Später“ überspringbar):
+Beim ersten Start zeigt der Connector **🌐 Lobby beitreten** und **🖥️ Ohne Server**; wie es weitergeht,
+steht unter [Connector](connector.md). Schließt du das Fenster, läuft die App im Dock weiter (der
+Browser bekommt das Office über sie); ein Klick aufs Dock-Symbol holt sie zurück, ⌘Q beendet sie.
+
+Im Office auf diesem Mac prüft sie, was noch fehlt, und bietet es nacheinander an (jeweils mit
+„Später“ überspringbar):
 
 1. **Git**: kommt mit Apples Befehlszeilentools. Die App startet `xcode-select --install`, macOS fragt
    nach und installiert sie; danach startet das Office von selbst neu.
@@ -36,30 +40,35 @@ Die App findet Programme, die du mit Homebrew oder in deiner Shell installiert h
 
 ## Claude Code ohne API-Key
 
-Wie unter Windows: Ist `ANTHROPIC_API_KEY` gesetzt, nimmt Claude Code immer den Key. Die App startet
-das Office deshalb ohne diese Variablen, die Worker nutzen also deine Abo-Anmeldung (abschaltbar unter
-*Claude Code → Worker nur mit Claude-Abo (API-Key ignorieren)*).
+Für das Office auf diesem Mac, wie unter Windows: Ist `ANTHROPIC_API_KEY` gesetzt, nimmt Claude Code
+immer den Key. Die App startet das Office deshalb ohne diese Variablen, die Worker nutzen also deine
+Abo-Anmeldung (abschaltbar unter *Dieser Computer → Worker nur mit Claude-Abo (API-Key ignorieren)*).
 
-Das Menü **Claude Code** öffnet ein Terminal-Fenster mit `claude-code.command`, das die API-Variablen
-nur für dieses Fenster entfernt, Claude Code bei Bedarf installiert und startet:
+Das Menü **Dieser Computer** öffnet ein Terminal-Fenster mit `claude-code.command`, das die
+API-Variablen nur für dieses Fenster entfernt, Claude Code bei Bedarf installiert und startet:
 
 - *Claude Code öffnen (ohne API-Key)* (⌘⇧C)
-- *Mit Claude-Abo anmelden …*: `claude auth login --claudeai`
+- *Claude Code mit Claude-Abo anmelden …*: `claude auth login --claudeai`
 - *Anmeldestatus prüfen*: `claude auth status`
+
+In einer Online-Lobby meldest du dich stattdessen im Connector unter **🔐 Deine Anmeldungen** mit
+deinem eigenen Claude an.
 
 ## Mitspieler auf deinen Mac einladen
 
-Wie unter Windows: **Online-Lobby → Lobby auf diesem Computer für andere öffnen**, dann zeigt die App
+Wie unter Windows: **Dieser Computer → Lobby auf diesem Computer für andere öffnen**, dann zeigt die App
 Adressen und Passwort zum Verschicken. Fragt macOS nach eingehenden Verbindungen: erlauben. Alles
 dazu in der [Online-Lobby-Anleitung](online-lobby.md#ohne-umbrel-die-lobby-auf-deinem-pc-hosten).
 
 ## Was anders ist als unter Windows
 
-- Das Menü der App heißt wie die App, und es gibt **Bearbeiten** (⌘C / ⌘V in Terminals und Feldern)
-  und **Fenster**.
-- Sprach-Chat: macOS fragt beim ersten Mal, ob Agent Office das Mikrofon benutzen darf. Bildschirm
-  teilen braucht die Freigabe unter *Datenschutz & Sicherheit → Bildschirmaufnahme*.
-- Daten liegen in `~/agent-office`, App-Einstellungen in `~/Library/Application Support/Agent Office`.
+- Das Menü der App heißt wie die App, und es gibt **Bearbeiten** (⌘C / ⌘V in den Feldern des
+  Connectors) und **Fenster**.
+- Sprach-Chat und Bildschirm teilen laufen im Browser: macOS fragt beim ersten Mal, ob dein Browser
+  das Mikrofon benutzen darf; Bildschirm teilen braucht für ihn die Freigabe unter *Datenschutz &
+  Sicherheit → Bildschirmaufnahme*.
+- Daten liegen in `~/agent-office`, App-Einstellungen, gemerkte Lobbys und deine Anmeldungen dort (mit
+  dem Schlüsselbund verschlüsselt) in `~/Library/Application Support/Agent Office`.
 
 ## Selbst bauen
 

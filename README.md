@@ -1,16 +1,15 @@
 > [!TIP]
-> **Windows- und Mac-App mit Claude Code ohne API-Key.** Diese Version gibt es als Windows-Installer
+> **Ein Connector für Windows und Mac, das Office im Browser.** Diese Version gibt es als Windows-Installer
 > (`Agent-Office-Setup-<version>.exe` unter *Releases*) und als Mac-Disk-Image (`Agent-Office-<version>-mac-arm64.dmg`
-> bzw. `-x64.dmg`): das Office in einem eigenen Fenster, ohne Terminal,
-> ohne eigenes Node.js und mit eingebauter GitHub CLI, plus **„Claude Code (ohne API-Key)“**, das Claude Code mit deinem
-> Claude-Abo (Pro/Max) startet. Auch die Worker im Office nutzen das Abo statt eines `ANTHROPIC_API_KEY`.
-> Alles dazu: [Windows-App](docs/windows-app.md), [Mac-App](docs/mac-app.md).
+> bzw. `-x64.dmg`). Die App ist ein **Connector**: Sie verbindet dich mit einer Lobby, meldet **jeden Spieler mit seinem
+> eigenen Claude und GitHub** an und öffnet das Office in deinem normalen Browser, angemeldet als du, mit Sprache und
+> Bildschirm teilen. Alles dazu: [docs/connector.md](docs/connector.md), installieren: [Windows](docs/windows-app.md),
+> [Mac](docs/mac-app.md).
 >
-> **Online-Lobby auf deinem Umbrel.** Das Office kann auch auf einem Server laufen, zum Beispiel als Umbrel-App:
-> Die Worker laufen dann dort statt auf deinem PC, und deine Mitspieler treten mit der App oder im Browser derselben Lobby bei.
-> Ohne Server geht es auch: **Online-Lobby → Lobby auf diesem Computer für andere öffnen** macht deinen PC zur Lobby.
-> Jeder Spieler nutzt sein eigenes Claude-Abo, oder das des Hosts, wenn der es teilt. Anleitung: [docs/online-lobby.md](docs/online-lobby.md),
-> die Umbrel-App selbst: [docs/umbrel.md](docs/umbrel.md).
+> **Online-Lobby auf deinem Umbrel.** Die Lobby läuft als Umbrel-App, und dort laufen auch alle Worker, nicht auf deinem PC.
+> Deine Mitspieler treten mit ihrem Connector (oder im Browser) bei. Jeder nutzt sein eigenes Claude-Abo, oder das des Hosts,
+> wenn der es teilt. Anleitung: [docs/online-lobby.md](docs/online-lobby.md), die Umbrel-App selbst: [docs/umbrel.md](docs/umbrel.md).
+> Ohne Server geht es auch: Der Connector startet das Office dann auf deinem Computer.
 
 > [!WARNING]
 > **Work in progress.** Agent Office is built for one person's workflow — mine — and it changes fast as I iterate on it.
@@ -68,11 +67,12 @@ On the machine that runs the office:
 
 ## Run locally
 
-On Windows, the easiest way is the Windows app: install `Agent-Office-Setup-<version>.exe` from the releases and start
-**Agent Office** from the Start menu. It brings its own Node.js and signs Claude Code in with your Claude subscription,
-no API key needed ([docs/windows-app.md](docs/windows-app.md)). On a Mac, the same app comes as a disk image
-([docs/mac-app.md](docs/mac-app.md)). Either one can also join an [online lobby](docs/online-lobby.md): an office on your
-Umbrel or a server, so the workers run there and not on your computer.
+On Windows and macOS, the easiest way is the app, a connector: install `Agent-Office-Setup-<version>.exe`
+([docs/windows-app.md](docs/windows-app.md)) or the Mac disk image ([docs/mac-app.md](docs/mac-app.md)). It joins an
+[online lobby](docs/online-lobby.md) on your Umbrel or a server, so the workers run there and not on your computer,
+signs each player in with their own Claude and GitHub, and opens the office in the browser
+([docs/connector.md](docs/connector.md)). It can also start the office on this computer, with its own Node.js and Claude
+Code on your Claude subscription, no API key needed.
 
 Install the latest release and start the office:
 
@@ -374,9 +374,10 @@ Every change to the app that lands on `main` is published as a GitHub release by
 
 ## More
 
+- [Connector](docs/connector.md): the app for Windows and macOS: join a lobby, sign in with your own Claude and GitHub, the office in your browser
 - [Windows app](docs/windows-app.md): the Windows installer, and Claude Code on your Claude subscription without an API key
 - [Mac app](docs/mac-app.md): the same app for macOS (Apple silicon and Intel)
-- [Online lobby](docs/online-lobby.md): the office on your Umbrel, joined from the apps, with the host's AI or each player's own
+- [Online lobby](docs/online-lobby.md): the office on your Umbrel, joined from the connector, with the host's AI or each player's own
 - [Umbrel app](docs/umbrel.md): what the Umbrel app is made of, and putting it in your community app store with `deploy/umbrel/publish.sh`
 - [Features](docs/features.md): everything in the office, room by room
 - [Agents](docs/agents.md): Claude Code, Codex and OpenCode, models and effort, and the office's prompts
