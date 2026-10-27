@@ -372,7 +372,7 @@ Server edits restart the server, not the workers. After changing `ptyhost.ts`, b
 
 Every change to the app that lands on `main` is published as a GitHub release by [`.github/workflows/release.yml`](.github/workflows/release.yml), and `install.sh` installs the newest one. Bump `package.json`'s version to start a new minor.
 
-The Windows and Mac apps are released together: every change on `main` builds both and publishes them as **one** release, `v0.1.13`, `v0.1.14`, … with the `.exe` and both `.dmg` files ([`.github/workflows/app-release.yml`](.github/workflows/app-release.yml)). The version only ever goes up by one; bump `desktop/package.json`'s version to start a new minor.
+The Windows and Mac apps are released together: every change on `main` builds both and publishes them as **one** release, `v1.0`, `v1.1`, `v1.2`, … with the `.exe` and both `.dmg` files ([`.github/workflows/app-release.yml`](.github/workflows/app-release.yml)). Each release is the previous one plus 0.1 (after 1.9 comes 2.0).
 
 ## More
 

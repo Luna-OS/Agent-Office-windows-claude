@@ -1,10 +1,9 @@
 #!/usr/bin/env bash
-# Prints the version of the next app release: desktop/package.json's major.minor plus one more than the
-# highest patch already tagged for it (v…, and the old windows-v… / mac-v… tags), so versions only ever
-# go up by one: 0.1.13, 0.1.14, ... Bump desktop/package.json's minor to start over at <minor>.1.
+# Prints the version of the next app release, one tenth above the last: 1.0, 1.1, ... 1.9, 2.0, ...
+# The first release (no v<major>.<minor> tag yet) is 1.0. The apps themselves get <version>.0.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 
-base="$(node -p 'require("./desktop/package.json").version.split(".").slice(0, 2).join(".")')"
-last="$(git tag -l | sed -nE "s/^(v|windows-v|mac-v)${base//./\\.}\.([0-9]+)$/\2/p" | sort -n | tail -n 1)"
-echo "$base.$(( ${last:-0} + 1 ))"
+last="$(git tag -l 'v*' | sed -nE 's/^v([0-9]+)\.([0-9])$/\1 \2/p' | awk '{ print $1 * 10 + $2 }' | sort -n | tail -n 1)"
+next=$(( ${last:-9} + 1 ))
+echo "$(( next / 10 )).$(( next % 10 ))"

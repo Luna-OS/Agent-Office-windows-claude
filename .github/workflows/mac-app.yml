@@ -63,6 +63,7 @@ jobs:
         run: |
           version="${{ inputs.version }}"
           [ -n "$version" ] || version="$(bash ../.github/scripts/next-version.sh)"
+          version="$version.0"
           npm version "$version" --no-git-tag-version --allow-same-version
           echo "version=$version" >> "$GITHUB_OUTPUT"
 

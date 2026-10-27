@@ -1,8 +1,8 @@
 name: App release
 
 # Every change to the app that lands on main is built for Windows (windows-app.yml) and the Mac
-# (mac-app.yml) and published as one GitHub release with all installers: v0.1.13, v0.1.14, ...
-# The version only ever goes up by one (.github/scripts/next-version.sh); never publish Windows
+# (mac-app.yml) and published as one GitHub release with all installers: v1.0, v1.1, v1.2, ...
+# The version only ever goes up by 0.1 (.github/scripts/next-version.sh); never publish Windows
 # and Mac as separate releases.
 
 on:

@@ -1,7 +1,7 @@
 {
   "name": "agent-office-desktop",
   "productName": "Agent Office",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Agent Office's connector for Windows and macOS: joins a lobby on your Umbrel or a server (or starts the office on this computer), signs each player in with their own Claude and GitHub, and opens the office in the browser.",
   "main": "main.cjs",
   "private": true,
