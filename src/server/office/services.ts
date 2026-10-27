@@ -54,7 +54,8 @@ export function createServices(ctx: Ctx): BuildingServices {
     claudeBin,
     resolveCommand('gh'),
     childEnv,
-    (id) => accounts.get(id)?.role === 'admin',
+    // Admins may use the office's own sign-ins; members its Claude too, while an admin shares it (🔑 Accounts).
+    (id, which) => accounts.get(id)?.role === 'admin' || (which === 'claude' && !!accounts.get(id) && accounts.shareClaude),
     (id) => {
       for (const c of clients.values()) if (c.accountId === id && !c.out) ctx.sendTo(c, { t: 'signins', state: signins.state(id) });
     },

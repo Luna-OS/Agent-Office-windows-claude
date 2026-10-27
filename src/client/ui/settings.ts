@@ -9,6 +9,8 @@ import { DOG_NAME_MAX, cleanDogName } from '../../shared/dog';
 import { h, openModal, timeAgo } from './dom';
 import { agentFields, choiceLabel, officeChoice } from './provider';
 import { openPromptEditor, rewrittenPrompts } from './prompts';
+import { radioSeg } from './seg';
+import { graphicsSetting } from '../features/graphics/ui';
 
 const VIEWS: [ViewMode, string, string][] = [
   ['first', '👀 First person', 'See through your own eyes. Click the office to look around with the mouse and click things to use them. Esc frees the mouse.'],
@@ -23,7 +25,7 @@ const WEBHOOK_NAME: Record<WebhookKind, string> = { slack: 'Slack', discord: 'Di
 export type SettingsPane = 'you' | 'sound' | 'notify' | 'building' | 'workers';
 
 const PANES: { id: SettingsPane; icon: string; label: string; blurb: string }[] = [
-  { id: 'you', icon: '🧍', label: 'You', blurb: 'How you look, how you see the office, and how you’re signed in.' },
+  { id: 'you', icon: '🧍', label: 'You', blurb: 'How you look, how you see the office, how hard it works your computer, and how you’re signed in.' },
   { id: 'sound', icon: '🔊', label: 'Sound & voice', blurb: 'How loud the office is for you, and how voice chat works.' },
   { id: 'notify', icon: '🔔', label: 'Notifications', blurb: 'Hear about a worker that needs someone, or finished, while you’re somewhere else.' },
   { id: 'building', icon: '🏢', label: 'Building', blurb: 'The map, the decorations, the sky, the dog, and where new floors are cloned.' },
@@ -108,90 +110,18 @@ export function openSettings(net: Net, settings: Settings, onChange: (s: Setting
   const soundRow = volumeRow('Office sounds volume', 'volume', 'muted', previewSound);
 
   // Voice chat: an open mic, or muted until you hold V.
-  const talkRow = h('div.seg', { role: 'radiogroup', 'aria-label': 'Voice chat' });
-  const paintTalk = () => {
-    talkRow.replaceChildren(
-      ...(
-        [
-          [false, '🎙️ Open mic'],
-          [true, '✋ Push to talk'],
-        ] as const
-      ).map(([ptt, label]) =>
-        h(
-          'button.btn',
-          {
-            type: 'button',
-            role: 'radio',
-            'aria-checked': String(settings.pushToTalk === ptt),
-            class: settings.pushToTalk === ptt ? 'on' : '',
-            onclick: () => {
-              if (settings.pushToTalk === ptt) return;
-              settings = { ...settings, pushToTalk: ptt };
-              onChange(settings);
-              paintTalk();
-            },
-          },
-          label,
-        ),
-      ),
-    );
-  };
-  paintTalk();
+  const talkRow = radioSeg('Voice chat', [[false, '🎙️ Open mic'], [true, '✋ Push to talk']], () => settings.pushToTalk, (pushToTalk) => onChange((settings = { ...settings, pushToTalk })));
   const musicRow = volumeRow('Jukebox volume', 'music', 'musicMuted');
 
   // The swish of the book's pages at the bookshelf, on or off.
-  const pagesRow = h('div.seg', { role: 'radiogroup', 'aria-label': 'Page turns at the bookshelf' });
-  const paintPages = () => {
-    pagesRow.replaceChildren(
-      ...(
-        [
-          [true, '📖 On'],
-          [false, 'Off'],
-        ] as const
-      ).map(([on, label]) =>
-        h(
-          'button.btn',
-          {
-            type: 'button',
-            role: 'radio',
-            'aria-checked': String(settings.pageTurns === on),
-            class: settings.pageTurns === on ? 'on' : '',
-            onclick: () => {
-              if (settings.pageTurns === on) return;
-              settings = { ...settings, pageTurns: on };
-              onChange(settings);
-              paintPages();
-            },
-          },
-          label,
-        ),
-      ),
-    );
-  };
-  paintPages();
+  const pagesRow = radioSeg('Page turns at the bookshelf', [[true, '📖 On'], [false, 'Off']], () => settings.pageTurns, (pageTurns) => onChange((settings = { ...settings, pageTurns })));
 
   // The building's holiday theme, for everyone.
-  const themeRow = h('div.seg', { role: 'radiogroup', 'aria-label': 'Holiday theme' });
+  const themeRow = radioSeg('Holiday theme', THEME_PICKS.map((p) => [p, THEME_LABEL[p]] as const), () => store.theme.pick, (pick) => net.send({ t: 'theme.set', pick }));
   const themeNote = h('p.setting-note');
   const paintTheme = () => {
     const { pick, active, by, at } = store.theme;
-    themeRow.replaceChildren(
-      ...THEME_PICKS.map((p) =>
-        h(
-          'button.btn',
-          {
-            type: 'button',
-            role: 'radio',
-            'aria-checked': String(pick === p),
-            class: pick === p ? 'on' : '',
-            onclick: () => {
-              if (store.theme.pick !== p) net.send({ t: 'theme.set', pick: p });
-            },
-          },
-          THEME_LABEL[p],
-        ),
-      ),
-    );
+    themeRow.paint();
     const now =
       active === 'halloween'
         ? 'Halloween: the workers are zombies, your hands are an undead warlock’s, the dog’s in costume, the sky’s gone creepy and there are jack-o’-lanterns everywhere.'
@@ -415,30 +345,11 @@ export function openSettings(net: Net, settings: Settings, onChange: (s: Setting
   limitClear.addEventListener('click', () => net.send({ t: 'machine.limit', limit: null }));
 
   // Whether a worker whose pull request merged goes home by itself, for everyone.
-  const leaveRow = h('div.seg', { role: 'radiogroup', 'aria-label': 'Workers whose pull request merged' });
+  const leaveRow = radioSeg('Workers whose pull request merged', [[true, '🏠 Go home by themselves'], [false, '🪑 Stay until sent home']], () => store.leaveOnMerge.on, (on) => net.send({ t: 'leaveOnMerge.set', on }));
   const leaveNote = h('p.setting-note');
   const paintLeave = () => {
     const { on, by, at } = store.leaveOnMerge;
-    leaveRow.replaceChildren(
-      ...([
-        [true, '🏠 Go home by themselves'],
-        [false, '🪑 Stay until sent home'],
-      ] as const).map(([value, label]) =>
-        h(
-          'button.btn',
-          {
-            type: 'button',
-            role: 'radio',
-            'aria-checked': String(on === value),
-            class: on === value ? 'on' : '',
-            onclick: () => {
-              if (store.leaveOnMerge.on !== value) net.send({ t: 'leaveOnMerge.set', on: value });
-            },
-          },
-          label,
-        ),
-      ),
-    );
+    leaveRow.paint();
     const now = on
       ? 'Once a worker’s pull request merges, it goes home as soon as it isn’t working or waiting on you and nobody has its terminal open, and its worktree and branch are deleted. A worktree with uncommitted changes, or commits that aren’t on GitHub, is kept.'
       : 'A worker whose pull request merged stays at its desk, outlined in purple, until someone sends it home. Turned on, the ones already merged go too.';
@@ -508,13 +419,14 @@ export function openSettings(net: Net, settings: Settings, onChange: (s: Setting
     you: [
       setting('Your character', null, character),
       setting('Camera view', 'you', seg, note),
+      setting('Graphics', 'you', ...graphicsSetting()),
       setting('Signed in', null, h('div.volume', {}, signOut), h('p.setting-note', {}, account ? `As ${account.name}, with your own account (${account.role}).` : 'With the shared office password.')),
     ],
     sound: [
       setting('Office sounds', 'you', soundRow, h('p.setting-note', {}, 'Workers typing, footsteps, the coffee machine, birds and rain outside, the dog, and the ding when a worker is done. Voice chat isn’t affected.')),
-      setting('Page turns at the bookshelf', 'you', pagesRow, h('p.setting-note', {}, 'A soft swish each time the book in your hands turns a page, as you open a doc or scroll through one. The 🔈 at the top of the bookshelf turns it off too.')),
+      setting('Page turns at the bookshelf', 'you', pagesRow.el, h('p.setting-note', {}, 'A soft swish each time the book in your hands turns a page, as you open a doc or scroll through one. The 🔈 at the top of the bookshelf turns it off too.')),
       setting('Jukebox', 'you', musicRow, h('p.setting-note', {}, 'The jukebox in the lounge. Everyone on the floor hears the same song, louder the closer they are to it; this is how loud it is for you alone.')),
-      setting('Voice chat', 'you', talkRow, h('p.setting-note', {}, 'Either way, V joins voice, holding V talks and you’re muted once you let go, and M mutes or unmutes. With push to talk you join muted. Leave voice from the ☰ menu.')),
+      setting('Voice chat', 'you', talkRow.el, h('p.setting-note', {}, 'Either way, V joins voice, holding V talks and you’re muted once you let go, and M mutes or unmutes. With push to talk you join muted. Leave voice from the ☰ menu.')),
     ],
     notify: [
       setting('Desktop notifications', 'you', notifyRow, notifyNote),
@@ -522,7 +434,7 @@ export function openSettings(net: Net, settings: Settings, onChange: (s: Setting
     ],
     building: [
       setting('Map', 'office', mapRow, mapNote, mapBad),
-      setting('Holiday theme', 'office', themeRow, themeNote),
+      setting('Holiday theme', 'office', themeRow.el, themeNote),
       ...(outside
         ? [
             setting(
@@ -539,7 +451,7 @@ export function openSettings(net: Net, settings: Settings, onChange: (s: Setting
     workers: [
       setting('Default worker', 'office', agentNow, agent.element, agentActions, agentNote),
       setting('Worker limit', 'office', limitRow, limitNote),
-      setting('Workers whose pull request merged', 'office', leaveRow, leaveNote),
+      setting('Workers whose pull request merged', 'office', leaveRow.el, leaveNote),
       setting('Prompts', 'office', promptsOpen, promptsNote),
     ],
   };

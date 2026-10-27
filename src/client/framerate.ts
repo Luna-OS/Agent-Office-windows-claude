@@ -48,4 +48,9 @@ export class SlowFrames {
     this.said = slow;
     return slow;
   }
+
+  /** Frames aren't counted for now (they're drawn slowly on purpose): the next one starts the span over. */
+  rest() {
+    this.start = null;
+  }
 }

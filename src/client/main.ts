@@ -42,6 +42,7 @@ import { installCoffee } from './features/coffee';
 import { installDog } from './features/dog';
 import { installEmotes } from './features/emotes';
 import { installGolf } from './features/golf';
+import { installGraphics } from './features/graphics';
 import { installGong } from './features/gong';
 import { installGallery, installHanging } from './features/hanging';
 import { installHerald } from './features/herald';
@@ -173,6 +174,7 @@ parts.pointer = installPointer(ctx, core, parts);
 installChat(ctx);
 parts.talk = installVoice(ctx, { tv: parts.tv });
 parts.hud = installHud(ctx, core, parts);
+installGraphics(ctx, { sun: parts.stage.sun });
 
 // ---- Main loop ---------------------------------------------------------------------------------------
 fitWindow(ctx);

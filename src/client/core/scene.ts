@@ -11,6 +11,7 @@ import type { Office } from '../world/types';
 import { HAZE_MAX, Sky } from '../world/sky';
 import type { Ctx } from './context';
 import { noOutline } from './outline';
+import { GRAPHICS, loadGraphics } from '../features/graphics/quality';
 
 /** How far the camera sees in the office: as far as the haze ever is, from the top floor. */
 export const FAR = HAZE_MAX + 20;
@@ -37,7 +38,8 @@ export interface Stage {
 
 export function makeRenderer(canvas: HTMLCanvasElement): THREE.WebGLRenderer | null {
   try {
-    return new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+    // On 🍃 Eco, a laptop's power-saving graphics (see features/graphics): it's picked once, here.
+    return new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: GRAPHICS[loadGraphics()].lowPower ? 'low-power' : 'high-performance' });
   } catch (err) {
     console.error(err);
     return null;

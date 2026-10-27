@@ -8,17 +8,23 @@ import { copyButton } from './team';
 
 const NAMES: Record<SignInKind, string> = { claude: 'Claude', github: 'GitHub' };
 
+/** The button that runs your workers on the office machine's own sign-in: the host's Claude, for a member it's shared with. */
+const officeLabel = (which: SignInKind) => (which === 'claude' && !store.me.admin ? 'Use the host’s Claude' : 'Use the office’s own');
+
 let open: { modal: Modal; say(why?: string): void } | null = null;
 
 /**
  * 🔐 Your sign-ins: the Claude plan your workers run on and the GitHub account the office acts as
  * for you, both your own (see server/signins.ts). The office runs the sign-in itself and hands you
- * the page to open; or paste a token; admins may use the office machine's own instead.
+ * the page to open; or paste a token; admins may use the office machine's own instead, and so may
+ * members for Claude while an admin shares it (the host's AI).
  * `why` says what sent you here (hiring a worker before signing in, say).
  */
 export function openSignIns(net: Net, why?: string) {
   if (open) return open.say(why);
   const close = h('button.btn.close', { 'aria-label': 'Close' }, '✕');
+  /** Said while the host shares the office's own Claude with you (a member): either AI will do. */
+  const shared = h('p.note', { hidden: true }, '✳️ The host shares the office’s own Claude: run your workers on it, or on your own plan. Switch any time; workers already running keep the one they started on.');
   const banner = h('p.team-status', { hidden: true });
   const cards = h('div.signins');
   const el = h(
@@ -29,6 +35,7 @@ export function openSignIns(net: Net, why?: string) {
       'div.body.team',
       {},
       h('p.note.lead', {}, 'Your workers run on your own Claude plan, and the office acts on GitHub as you: comments, merges and pull requests show up under your name. Only your workers use them.'),
+      shared,
       banner,
       cards,
       h('p.note', {}, 'Or open a 🐚 shell at any desk: it runs as you, so ', h('code', {}, 'claude auth login'), ' and ', h('code', {}, 'gh auth login'), ' typed there sign you in too.'),
@@ -118,14 +125,17 @@ export function openSignIns(net: Net, why?: string) {
         if (s.how === 'office') return net.send({ t: 'signins.signout', which });
         confirmDialog(`Sign out of ${NAMES[which]}?`, which === 'claude' ? 'Workers you hire from now on need a new sign-in. The ones already running keep going.' : 'The office stops acting on GitHub as you until you sign in again.', 'Sign out', () => net.send({ t: 'signins.signout', which }));
       });
-      body.append(h('div.signin-actions', {}, change));
+      const actions = h('div.signin-actions', {}, change);
+      // Signed in to your own Claude while the host shares theirs: one click over, and back with "Use my own instead".
+      if (office && s.how !== 'office') actions.append(button(officeLabel(which), () => net.send({ t: 'signins.office', which })));
+      body.append(actions);
       return box;
     }
 
     // Not signed in (or busy looking): the ways in.
     const start = button(`Sign in with ${NAMES[which]}`, () => net.send({ t: 'signins.start', which }), 'primary');
     const actions = h('div.signin-actions', {}, start);
-    if (office) actions.append(button('Use the office’s own', () => net.send({ t: 'signins.office', which })));
+    if (office) actions.append(button(officeLabel(which), () => net.send({ t: 'signins.office', which })));
     body.append(
       actions,
       which === 'claude'
@@ -144,7 +154,8 @@ export function openSignIns(net: Net, why?: string) {
       cards.append(h('p.empty', {}, store.me.account ? 'Loading…' : 'On the shared office password, workers run on the office’s own sign-ins.'));
       return;
     }
-    cards.append(card('claude', s.claude, s.office), card('github', s.github, s.office));
+    cards.append(card('claude', s.claude, s.office.claude), card('github', s.github, s.office.github));
+    shared.hidden = !(s.office.claude && !store.me.admin);
     if (typing instanceof HTMLInputElement && Object.values(inputs).includes(typing) && typing.isConnected) typing.focus();
     // Once both are sorted, whatever sent you here is too.
     if (s.claude.status === 'ok' && s.github.status === 'ok') say();

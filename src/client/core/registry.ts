@@ -203,6 +203,48 @@ export class Ticks {
   }
 }
 
+// ---- Pace -----------------------------------------------------------------------------------------
+
+/**
+ * How often the office is drawn: every frame the screen gives it, or fewer, to spare the computer
+ * (see features/graphics). Each `cap` says the most frames a second it wants just now (0: no limit),
+ * and the lowest one counts. `due` is asked at every screen frame and says whether to draw this one;
+ * it keeps the drawn frames evenly spaced on average, whatever the screen's own rate.
+ */
+export class Pace {
+  private readonly caps = new List<() => number>();
+  /** When the next frame is due (ms, like performance.now()), once a cap has had one drawn. */
+  private next = 0;
+
+  cap(fn: () => number): Off {
+    return this.caps.add(fn);
+  }
+
+  /** The most frames a second the office is drawn at now, or 0 for as many as the screen shows. */
+  fps(): number {
+    let fps = 0;
+    for (const fn of this.caps.items) {
+      const n = fn();
+      if (n > 0 && (!fps || n < fps)) fps = n;
+    }
+    return fps;
+  }
+
+  /** Whether the screen frame at `now` (ms) is drawn. A frame up to a fifth of a gap early still is, so 60 a second on a 60 Hz screen is every frame. */
+  due(now: number): boolean {
+    const fps = this.fps();
+    if (!fps) {
+      this.next = 0;
+      return true;
+    }
+    const gap = 1000 / fps;
+    if (now < this.next - gap / 5) return false;
+    // Behind by more than a frame (the first one, or after a stall or a hidden tab): start counting from now.
+    this.next = now - this.next > gap ? now + gap : this.next + gap;
+    return true;
+  }
+}
+
 // ---- Activities -----------------------------------------------------------------------------------
 
 /**

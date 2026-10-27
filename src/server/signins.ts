@@ -19,7 +19,7 @@ import type { SignInKind, SignInState, SignInsState } from '../shared/protocol.j
  * the account's folders and hands the browser the page to open (and GitHub's one-time code). A
  * token from `claude setup-token`, or a GitHub token, can be pasted instead, and a shell at a desk
  * runs with the same folders, so `claude auth login` typed there works too. Admins may keep using
- * the office machine's own sign-ins.
+ * the office machine's own sign-ins, and members its Claude (the host's AI) while an admin shares it.
  *
  * An office without accounts (you alone, on the shared password) never comes here: everything runs
  * on the machine's own `claude` and `gh`, exactly as before.
@@ -42,7 +42,7 @@ const ACCOUNT_ID = /^[A-Za-z0-9]{6,64}$/;
 const HELP_WHERE = '☰ → 🔐 Your sign-ins';
 
 interface Saved {
-  /** Unset: its own login, in its folder. A token pasted from `claude setup-token` (or an API key). The office machine's own (admins). */
+  /** Unset: its own login, in its folder. A token pasted from `claude setup-token` (or an API key). The office machine's own (admins, or shared). */
   claude?: { use: 'token'; token: string } | { use: 'office' };
   github?: { use: 'office' };
   /** Who the last look found each signed in as, so workers can start before the next look. */
@@ -81,8 +81,8 @@ export class SignIns {
     private gh: string | null,
     /** The office's own environment, which everyone's is built on. */
     private base: () => Record<string, string>,
-    /** Whether the account may use the office's own sign-ins (admins). */
-    private mayUseOffice: (accountId: string) => boolean,
+    /** Whether the account may use the office's own sign-in for `which` (admins; members' Claude while shared). */
+    private mayUseOffice: (accountId: string, which: SignInKind) => boolean,
     private onChange: (accountId: string) => void,
   ) {
     this.homes = path.join(dataDir, 'homes');
@@ -94,7 +94,7 @@ export class SignIns {
     return {
       claude: { ...l.claude, how: this.how(id, s, 'claude') },
       github: { ...l.github, how: this.how(id, s, 'github') },
-      office: this.mayUseOffice(id),
+      office: { claude: this.mayUseOffice(id, 'claude'), github: this.mayUseOffice(id, 'github') },
     };
   }
 
@@ -228,9 +228,9 @@ export class SignIns {
     return r.code === 0 ? undefined : `GitHub didn't take that token: ${r.last || 'gh auth login failed'}`;
   }
 
-  /** Uses the office machine's own sign-in (admins only). */
+  /** Uses the office machine's own sign-in (admins; members' Claude while an admin shares it). */
   useOffice(id: string, which: SignInKind): string | undefined {
-    if (!this.mayUseOffice(id)) return "Only admins can use the office's own sign-ins";
+    if (!this.mayUseOffice(id, which)) return which === 'claude' ? "Only admins can use the office's own Claude, until one shares it in 🔑 Accounts" : "Only admins can use the office's own GitHub";
     this.stop(id, which);
     const s = this.load(id);
     s[which] = { use: 'office' };
@@ -289,10 +289,10 @@ export class SignIns {
 
   // ---------------------------------------------------------------------------
 
-  /** How `which` signs `id` in. A demoted admin's 'office' no longer counts: back to their own. */
+  /** How `which` signs `id` in. A demoted admin's (or an unshared) 'office' no longer counts: back to their own. */
   private how(id: string, s: Saved, which: SignInKind): SignInState['how'] {
     const use = s[which]?.use;
-    if (use === 'office') return this.mayUseOffice(id) ? 'office' : 'login';
+    if (use === 'office') return this.mayUseOffice(id, which) ? 'office' : 'login';
     return use === 'token' ? 'token' : 'login';
   }
 

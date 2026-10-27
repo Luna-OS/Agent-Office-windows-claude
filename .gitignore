@@ -6,4 +6,5 @@ dist
 pw.txt
 __pycache__/
 desktop/staging
+desktop/staging-*
 desktop/release

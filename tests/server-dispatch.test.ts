@@ -313,6 +313,13 @@ test('welcomes a browser and dispatches what it sends', async () => {
   assert.equal((await a.take('toast', (m) => m.level === 'warn')).text, "On the shared office password, workers run on the office's own sign-ins");
   a.send({ t: 'accounts.get' });
   assert.equal((await a.take('accounts')).state.sharedPassword, true);
+  // The host's Claude, shared with members: everyone hears it, and only admins see the list change.
+  a.send({ t: 'accounts.shareClaude', on: true });
+  assert.equal((await a.take('accounts')).state.shareClaude, true);
+  for (const who of [a, b]) assert.match((await who.take('toast', (m) => m.text.startsWith('✳️'))).text, /^✳️ Ada L shared the office's Claude/);
+  a.send({ t: 'accounts.shareClaude', on: false });
+  assert.equal((await a.take('accounts')).state.shareClaude, false);
+  for (const who of [a, b]) assert.match((await who.take('toast', (m) => m.text.startsWith('✳️'))).text, /^✳️ Ada L stopped sharing/);
 
   // Frames that aren't messages, or whose type isn't one, are dropped; the office carries on.
   for (const odd of ['not json', '42', 'null', '"text"', '[]', {}, { t: 'nope' }, { t: 'constructor' }, { t: '__proto__' }, { t: 'toString' }, { t: 'hasOwnProperty' }, { t: '__defineGetter__' }, { t: 7 }, { t: ['ping'], at: 99 }]) a.send(odd);

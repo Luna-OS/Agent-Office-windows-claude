@@ -1,0 +1,170 @@
+name: Umbrel image
+
+# Builds the office's container (deploy/container/Dockerfile) for the Umbrel app (deploy/umbrel, see
+# docs/umbrel.md): for amd64 (an Umbrel Home, any PC) and arm64 (a Raspberry Pi), each on a runner of
+# its own kind, so nothing is emulated. A push to main publishes both as one image,
+# ghcr.io/<owner>/agent-office:0.1.<commits on main> and :latest, which deploy/umbrel/publish.sh
+# puts in an Umbrel app store. A pull request builds both and pushes nothing.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'bin/**'
+      - 'deploy/container/**'
+      - 'deploy/provision.sh'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig*.json'
+      - 'vite.config.ts'
+      - '.github/workflows/umbrel-image.yml'
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'bin/**'
+      - 'deploy/container/**'
+      - 'deploy/provision.sh'
+      - 'deploy/umbrel/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig*.json'
+      - 'vite.config.ts'
+      - '.github/workflows/umbrel-image.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: umbrel-image-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  PUBLISH: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-latest
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Image name
+        id: name
+        run: |
+          echo "image=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/agent-office" >> "$GITHUB_OUTPUT"
+          echo "arch=${PLATFORM#linux/}" >> "$GITHUB_OUTPUT"
+        env:
+          PLATFORM: ${{ matrix.platform }}
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        if: env.PUBLISH == 'true'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      # On main, pushed by digest only: the merge job below tags both platforms' as one image.
+      - name: Build
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/container/Dockerfile
+          platforms: ${{ matrix.platform }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.description=Agent Office, the 3D office your team shares with its coding agents (the Umbrel app's container)
+            org.opencontainers.image.licenses=MIT
+          outputs: ${{ env.PUBLISH == 'true' && format('type=image,name={0},push-by-digest=true,name-canonical=true,push=true', steps.name.outputs.image) || 'type=docker,name=agent-office:ci,dest=/tmp/office-image.tar' }}
+          cache-from: type=gha,scope=umbrel-${{ steps.name.outputs.arch }}
+          cache-to: type=gha,mode=max,scope=umbrel-${{ steps.name.outputs.arch }}
+
+      # The image as the Umbrel runs it: no sshd, on 0.0.0.0 behind the app proxy, with its password.
+      - name: Start it the way the Umbrel app does
+        if: env.PUBLISH != 'true'
+        run: |
+          docker load -i /tmp/office-image.tar
+          mkdir -p "$RUNNER_TEMP/data"
+          docker run -d --name office -p 4600:4600 -v "$RUNNER_TEMP/data:/data" \
+            -e AGENT_OFFICE_SSHD=off -e AGENT_OFFICE_HOST=0.0.0.0 -e AGENT_OFFICE_TRUST_PROXY=1 -e AGENT_OFFICE_PASSWORD=ci-password agent-office:ci
+          for _ in $(seq 120); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:4600/login.html || true)
+            [ "$code" = 200 ] && break
+            sleep 2
+          done
+          docker logs office
+          [ "$code" = 200 ] || { echo "the office didn't answer on 4600 (last status: $code)"; exit 1; }
+          ! docker exec office pgrep -x sshd || { echo "sshd runs although AGENT_OFFICE_SSHD=off"; exit 1; }
+
+      - name: Keep the digest
+        if: env.PUBLISH == 'true'
+        run: |
+          mkdir -p "$RUNNER_TEMP/digests"
+          touch "$RUNNER_TEMP/digests/${DIGEST#sha256:}"
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+
+      - uses: actions/upload-artifact@v4
+        if: env.PUBLISH == 'true'
+        with:
+          name: digest-${{ steps.name.outputs.arch }}
+          path: ${{ runner.temp }}/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    needs: build
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # the version counts the commits on main
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: ${{ runner.temp }}/digests
+          pattern: digest-*
+          merge-multiple: true
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Tag both platforms as one image
+        working-directory: ${{ runner.temp }}/digests
+        run: |
+          image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/agent-office"
+          version="$(node -p 'require(process.env.GITHUB_WORKSPACE + "/package.json").version.split(".").slice(0, 2).join(".")').$(git -C "$GITHUB_WORKSPACE" rev-list --count HEAD)"
+          docker buildx imagetools create -t "$image:$version" -t "$image:latest" $(printf "$image@sha256:%s " *)
+          docker buildx imagetools inspect "$image:$version"
+          {
+            echo "### $image:$version"
+            echo
+            echo 'Put it in your Umbrel app store with:'
+            echo
+            echo '```sh'
+            echo 'deploy/umbrel/publish.sh <your app store checkout> --push'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
