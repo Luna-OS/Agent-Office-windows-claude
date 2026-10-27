@@ -120,7 +120,7 @@ pub fn installieren(reg: &mut Register<Kontext>) {
             st.knoten = Some(k);
             st.gesehen = None;
         }
-        if kx.zustand.auf_dem_dach() {
+        if kx.zustand.auf_dem_dach() || kx.in_der_burg() {
             if let Some(k) = st.knoten.as_mut() {
                 k.set_visible(false);
             }

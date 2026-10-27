@@ -52,6 +52,10 @@ Eine Adapter-Datei im Crate `agenten` (Befehl, Argumente, wie Sitzungen fortgese
 
 Schlägt die Größenprüfung an, teile die Datei entlang der Register: Code eines Features in sein Modul, ein Nachrichten-Handler in die Datei seiner Domäne, Zustand in sein eigenes Stück. Die Grenze anzuheben schiebt das Problem nur dem Nächsten zu.
 
+## Tests im echten Client
+
+`crates/ende-zu-ende` startet einen echten Server und Chromium (`OFFICE_CHROMIUM`) und prüft zum Beispiel die Welt (`tests/welt.rs`: Karte „burg“ einstellen, Kerker sichtbar, **E** am Treppenloch öffnet das Kerker-Fenster). Für Tests und Screenshots setzt `?welt_ort=x,y,z,blick` in der URL die Figur nach jedem Aufbau der Etage an diesen Ort, z. B. `/?welt_ort=8.3,0,12.2,0` am Kerker.
+
 ## Bauen und prüfen
 
 ```bash

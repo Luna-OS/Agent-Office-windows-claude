@@ -78,7 +78,18 @@ pub async fn starten() {
                 kx.spieler.versetzen(o.x, o.y, o.z, o.rot_y);
                 if kx.zustand.auf_dem_dach() {
                     crate::features::aufzug::dach_ankunft(&mut kx);
+                } else if kx.in_der_burg()
+                    && (o.x - crate::grundriss::AUFZUG_ANKUNFT.0).abs() < 1.5
+                    && (o.z - crate::grundriss::AUFZUG_ANKUNFT.1).abs() < 1.5
+                {
+                    // Aus dem Aufzug des Büros in die Burg: vor dem Thron ankommen.
+                    let (x, z, blick) = crate::grundriss::burg::ANKUNFT;
+                    kx.spieler.versetzen(x, 0.0, z, blick);
                 }
+            }
+            // Für Tests und Screenshots: `?welt_ort=x,y,z,blick` setzt einen nach jedem Aufbau dorthin.
+            if let Some([x, y, z, blick]) = grafik::url_ort() {
+                kx.spieler.versetzen(x, y, z, blick);
             }
         }
 
@@ -151,6 +162,7 @@ fn zusammenfuehren(z: &mut crate::zustand::Aenderungen, a: crate::zustand::Aende
     z.arbeiter |= a.arbeiter;
     z.spielzeug |= a.spielzeug;
     z.leinwand |= a.leinwand;
+    z.kerker |= a.kerker;
     z.emotes.extend(a.emotes);
     z.hupen.extend(a.hupen);
     z.golf.extend(a.golf);

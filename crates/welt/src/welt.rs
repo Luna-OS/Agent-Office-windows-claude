@@ -132,11 +132,23 @@ impl Kontext {
 
     /// Wie tief die Straße unter dem Boden liegt, wo man gerade ist.
     pub fn strasse(&self) -> f32 {
-        if self.zustand.auf_dem_dach() {
+        if self.in_der_burg() {
+            -crate::grundriss::burg::KERKER_TIEFE - 0.8
+        } else if self.zustand.auf_dem_dach() {
             -dach::dach_tiefe(self.zustand.etagen.len())
         } else {
             grundriss::strasse_unter(self.zustand.etagen_index())
         }
+    }
+
+    /// Ob man gerade in der Burg ist (auf dem Dach bleibt es immer das Dach).
+    pub fn in_der_burg(&self) -> bool {
+        self.zustand.karte == grundriss::Karte::Burg && !self.zustand.auf_dem_dach()
+    }
+
+    /// Ein Arbeitsplatz auf der aktuellen Karte.
+    pub fn tisch(&self, id: &str) -> Option<grundriss::Tisch> {
+        self.zustand.karte.tisch(id)
     }
 
     /// Die aktuelle Etage (oder das Dach) neu bauen.
@@ -154,14 +166,28 @@ impl Kontext {
             .fluegel
             .min(grundriss::FLUEGEL_REIHEN);
         {
+            let burg = self.in_der_burg();
             let mut b = Bau::neu(self.etage.clone(), &mut self.gebaut);
-            if dach {
-                bau::dach::bauen(&mut b);
+            if burg {
+                bau::burg::bauen(&mut b);
+                b.block(
+                    0.0,
+                    -crate::grundriss::burg::KERKER_TIEFE - 1.0,
+                    0.0,
+                    400.0,
+                    0.2,
+                    400.0,
+                    bau::farbe("#6a994e"),
+                );
             } else {
-                bau::huelle::bauen(&mut b, &pal, fluegel, index == 0);
-                bau::buero::bauen(&mut b, fluegel);
+                if dach {
+                    bau::dach::bauen(&mut b);
+                } else {
+                    bau::huelle::bauen(&mut b, &pal, fluegel, index == 0);
+                    bau::buero::bauen(&mut b, fluegel);
+                }
+                bau::aussen::bauen(&mut b, index, anzahl, dach);
             }
-            bau::aussen::bauen(&mut b, index, anzahl, dach);
             bau::himmel::wolken(&mut b);
         }
         self.spieler.strasse = self.strasse();

@@ -37,6 +37,8 @@ mod kamera;
 #[cfg(feature = "3d")]
 mod lauf;
 #[cfg(feature = "3d")]
+mod modelle;
+#[cfg(feature = "3d")]
 pub mod welt;
 
 #[cfg(feature = "3d")]

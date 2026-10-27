@@ -99,7 +99,8 @@ pub fn router(a: &Agenten) -> axum::Router {
         .layer(axum::middleware::from_fn(absender_einsetzen))
 }
 
-struct AgentenAnbindung(Agenten);
+/// `burg`: gilt gerade die Burg-Karte (dann sperrt der Kerker heimgeschickte Arbeiter ein)?
+struct AgentenAnbindung(Agenten, std::sync::atomic::AtomicBool);
 
 impl Anbindung for AgentenAnbindung {
     fn etage_angemeldet(&self, id: &str, ordner: &Path) {
@@ -110,7 +111,8 @@ impl Anbindung for AgentenAnbindung {
             .map(|t| t.id)
             .collect();
         self.0.besprechung_stuehle_setzen(id, stuehle);
-        self.0.kerker_aktiv_setzen(id, false);
+        self.0
+            .kerker_aktiv_setzen(id, self.1.load(std::sync::atomic::Ordering::Relaxed));
     }
 
     fn etage_abgemeldet(&self, id: &str) {
@@ -128,6 +130,14 @@ impl Anbindung for AgentenAnbindung {
             beschaeftigt: beschaeftigt as u32,
             wartend: wartend as u32,
         })
+    }
+
+    fn karte_geaendert(&self, wahl: &str, etagen: &[String]) {
+        let burg = wahl == welt::grundriss::burg::BURG_ID;
+        self.1.store(burg, std::sync::atomic::Ordering::Relaxed);
+        for e in etagen {
+            self.0.kerker_aktiv_setzen(e, burg);
+        }
     }
 
     fn fluegel_geaendert(&self, id: &str, fluegel: u32) {
@@ -181,7 +191,11 @@ fn meldungen_an_webhook(o: &OfficeRef, a: &Agenten) {
 /// Ereignisse von `agenten` an die Browser verteilen.
 pub fn verbinden(o: &OfficeRef, a: Agenten) {
     let mut rx = a.ereignisse();
-    o.anbinden(Arc::new(AgentenAnbindung(a.clone())));
+    let burg = o.einstellungen.karte().wahl == welt::grundriss::burg::BURG_ID;
+    o.anbinden(Arc::new(AgentenAnbindung(
+        a.clone(),
+        std::sync::atomic::AtomicBool::new(burg),
+    )));
     // Arbeiter eines Kontos laufen mit dessen eigenen Anmeldungen (leerer Wert = Variable entfernen).
     let schwach = Arc::downgrade(o);
     a.konto_umgebung_setzen(Arc::new(move |konto: &str| {

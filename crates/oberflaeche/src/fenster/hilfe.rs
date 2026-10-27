@@ -56,6 +56,10 @@ const ZEILEN: &[(&str, &str)] = &[
         "O",
         "Pull Request für den Arbeiter öffnen oder den vorhandenen ansehen",
     ),
+    (
+        "🏰",
+        "In der Burg (⚙️ Einstellungen → Karte): E am Thron öffnet das Terminal des Ersten in der Schlange, E an der Hand des Königs oder K stellt einen Arbeiter an einer freien Tafel ein, das Treppenloch im Süden führt in den Kerker",
+    ),
     ("T", "Chat (Enter schickt, Esc bricht ab)"),
     (
         "G / 1–6",

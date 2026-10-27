@@ -6,10 +6,12 @@
 
 pub mod aussen;
 pub mod buero;
+pub mod burg;
 pub mod dach;
 pub mod einrichtung;
 pub mod himmel;
 pub mod huelle;
+pub mod kerker;
 
 use std::collections::HashMap;
 

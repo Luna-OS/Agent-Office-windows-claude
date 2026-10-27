@@ -6,8 +6,8 @@ use std::f32::consts::{FRAC_PI_2, PI};
 
 use kiss3d::prelude::*;
 
-use super::einrichtung::{self, pflanze, sitzsack, sofa, stuhl};
-use super::{Bau, farbe, toenen};
+use super::einrichtung::{self, sitzsack, sofa, stuhl};
+use super::{Bau, farbe};
 use crate::farben;
 use crate::grundriss::draussen::{KORB_BRETT_X, KORB_Z, RING};
 use crate::grundriss::sitze::{self, BESPRECHUNGS_TISCH};
@@ -20,8 +20,8 @@ pub fn bauen(b: &mut Bau, fluegel: u32) {
     kueche_und_korb(b);
     nordwand(b);
     chefbuero(b);
-    for (x, z, s) in pflanzen(fluegel) {
-        pflanze(b, x, z, s);
+    for (i, (x, z, s)) in pflanzen(fluegel).enumerate() {
+        einrichtung::pflanze_modell(b, x, z, s, i);
     }
     leiter_und_stange(b);
     platz_zum_wachsen(b, fluegel);
@@ -132,17 +132,57 @@ fn lounge(b: &mut Bau) {
         3.4,
         farbe(farben::HOLZ),
     );
-    // Couch mit Rücken zum Raum, Couchtisch.
-    sofa(b, 10.5, 0.0, 0.0, FRAC_PI_2, 3.8, "#5bc0eb");
-    b.fester_block(
-        12.6,
-        0.0,
-        0.0,
-        1.0,
-        0.38,
-        2.0,
-        toenen(farbe(farben::HOLZ), 0.1),
+    // Couch mit Rücken zum Raum (Modell, mit zwei Kissen), Couchtisch, Poufs.
+    let lounge = |m: &str| {
+        farbe(match m {
+            "Sofa" => "#5b8def",
+            "WoodDark" => "#8a5a3b",
+            "Wood" => farben::HOLZ,
+            "Frame" => farben::TISCHBEIN,
+            _ => "#ff00ff",
+        })
+    };
+    let mut couch = crate::modelle::stueck(
+        &mut b.knoten,
+        crate::modelle::Datei::Lounge,
+        "sofa",
+        false,
+        lounge,
     );
+    couch.set_position(Vec3::new(10.5, 0.0, 0.0));
+    couch.set_rotation(Quat::from_axis_angle(Vec3::Y, FRAC_PI_2));
+    b.kasten(crate::kollision::Kasten::um(10.3, 0.0, 1.0, 4.2, 0.47));
+    for (dz, c) in [(0.6f32, "#ffd166"), (-0.6, "#ef476f")] {
+        let mut kissen = crate::modelle::stueck(
+            &mut couch,
+            crate::modelle::Datei::Lounge,
+            "pillow",
+            false,
+            |m| if m == "Cloth" { farbe(c) } else { lounge(m) },
+        );
+        kissen.set_position(Vec3::new(dz, 0.46, -0.08));
+        kissen.set_rotation(Quat::from_axis_angle(Vec3::X, -0.15));
+    }
+    let mut tisch = crate::modelle::stueck(
+        &mut b.knoten,
+        crate::modelle::Datei::Lounge,
+        "coffee_table",
+        false,
+        lounge,
+    );
+    tisch.set_position(Vec3::new(12.6, 0.0, 0.0));
+    b.kasten(crate::kollision::Kasten::um(12.6, 0.0, 0.9, 0.9, 0.46));
+    for (px, pz, c) in [(13.2f32, 1.9f32, "#06d6a0"), (13.4, -1.8, "#f72585")] {
+        let mut pouf = crate::modelle::stueck(
+            &mut b.knoten,
+            crate::modelle::Datei::Lounge,
+            "pouf",
+            false,
+            |m| if m == "Cloth" { farbe(c) } else { lounge(m) },
+        );
+        pouf.set_position(Vec3::new(px, 0.0, pz));
+        b.kasten(crate::kollision::Kasten::um(px, pz, 0.9, 0.9, 0.4));
+    }
     sitzsack(b, 12.5, 3.5, "#ffb400");
     sitzsack(b, 14.5, -3.4, "#b388eb");
     // Jukebox und Arcade-Automat an der Ostwand.
@@ -176,38 +216,34 @@ fn draussen_korb() -> (f32, f32) {
 }
 
 fn kueche_und_korb(b: &mut Bau) {
-    // Theke mit Holzplatte, Kaffeemaschine, Kühlschrank (an der Südwand, Blick in den Raum).
-    let k = KUECHE;
-    let schrank = farbe("#8ecae6");
-    b.fester_block(
-        -14.5,
-        0.0,
-        (k.min_z + k.max_z) / 2.0,
-        5.0,
-        0.98,
-        1.0,
-        schrank,
-    );
-    b.block(
-        -14.5,
-        0.98,
-        (k.min_z + k.max_z) / 2.0,
-        5.1,
-        0.05,
-        1.05,
-        farbe(farben::HOLZ),
-    );
-    let (mx, _) = KAFFEEMASCHINE;
-    let mut m = b.gruppe(mx, 1.03, 12.25, PI);
-    m.block(0.0, 0.0, 0.0, 0.5, 0.5, 0.4, farbe("#adb5bd"));
-    m.block(0.0, 0.5, 0.0, 0.52, 0.06, 0.42, farbe("#343a40"));
-    let mut lampe = m.kugel(0.15, 0.42, 0.21, 0.03, farbe("#ef476f"));
-    lampe.set_emissive(farbe("#ef476f"));
-    m.saeule(0.0, 0.05, 0.12, 0.05, 0.1, farbe("#ffffff"));
+    // Die Küche aus dem Modell: Theke mit Spüle, Espressomaschine, Kühlschrank mit Zetteln. Modelliert
+    // mit Blick nach +z, an der Südwand umgedreht (Maschine bei x -15.7, Kühlschrank bei x -11.3).
+    let mut kueche = crate::modelle::alles(&mut b.knoten, crate::modelle::Datei::Kueche, |m| {
+        let mut c = farbe(match m {
+            "Cabinet" => "#8ecae6",
+            "Wood" => farben::HOLZ,
+            "Chrome" => "#adb5bd",
+            "Dark" => "#343a40",
+            "White" => "#ffffff",
+            "Fridge" => "#f8f9fa",
+            "Note" => "#ffd166",
+            "Memo" => "#bde0fe",
+            "Red" | "Glow" => "#ef476f",
+            _ => "#ff00ff",
+        });
+        c.a = 1.0;
+        c
+    });
+    kueche.set_position(Vec3::new(-14.5, 0.0, 12.2));
+    kueche.set_rotation(Quat::from_axis_angle(Vec3::Y, PI));
+    b.kasten(crate::kollision::Kasten::neu(
+        -17.0, -12.0, 11.7, 12.7, 1.03,
+    ));
+    b.kasten(crate::kollision::Kasten::neu(
+        -11.85, -10.75, 11.7, 12.7, 2.2,
+    ));
     let (kx, kz) = KAFFEEMASCHINE;
     b.nutzbar("kaffee", "kaffee", [kx, 1.3, kz + 1.2], 1.4);
-    b.fester_block(-11.3, 0.0, 12.2, 1.1, 2.2, 1.0, farbe("#f8f9fa"));
-    b.block(-11.3, 1.4, 11.68, 0.25, 0.25, 0.02, farbe("#ffd166"));
 
     // Basketballkorb an der Westwand.
     let weiss = farbe("#ffffff");
@@ -343,7 +379,7 @@ fn chefbuero(b: &mut Bau) {
 
 fn pflanze_auf(b: &mut Bau, x: f32, y: f32, z: f32) {
     let mut g = b.gruppe(0.0, y, 0.0, 0.0);
-    pflanze(&mut g, x, z, 0.9);
+    einrichtung::pflanze_modell(&mut g, x, z, 0.9, 1);
 }
 
 fn leiter_und_stange(b: &mut Bau) {

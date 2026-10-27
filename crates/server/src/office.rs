@@ -93,6 +93,8 @@ pub trait Anbindung: Send + Sync {
     }
     /// Der Ausbau des Hinterbüros einer Etage hat sich geändert (beim Anmelden auch einmal).
     fn fluegel_geaendert(&self, _id: &str, _fluegel: u32) {}
+    /// Die Karte des Gebäudes ist jetzt `wahl` (beim Start einmal); `etagen` sind alle Etagen.
+    fn karte_geaendert(&self, _wahl: &str, _etagen: &[String]) {}
     /// Arbeiter-Zahlen für die Aufzugtafel.
     fn zahlen(&self, _etage: &str) -> Option<Zahlen> {
         None
@@ -292,6 +294,21 @@ impl Office {
     pub fn fluegel_geaendert(&self, id: &str, fluegel: u32) {
         for a in self.anbindungen() {
             a.fluegel_geaendert(id, fluegel);
+        }
+    }
+
+    pub fn karte_geaendert(&self) {
+        let wahl = self.einstellungen.karte().wahl;
+        let etagen: Vec<String> = self
+            .etagen
+            .liste
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|e| e.id.clone())
+            .collect();
+        for a in self.anbindungen() {
+            a.karte_geaendert(&wahl, &etagen);
         }
     }
 

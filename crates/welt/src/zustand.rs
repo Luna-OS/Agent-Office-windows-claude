@@ -19,6 +19,7 @@ pub struct Aenderungen {
     pub arbeiter: bool,
     pub spielzeug: bool,
     pub leinwand: bool,
+    pub kerker: bool,
     pub emotes: Vec<(String, Emote)>,
     /// Autos, die gehupt haben (Index).
     pub hupen: Vec<u32>,
@@ -45,6 +46,10 @@ pub struct Zustand {
     /// Arbeiter der Etage, nach Arbeiter-ID.
     pub arbeiter: BTreeMap<String, ArbeiterInfo>,
     pub spielzeug: spielzeug::Stand,
+    /// Welche Karte das Gebäude gerade ist.
+    pub karte: crate::grundriss::Karte,
+    /// Der Kerker der Etage (nur auf Karten, die einsperren).
+    pub kerker: protokoll::agenten::Kerker,
     pub leinwand: dach::LeinwandZustand,
 }
 
@@ -101,6 +106,26 @@ impl Zustand {
             ServerNachricht::Etagen(e) => self.etagen(e, &mut a),
             ServerNachricht::Arbeiter(m) => self.arbeiter(m, &mut a),
             ServerNachricht::Spielzeug(s) => self.spielzeug(s, &mut a),
+            ServerNachricht::Einstellungen(e) => {
+                use protokoll::einstellungen::Server as E;
+                let wahl = match e {
+                    E::Stand { stand } => Some(stand.karte.wahl.clone()),
+                    E::Karte { stand } => Some(stand.wahl.clone()),
+                    _ => None,
+                };
+                if let Some(w) = wahl {
+                    let k = crate::grundriss::Karte::aus_wahl(&w);
+                    if k != self.karte {
+                        self.karte = k;
+                        a.etage = true;
+                        a.arbeiter = true;
+                    }
+                }
+            }
+            ServerNachricht::Agenten(protokoll::agenten::Server::Kerker { stand }) => {
+                self.kerker = stand.clone();
+                a.kerker = true;
+            }
             ServerNachricht::Dach(dach::Server::Leinwand { zustand }) => {
                 self.leinwand = zustand.clone();
                 a.leinwand = true;
@@ -320,6 +345,18 @@ mod tests {
                 .personen
         );
         assert!(z.personen.is_empty());
+    }
+
+    #[test]
+    fn kartenwechsel_baut_neu() {
+        let mut z = Zustand::default();
+        let n: ServerNachricht = serde_json::from_value(serde_json::json!(
+            {"domaene": "einstellungen", "nachricht": {"typ": "karte", "stand": {"wahl": "burg"}}}
+        ))
+        .unwrap();
+        assert!(z.anwenden(&n).etage);
+        assert_eq!(z.karte, crate::grundriss::Karte::Burg);
+        assert!(!z.anwenden(&n).etage, "gleiche Karte: nichts neu");
     }
 
     #[test]

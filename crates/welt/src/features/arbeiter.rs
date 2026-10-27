@@ -17,7 +17,7 @@ use crate::api::{WeltAktion, melden};
 use crate::bau::{Bau, farbe};
 use crate::farben::{self, status};
 use crate::figur::{Figur, Haltung, Look};
-use crate::grundriss::{TischArt, tisch_nach_id, tisch_sitz};
+use crate::grundriss::{TischArt, tisch_sitz};
 use crate::register::{Phase, Register};
 use crate::welt::Kontext;
 
@@ -41,12 +41,20 @@ const ABGANG_TEMPO: f32 = 1.6;
 
 impl Abgang {
     fn neu(kx: &mut Kontext, figur: Figur, tisch: &str) -> Self {
-        let von = tisch_nach_id(tisch).map(|t| {
+        let von = kx.tisch(tisch).map(|t| {
             let (x, z) = tisch_sitz(&t, 1.3);
             Vec3::new(x, 0.0, z)
         });
         let von = von.unwrap_or_else(|| figur.wurzel.position());
-        let (ax, az) = crate::grundriss::AUFZUG_ANKUNFT;
+        // In der Burg geht es nicht zum Aufzug, sondern die Treppe hinunter in den Kerker.
+        let (ax, az) = if kx.in_der_burg() {
+            (
+                crate::grundriss::burg::TREPPE_X,
+                crate::grundriss::burg::KERKER.min_z + 0.5,
+            )
+        } else {
+            crate::grundriss::AUFZUG_ANKUNFT
+        };
         let mut karton = kx.etage.add_cube(0.5, 0.35, 0.4);
         karton.set_color(farbe("#c98b5a"));
         Self {
@@ -116,6 +124,29 @@ fn look(a: &ArbeiterInfo) -> Look {
     }
 }
 
+/// In der Burg: wer vor dem Thron ansteht (fertig oder wartend, noch nicht angesehen), wer am
+/// längsten wartet zuerst, höchstens `SCHLANGE_PLAETZE`.
+pub fn schlange(kx: &Kontext) -> Vec<String> {
+    if !kx.in_der_burg() {
+        return Vec::new();
+    }
+    let mut v: Vec<&ArbeiterInfo> = kx
+        .zustand
+        .arbeiter
+        .values()
+        .filter(|a| {
+            matches!(a.status, ArbeiterStatus::Wartet | ArbeiterStatus::Fertig)
+                && !a.gesehen
+                && !a.tisch.starts_with("station-")
+        })
+        .collect();
+    v.sort_by_key(|a| a.wartet_seit.unwrap_or(u64::MAX));
+    v.into_iter()
+        .take(crate::grundriss::burg::SCHLANGE_PLAETZE)
+        .map(|a| a.id.clone())
+        .collect()
+}
+
 /// Der Arbeiter am Tisch, auf den man zielt.
 fn am_ziel(kx: &Kontext) -> Option<(String, Option<ArbeiterInfo>)> {
     let z = kx.ziel.as_ref().filter(|z| z.art == "tisch")?;
@@ -165,8 +196,9 @@ pub fn installieren(reg: &mut Register<Kontext>) {
         }
         abgaenge.retain_mut(|a| a.schritt(dt));
         let arbeiter: Vec<ArbeiterInfo> = kx.zustand.arbeiter.values().cloned().collect();
+        let schlange = schlange(kx);
         for a in &arbeiter {
-            let Some(t) = tisch_nach_id(&a.tisch) else {
+            let Some(t) = kx.tisch(&a.tisch) else {
                 continue;
             };
             let s = figuren.entry(a.id.clone()).or_insert_with(|| {
@@ -216,7 +248,20 @@ pub fn installieren(reg: &mut Register<Kontext>) {
             } else {
                 Figur::sitz_versatz(huefte)
             };
-            s.figur.setzen(x, y, z, t.rot_y + PI);
+            match schlange.iter().position(|id| id == &a.id) {
+                // In der Burg: vor dem Thron anstehen.
+                Some(i) => {
+                    let (sx, sz) = crate::grundriss::burg::SCHLANGE;
+                    s.figur.haltung = Haltung::Stehen;
+                    s.figur.setzen(
+                        sx,
+                        0.0,
+                        sz + i as f32 * crate::grundriss::burg::SCHLANGE_SCHRITT,
+                        PI,
+                    );
+                }
+                None => s.figur.setzen(x, y, z, t.rot_y + PI),
+            }
             s.figur.animieren(dt);
             // Wartet: das Lämpchen blinkt.
             let blink = a.status != ArbeiterStatus::Wartet || (kx.zeit * 3.0).fract() < 0.6;
@@ -246,7 +291,7 @@ pub fn installieren(reg: &mut Register<Kontext>) {
     reg.interaktion(
         "tisch",
         |kx: &Kontext, n| {
-            let t = tisch_nach_id(&n.id)?;
+            let t = kx.tisch(&n.id)?;
             if matches!(t.art, TischArt::Kiosk(_)) {
                 let wer = kx
                     .zustand
@@ -364,7 +409,7 @@ pub fn installieren(reg: &mut Register<Kontext>) {
             });
             return true;
         };
-        if let Some(t) = tisch_nach_id(&a.tisch) {
+        if let Some(t) = kx.tisch(&a.tisch) {
             let (x, z) = tisch_sitz(&t, 1.7);
             let blick = (t.x - x).atan2(t.z - z);
             kx.spieler.versetzen(x, 0.0, z, blick);

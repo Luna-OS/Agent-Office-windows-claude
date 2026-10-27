@@ -11,7 +11,6 @@ use protokoll::praesenz::Client as P;
 
 use crate::api::{Board, WeltAktion, melden};
 use crate::bewegung::Wirkung;
-use crate::grundriss::GONG;
 use crate::register::{Phase, Register};
 use crate::welt::Kontext;
 
@@ -95,14 +94,17 @@ pub fn installieren(reg: &mut Register<Kontext>) {
     reg.interaktion(
         "gong",
         |_, _| Some("E: Gong schlagen".into()),
-        move |_, _| {
+        move |_, n| {
             s.set(1.0);
-            crate::api::klang(crate::api::Klang::Gong {
-                pos: [GONG.0, 1.45, GONG.1],
-            });
+            crate::api::klang(crate::api::Klang::Gong { pos: n.pos });
         },
     );
+    // Die Ruhelage des Gongs (Burg und Büro hängen ihn verschieden auf), beim ersten Schlag gemerkt.
+    let mut ruhe: Option<Quat> = None;
     reg.tick(Phase::Umgebung, move |kx: &mut Kontext, dt| {
+        if kx.neu_gebaut {
+            ruhe = None;
+        }
         let w = schwung.get();
         if w <= 0.0 {
             return;
@@ -110,11 +112,8 @@ pub fn installieren(reg: &mut Register<Kontext>) {
         schwung.set((w - dt * 0.6).max(0.0));
         let winkel = (kx.zeit as f32 * 14.0).sin() * 0.12 * w;
         if let Some(g) = kx.teil("gong") {
-            g.set_rotation(Quat::from_axis_angle(
-                Vec3::X,
-                std::f32::consts::FRAC_PI_2 + winkel,
-            ));
-            g.set_position(Vec3::new(GONG.0, 1.45, GONG.1 + winkel * 0.3));
+            let basis = *ruhe.get_or_insert_with(|| g.rotation());
+            g.set_rotation(Quat::from_axis_angle(Vec3::Y, winkel) * basis);
         }
     });
 

@@ -41,6 +41,10 @@ impl Aktivitaet<Kontext> for Sitzen {
             melden(WeltAktion::BarKarte);
             return true;
         }
+        if code == "KeyE" && self.platz.schluessel == crate::grundriss::burg::THRON_SITZ {
+            crate::features::kerker::vom_thron(kx);
+            return true;
+        }
         if code == "KeyE" && self.platz.schluessel.starts_with("boss-chair:") {
             melden(WeltAktion::MinesweeperOeffnen);
             return true;
@@ -66,7 +70,10 @@ impl Aktivitaet<Kontext> for Sitzen {
         true
     }
 
-    fn hinweis(&self, _kx: &Kontext) -> Option<String> {
+    fn hinweis(&self, kx: &Kontext) -> Option<String> {
+        if self.platz.schluessel == crate::grundriss::burg::THRON_SITZ {
+            return Some(crate::features::kerker::thron_hinweis(kx) + " · Leertaste: aufstehen");
+        }
         if self.platz.schluessel.starts_with("boss-chair:") {
             return Some("E: Minesweeper spielen · Leertaste: aufstehen".into());
         }
@@ -90,7 +97,8 @@ impl Aktivitaet<Kontext> for Sitzen {
 
 /// Setzt den Spieler auf einen Platz (auch von anderen Features: Arbeit am Tisch, Auto …).
 pub fn hinsetzen(kx: &mut Kontext, schluessel: &str) -> bool {
-    let Some(platz) = sitze::platz_nach_schluessel(schluessel) else {
+    let dach = kx.zustand.auf_dem_dach();
+    let Some(platz) = kx.zustand.karte.sitz(schluessel, dach) else {
         return false;
     };
     let id = schluessel.split(':').next().unwrap_or_default();

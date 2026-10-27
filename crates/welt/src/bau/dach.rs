@@ -6,7 +6,7 @@ use std::f32::consts::{FRAC_PI_2, PI};
 
 use kiss3d::prelude::*;
 
-use super::einrichtung::{hocker, pflanze, sofa};
+use super::einrichtung::{hocker, sofa};
 use super::{Bau, farbe, toenen};
 use crate::farben;
 use crate::grundriss::dach::*;
@@ -98,8 +98,8 @@ fn deck(b: &mut Bau) {
     for (x, z) in [(BODEN.min_x + 0.5, 0.0), (BODEN.max_x - 0.5, 0.0)] {
         b.fester_block(x, 0.0, z, 0.12, 4.3, 0.12, farbe("#343a40"));
     }
-    pflanze(b, BODEN.min_x + 0.8, BODEN.max_z - 0.8, 1.4);
-    pflanze(b, BODEN.max_x - 0.8, BODEN.max_z - 0.8, 1.4);
+    super::einrichtung::pflanze_modell(b, BODEN.min_x + 0.8, BODEN.max_z - 0.8, 1.4, 0);
+    super::einrichtung::pflanze_modell(b, BODEN.max_x - 0.8, BODEN.max_z - 0.8, 1.4, 2);
 }
 
 /// Das Häuschen um den Aufzug, mit Türen nach Süden wie in den Etagen.

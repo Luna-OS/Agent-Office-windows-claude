@@ -7,6 +7,7 @@ pub mod autos;
 pub mod ball;
 pub mod golf;
 pub mod hund;
+pub mod kerker;
 pub mod leinwand;
 pub mod moebel;
 pub mod personen;
@@ -27,6 +28,7 @@ pub fn installieren(reg: &mut Register<Kontext>, _kx: &mut Kontext) {
     ball::installieren(reg);
     autos::installieren(reg);
     golf::installieren(reg);
+    kerker::installieren(reg);
     sitzen::installieren(reg);
     moebel::installieren(reg);
     leinwand::installieren(reg);

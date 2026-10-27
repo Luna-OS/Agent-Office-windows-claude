@@ -168,8 +168,9 @@ impl Domaene for EinstellungenDomaene {
             Client::KarteSetzen { karte } => {
                 if let Some(k) = karte {
                     let k: String = k.chars().take(64).collect();
-                    let bekannt =
-                        k == "office" || k == "burg" || e.karte().eigene.iter().any(|x| x.id == k);
+                    let bekannt = k == "office"
+                        || k == welt::grundriss::burg::BURG_ID
+                        || e.karte().eigene.iter().any(|x| x.id == k);
                     if !bekannt {
                         o.hinweis(von, "Diese Karte gibt es nicht", Stufe::Warnung);
                         return fertig();
@@ -181,6 +182,7 @@ impl Domaene for EinstellungenDomaene {
                     });
                 }
                 e.karten_neu_lesen(&o.konfig.daten);
+                o.karte_geaendert();
                 o.an_alle(&s(Server::Karte { stand: e.karte() }), None);
             }
         }

@@ -70,6 +70,37 @@ pub fn css_groesse(fenster: &kiss3d::window::Window) -> kiss3d::prelude::Vec2 {
     kiss3d::prelude::Vec2::new(fenster.width() as f32, fenster.height() as f32)
 }
 
+/// Ein Ort aus der Adresse der Seite (`?welt_ort=x,y,z,blick`), für Tests und Screenshots.
+pub fn url_ort() -> Option<[f32; 4]> {
+    #[cfg(target_arch = "wasm32")]
+    {
+        let suche = web_sys::window()?.location().search().ok()?;
+        let wert = suche
+            .trim_start_matches('?')
+            .split('&')
+            .find_map(|p| p.strip_prefix("welt_ort="))?;
+        let zahlen: Vec<f32> = wert.split(',').filter_map(|z| z.parse().ok()).collect();
+        <[f32; 4]>::try_from(zahlen).ok()
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    None
+}
+
+/// Jetzt in ms seit 1970 (Uhr des Browsers).
+pub fn jetzt_ms() -> u64 {
+    #[cfg(target_arch = "wasm32")]
+    {
+        js_sys::Date::now() as u64
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis() as u64)
+            .unwrap_or(0)
+    }
+}
+
 /// Die Uhrzeit des Browsers in Stunden (0..24), für Sonne und Himmel.
 pub fn stunde() -> f32 {
     #[cfg(target_arch = "wasm32")]

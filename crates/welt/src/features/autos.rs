@@ -251,7 +251,7 @@ pub fn installieren(reg: &mut Register<Kontext>) {
             }
         }
         let autos = kx.zustand.spielzeug.autos.clone();
-        if kx.zustand.auf_dem_dach() || autos.is_empty() {
+        if kx.zustand.auf_dem_dach() || kx.in_der_burg() || autos.is_empty() {
             for m in st.modelle.iter_mut() {
                 m.wurzel.set_visible(false);
             }

@@ -60,16 +60,26 @@ pub fn schreibtisch(b: &mut Bau, x: f32, z: f32, rot_y: f32, stuhlfarbe: &str) -
         farbe("#14213d"),
     );
     bild.set_emissive(farbe("#14213d"));
-    // Tastatur, Becher.
+    // Tastatur; dazu Becher, Bücher oder eine Sukkulente aus den Modellen, je nach Tisch.
     g.block(0.0, TISCH_HOEHE, 0.08, 0.42, 0.02, 0.14, farbe("#e9ecef"));
-    g.saeule(
-        0.36,
-        TISCH_HOEHE,
-        -0.05,
-        0.04,
-        0.1,
-        farbe(farben::STUEHLE[(x.abs() as usize) % 6]),
-    );
+    let welcher = ((x * 7.0 + z * 13.0).abs() as usize) % 5;
+    let becherfarbe = farben::STUEHLE[welcher % 6];
+    let (datei, stueck, px) = match welcher {
+        0 | 3 => (crate::modelle::Datei::Tischkram, "mug", 0.42),
+        1 => (crate::modelle::Datei::Tischkram, "books_stack", -0.62),
+        2 => (crate::modelle::Datei::Tischkram, "books_upright", -0.65),
+        _ => (crate::modelle::Datei::Pflanzen, "succulent", 0.6),
+    };
+    let mut kram = crate::modelle::stueck(&mut g.knoten, datei, stueck, false, |m| match m {
+        "Mug" => farbe(becherfarbe),
+        "Coffee" => farbe("#6f4518"),
+        "CoverRed" => farbe("#e63946"),
+        "CoverBlue" => farbe("#457b9d"),
+        "CoverOrange" => farbe("#f4a261"),
+        "Pages" => farbe("#f3ead8"),
+        andere => pflanzenfarbe(andere),
+    });
+    kram.set_position(Vec3::new(px, TISCH_HOEHE, -0.1));
     stuhl(&mut g, 0.0, 0.85, PI, stuhlfarbe);
     bild
 }
@@ -91,40 +101,41 @@ pub fn sitzsack(b: &mut Bau, x: f32, z: f32, c: &str) {
     b.kasten(crate::kollision::Kasten::um(x, z, 0.8, 0.8, 0.4));
 }
 
-/// Eine Topfpflanze; `s` skaliert sie.
-pub fn pflanze(b: &mut Bau, x: f32, z: f32, s: f32) {
-    let topf = farbe(farben::TOPF);
-    b.saeule(x, 0.0, z, 0.22 * s, 0.4 * s, topf);
-    b.saeule(x, 0.4 * s, z, 0.24 * s, 0.05 * s, toenen(topf, -0.15));
-    b.saeule(
-        x,
-        0.45 * s,
-        z,
-        0.03 * s,
-        0.4 * s,
-        farbe(farben::PFLANZE_DUNKEL),
+/// Die Arten der Bodenpflanzen, reihum (keine zwei Nachbarn gleich).
+const BODENPFLANZEN: [&str; 3] = ["monstera", "snake_plant", "ficus"];
+
+/// Die Farben der Pflanzen-Modelle nach Materialnamen.
+pub fn pflanzenfarbe(m: &str) -> Color {
+    farbe(match m {
+        "Pot" => farben::TOPF,
+        "Glaze" => "#8ecae6",
+        "Soil" => "#6b4226",
+        "Bark" => "#8a5a3b",
+        "Leaf" => farben::PFLANZE,
+        "LeafDark" => farben::PFLANZE_DUNKEL,
+        _ => "#ff00ff",
+    })
+}
+
+/// Eine Topfpflanze aus dem Modell (Art reihum nach `i`); `s` skaliert sie.
+pub fn pflanze_modell(b: &mut Bau, x: f32, z: f32, s: f32, i: usize) {
+    let art = BODENPFLANZEN[i % BODENPFLANZEN.len()];
+    let ort = b.welt(x, 0.0, z);
+    let mut p = crate::modelle::stueck(
+        &mut b.knoten,
+        crate::modelle::Datei::Pflanzen,
+        art,
+        false,
+        pflanzenfarbe,
     );
-    b.kugel(x, 1.0 * s, z, 0.38 * s, farbe(farben::PFLANZE));
-    b.kugel(
-        x + 0.18 * s,
-        0.82 * s,
-        z + 0.1 * s,
-        0.26 * s,
-        farbe(farben::PFLANZE_DUNKEL),
-    );
-    b.kugel(
-        x - 0.16 * s,
-        0.86 * s,
-        z - 0.12 * s,
-        0.24 * s,
-        toenen(farbe(farben::PFLANZE), 0.15),
-    );
+    p.set_position(Vec3::new(x, 0.0, z));
+    p.set_local_scale(s, s, s);
     b.kasten(crate::kollision::Kasten::um(
-        x,
-        z,
-        0.5 * s,
-        0.5 * s,
-        1.3 * s,
+        ort[0],
+        ort[2],
+        0.6 * s,
+        0.6 * s,
+        ort[1] + 1.3 * s,
     ));
 }
 

@@ -4,7 +4,11 @@
 //! von `BODEN.min_x..max_x` / `min_z..max_z`. Norden ist -z, Süden (Straße) +z.
 //! Dieses Modul braucht kein kiss3d: der Server nutzt es mit `default-features = false`.
 
+pub mod burg;
 pub mod dach;
+mod karte;
+
+pub use karte::Karte;
 pub mod draussen;
 pub mod sitze;
 

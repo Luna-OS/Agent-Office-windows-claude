@@ -116,7 +116,12 @@ pub fn installieren(reg: &mut Register<Kontext>) {
             st.stueck = None;
         }
         // Ein neues Wegstück?
-        let hund = kx.zustand.spielzeug.hund.clone();
+        let hund = kx
+            .zustand
+            .spielzeug
+            .hund
+            .clone()
+            .filter(|_| !kx.in_der_burg());
         let neu = match (&hund, &st.stueck) {
             (Some(h), Some((alt, _))) => h != alt,
             (Some(_), None) => true,
