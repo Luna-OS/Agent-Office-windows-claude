@@ -78,9 +78,11 @@ fn eingabe(text: &str) -> String {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn agenten_reden_miteinander() {
-    let shell = if cfg!(windows) { "cmd.exe" } else { "/bin/sh" };
+    // Adas eigener Befehl gibt den getippten Auftrag nur zurück: eine Unix-Shell führte die
+    // `office-agenten …` in der Anleitung aus und leerte dabei Adas Posteingang.
+    let eigen = if cfg!(windows) { "cmd.exe" } else { "cat" };
     // SAFETY: nur dieser Test setzt die Variable, bevor irgendetwas sie liest.
-    unsafe { std::env::set_var("OFFICE_AGENT_EIGEN", shell) };
+    unsafe { std::env::set_var("OFFICE_AGENT_EIGEN", eigen) };
 
     let daten = tempfile::tempdir().unwrap();
     let repo = tempfile::tempdir().unwrap();
@@ -108,7 +110,7 @@ async fn agenten_reden_miteinander() {
         konto: None,
     };
 
-    // Ada: ein Agent (eigener Befehl = Shell) mit Worktree. Bruno: eine Shell.
+    // Ada: ein Agent (eigener Befehl) mit Worktree. Bruno: eine Shell.
     let anlegen = |tisch: &str, art, provider: Option<&str>| {
         ClientNachricht::Arbeiter(ArbCl::Anlegen {
             tisch: tisch.into(),
@@ -221,12 +223,23 @@ async fn agenten_reden_miteinander() {
     })
     .await;
 
-    // Ada bekommt die Nachricht in ihr Terminal getippt, sobald sie Zeit hat.
+    // Ada bekommt die Nachricht in ihr Terminal getippt, sobald sie Zeit hat. Kam sie schon,
+    // steht sie im frischen Snapshot, sonst in der nächsten Ausgabe.
+    ag.nachricht(
+        &luna,
+        ClientNachricht::Arbeiter(ArbCl::Anschauen {
+            arbeiter: ada.id.clone(),
+        }),
+    )
+    .await;
     let mut gesehen = String::new();
     warte(&mut rx, 60, |e| match &e.nachricht {
-        ServerNachricht::Arbeiter(ArbSrv::TerminalDaten { arbeiter, daten })
-            if *arbeiter == ada.id =>
-        {
+        ServerNachricht::Arbeiter(
+            ArbSrv::TerminalSnapshot {
+                arbeiter, daten, ..
+            }
+            | ArbSrv::TerminalDaten { arbeiter, daten },
+        ) if *arbeiter == ada.id => {
             gesehen.push_str(daten);
             gesehen.contains("Hallo von Bruno").then_some(())
         }

@@ -88,6 +88,14 @@ jobs:
           cp -R desktop/claude desktop/tools "$s/"
           cp "$(which gh)" "$s/werkzeuge/gh.exe"
 
+      # Die aktuellen Windows-Runner bringen NSIS nicht mehr mit.
+      - name: NSIS installieren
+        run: |
+          if ! command -v makensis > /dev/null; then
+            choco install nsis -y --no-progress
+            echo 'C:\Program Files (x86)\NSIS' >> "$GITHUB_PATH"
+          fi
+
       - name: Installer packen
         run: |
           mkdir -p desktop/release

@@ -82,7 +82,7 @@ jobs:
             for b in office-agenten office-pty-wirt; do cp "target/$ziel/release/$b" "$s/" 2>/dev/null || echo "Hinweis: $b nicht gebaut"; done
             cp -R dist "$s/dist"
             cp -R desktop/claude desktop/tools "$s/"
-            desktop/build/mac-paket.sh "$s" "${{ steps.version.outputs.version }}" "$arch"
+            bash desktop/build/mac-paket.sh "$s" "${{ steps.version.outputs.version }}" "$arch"
           done
 
       - uses: actions/upload-artifact@v4
