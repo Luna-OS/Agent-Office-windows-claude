@@ -263,6 +263,11 @@ export class OfficeSound {
     this.dj.setDj(clock);
   }
 
+  /** Auf dem Dach läuft ein YouTube-Song (features/dj): Das Set des DJs schweigt so lange. */
+  djQuiet(on: boolean) {
+    this.dj.setQuiet(on);
+  }
+
   horn() {
     this.dj.horn();
   }

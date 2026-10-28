@@ -1,0 +1,8 @@
+/* Der DJ auf dem Dach: sein Pult (die Jukebox-Form) und der kleine YouTube-Player in der Ecke */
+.dj-player { position: fixed; right: 16px; bottom: 16px; z-index: 30; width: 256px; padding: 8px; border: 3px solid var(--ink); border-radius: 14px; background: var(--paper); box-shadow: 0 4px 0 var(--ink); font-size: 12px; }
+.dj-player[hidden] { display: none; }
+.dj-head { margin-bottom: 6px; font-weight: 800; }
+.dj-frame { width: 240px; height: 135px; overflow: hidden; border-radius: 8px; background: #000; }
+.dj-frame iframe { display: block; width: 240px; height: 135px; border: 0; }
+.dj-title { margin-top: 6px; font-weight: 600; opacity: 0.8; overflow-wrap: anywhere; }
+.dj-go { width: 100%; margin-top: 6px; }

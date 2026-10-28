@@ -13,6 +13,8 @@ export class Dj {
   /** How far into the DJ's set it is (see djTime), while you're up there. */
   private djClock: (() => number) | null = null;
   private djTimer = 0;
+  /** Solange auf dem Dach ein YouTube-Song läuft, schweigt das Set (see features/dj). */
+  private quiet = false;
 
   constructor(private readonly a: AudioCore) {}
 
@@ -30,10 +32,17 @@ export class Dj {
     if (was !== !!clock) this.applyDj();
   }
 
+  /** Ein YouTube-Song läuft auf dem Dach (true): Das Set schweigt, bis er vorbei ist. */
+  setQuiet(on: boolean) {
+    if (this.quiet === on) return;
+    this.quiet = on;
+    this.applyDj();
+  }
+
   applyDj() {
     const ctx = this.a.ctx;
     if (!ctx) return;
-    if (!this.djClock) {
+    if (!this.djClock || this.quiet) {
       this.dj?.stop();
       this.dj = null;
       clearInterval(this.djTimer);
