@@ -39,6 +39,7 @@ import { installCars } from './features/cars';
 import { installChat } from './features/chat';
 import { installClimbing } from './features/climbing';
 import { installCoffee } from './features/coffee';
+import { installDj } from './features/dj';
 import { installDog } from './features/dog';
 import { installEmotes } from './features/emotes';
 import { installGolf } from './features/golf';
@@ -147,7 +148,8 @@ parts.meeting = installMeeting(ctx, parts);
 parts.bookshelf = installBookshelf(ctx);
 installHerald(ctx, parts);
 
-parts.bar = installBar(ctx, { roof: parts.rooftop.roof, djAt: parts.rooftop.djAt, reach });
+parts.bar = installBar(ctx, { roof: parts.rooftop.roof, reach });
+installDj(ctx, { djAt: parts.rooftop.djAt });
 parts.coffee = installCoffee(ctx);
 parts.smoking = installSmoke(ctx);
 parts.hoops = installBasketball(ctx, { remotes: parts.peers.remotes, reach });

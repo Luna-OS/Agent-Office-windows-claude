@@ -256,6 +256,32 @@ test('the connector: office password, then an account of your own, an invite, an
   assert.deepEqual(later.settings().lobbies, []);
 });
 
+test('the connector: in a lobby with an account of your own, your workers run on this computer', async (t) => {
+  const calls: string[] = [];
+  const workstation = {
+    start: async (origin: string, cookie: string) => void calls.push(`start ${origin} ${cookie.split('=')[0]}`),
+    stop: async () => void calls.push('stop'),
+    state: () => ({ lobby: base, stand: { stand: 'verbunden' } }),
+  };
+  const c = connector({}, { workstation, look: async () => ({ status: 'ok', who: 'lea' }) });
+  t.after(() => c.c.close());
+  const v = office.accounts.invite('test', 'member', 'Lea') as { token: string };
+  await c.run('connect', { address: `${base}/join#${v.token}` });
+  let s = await c.run('join', { name: 'Lea', password: 'leas-password', again: 'leas-password' });
+  assert.equal(s.view, 'home');
+  assert.deepEqual(s.workstation, { on: true, stand: { stand: 'verbunden' } });
+  assert.match(calls.at(-1)!, new RegExp(`^start ${base} ao_session_\\d+$`), 'started with her session there');
+  assert.deepEqual(s.mine, { claude: { status: 'ok', who: 'lea' }, github: { status: 'ok', who: 'lea' } }, "this computer's sign-ins are the ones that count now");
+  s = await c.run('ownWorkers', { on: false });
+  assert.equal(calls.at(-1), 'stop');
+  assert.equal(s.workstation.on, false);
+  assert.equal(c.settings().ownWorkers, false);
+  await c.run('ownWorkers', { on: true });
+  assert.match(calls.at(-1)!, /^start /);
+  await c.run('logout');
+  assert.equal(calls.at(-1), 'stop', 'signed out: no workstation');
+});
+
 test('the connector: the office on this computer signs it in with its own link', async (t) => {
   const c = connector({}, { start: async () => ({ origin: base, link: `${base}${office.signInLink()}` }) });
   t.after(() => c.c.close());

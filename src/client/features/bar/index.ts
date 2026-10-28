@@ -1,13 +1,11 @@
 /**
- * The rooftop bar: drinks from the bartender, how they go to your head (a glass in hand, hiccups, the
- * world swaying and the frame drawn through the drunk vision), and the DJ's air horn.
+ * The rooftop bar: drinks from the bartender, and how they go to your head (a glass in hand, hiccups,
+ * the world swaying and the frame drawn through the drunk vision). The DJ is features/dj.
  */
 import { DRINK_BY_ID, type Drink, type DrinkId } from '../../../shared/rooftop';
 import { Booze, type Stage as Feeling } from './booze';
 import type { Ctx } from '../../core/context';
 import { aside, hintTitle, key, onE } from '../../core/hint';
-import { djFrame } from '../../dnb';
-import { store } from '../../state';
 import { openBar } from './ui';
 import { toast } from '../../ui/dom';
 import { DrunkVision } from './drunk';
@@ -17,15 +15,12 @@ import type { Rooftop } from '../rooftop/world';
 declare module '../../world/types' {
   interface InteractKinds {
     bar: true;
-    dj: true;
   }
 }
 
 export interface BarDeps {
   /** The roof, once it's built (see features/rooftop). */
   roof(): Rooftop | null;
-  /** How far into the DJ's set it is (see features/rooftop). */
-  djAt(): number;
   /** Plays the reach on your hands and your character, and shows it to everyone else. */
   reach(): void;
 }
@@ -71,20 +66,6 @@ export function installBar(ctx: Ctx, deps: BarDeps) {
     }, 1500);
   }
 
-  ctx.messages.on('horn', (msg) => {
-    if (!ctx.upTop()) return;
-    ctx.sound.horn();
-    if (msg.by !== store.profile.name) toast(`📯 ${msg.by} blew the air horn!`);
-  });
-  let lastHorn = 0;
-  /** E at the DJ booth: the air horn, for everyone on the roof. */
-  function blowHorn() {
-    const now = performance.now();
-    if (now - lastHorn < 1500) return;
-    lastHorn = now;
-    ctx.net.send({ t: 'horn' });
-  }
-
   ctx.interactions.define('bar', {
     reach: 3.5,
     hint: () => {
@@ -92,15 +73,6 @@ export function installBar(ctx: Ctx, deps: BarDeps) {
       return { k: String(cut), parts: [hintTitle('🍸 Sky Bar'), aside(cut ? "you've had enough" : 'drinks on the house'), key('E', cut ? 'Ask for water' : 'Order a drink')] };
     },
     use: onE(() => showBar()),
-  });
-  ctx.interactions.define('dj', {
-    reach: 6,
-    hint: () => {
-      const f = djFrame(deps.djAt());
-      const what = f.part === 'drop' ? '🔥 the drop' : f.part === 'build' ? 'building up…' : f.part === 'breakdown' ? 'the breakdown' : 'mixing in the next track';
-      return { k: what, parts: [hintTitle('🎧 DJ Merge Conflict'), aside(`drum & bass · ${what}`), key('E', '📯 Air horn!')] };
-    },
-    use: onE(() => blowHorn()),
   });
 
   /** How it's going to your head, the last time it changed, and when the next hiccup comes. */

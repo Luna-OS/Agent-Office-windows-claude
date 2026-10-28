@@ -72,6 +72,8 @@ const DEFAULTS = {
   sharePassword: null,
   /** Gastgeber über einen Vermittler (crates/vermittler, etwa die Umbrel-App): { url, password (versiegelt) }. */
   relay: null,
+  /** In einer Lobby mit eigenem Konto laufen deine Arbeiter auf diesem Computer (dein Arbeitsplatz). */
+  ownWorkers: true,
 };
 function readSettings() {
   try {
@@ -272,6 +274,71 @@ async function startOffice() {
   });
 }
 
+// --- Dein Arbeitsplatz in einer Lobby ------------------------------------------------------------------
+
+/** Das Office im Hintergrund, in dem die Arbeiter laufen, die du in einer Lobby einstellst (src/server/arbeitsplatz). */
+let workstation = null;
+/** Für welche Lobby, und wie es dort steht: { lobby, stand }. */
+let workstationState = null;
+
+/**
+ * Startet deinen Arbeitsplatz für die Lobby `origin`, angemeldet mit deiner Sitzung dort (`cookie`): ein
+ * eigenes Office nur auf diesem Computer (127.0.0.1), mit eigenen Daten unter <home>/arbeitsplatz.
+ */
+async function startWorkstation(origin, cookie) {
+  if (workstation && workstationState?.lobby === origin) return;
+  await stopWorkstation();
+  const home = path.join(settings.home, 'arbeitsplatz');
+  fs.mkdirSync(home, { recursive: true });
+  const port = await freePort(4700, '127.0.0.1');
+  const args = [entry, '--home', home, '--host', '127.0.0.1', '--port', String(port), '--no-open', '--arbeitsplatz', origin];
+  const env = childEnv();
+  // Die Sitzung über die Umgebung, nicht über die Kommandozeile, wo jeder auf diesem Computer sie lesen könnte.
+  env.AGENT_OFFICE_ARBEITSPLATZ_SITZUNG = cookie;
+  if (!app.isPackaged) env.AGENT_OFFICE_ROOT = paths.root;
+  log(`arbeitsplatz: ${paths.node} ${args.join(' ')}`);
+  const child = spawn(paths.node, args, { cwd: home, env, stdio: ['ignore', 'pipe', 'pipe', 'ipc'], windowsHide: true });
+  workstation = child;
+  workstationState = { lobby: origin, stand: { stand: 'verbinde' } };
+  const prefixed = (d) => d.split(/\r?\n/).filter(Boolean).forEach((l) => log(`arbeitsplatz: ${l}`));
+  child.stdout.setEncoding('utf8').on('data', prefixed);
+  child.stderr.setEncoding('utf8').on('data', prefixed);
+  child.on('message', (msg) => {
+    if (msg?.t !== 'arbeitsplatz' || workstation !== child) return;
+    workstationState = { lobby: origin, stand: msg.stand ?? { stand: 'verbinde' } };
+    controller.relayChanged();
+  });
+  child.on('exit', (code) => {
+    if (workstation !== child) return;
+    workstation = null;
+    workstationState = { lobby: origin, stand: { stand: 'getrennt', grund: `Dein Arbeitsplatz wurde beendet (Code ${code})` } };
+    controller.relayChanged();
+  });
+  controller.relayChanged();
+}
+
+function stopWorkstation() {
+  const child = workstation;
+  workstation = null;
+  workstationState = null;
+  if (!child) return Promise.resolve();
+  return new Promise((resolve) => {
+    const done = setTimeout(() => {
+      child.kill();
+      resolve();
+    }, 5000);
+    child.once('exit', () => {
+      clearTimeout(done);
+      resolve();
+    });
+    try {
+      child.send({ t: 'quit', keep: false });
+    } catch {
+      child.kill();
+    }
+  });
+}
+
 /** A fresh one-time sign-in link from the running office. */
 function freshSignIn() {
   if (!office || !officeInfo) return Promise.resolve(null);
@@ -337,6 +404,8 @@ const here = {
   inviteBase: () => (settings.relay ? settings.relay.url : settings.share && officeInfo ? shareAddresses(Number(new URL(officeInfo.url).port))[0]?.url : undefined),
   /** Wie es beim Vermittler steht (siehe office-entry.mjs), solange über einen gastgegeben wird. */
   relayStand: () => relayStand,
+  /** Dein Arbeitsplatz in einer Lobby (siehe startWorkstation). */
+  workstation: { start: startWorkstation, stop: stopWorkstation, state: () => workstationState },
   /** Ein Passwort fürs Office, mit dem Mitspieler über den Vermittler hereinkommen. */
   ensureSharePassword: () => settings.sharePassword || (saveSettings({ sharePassword: newPassword() }), settings.sharePassword),
   /** This computer's own sign-ins (see local-signins.cjs), and signing in in a console window. */
@@ -725,5 +794,5 @@ app.on('before-quit', (e) => {
   if (!office) return void controller.close();
   e.preventDefault();
   quitting = true;
-  Promise.all([stopOffice(), controller.close()]).finally(() => app.quit());
+  Promise.all([stopOffice(), stopWorkstation(), controller.close()]).finally(() => app.quit());
 });

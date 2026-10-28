@@ -300,6 +300,30 @@ function hereCard(s, which) {
   return h('div.card', { class: waiting ? 'busy' : x.status }, h('div.head', {}, h('h3', {}, which === 'claude' ? '✳️ Claude' : '🐙 GitHub'), status), body);
 }
 
+/** Wie es um deinen Arbeitsplatz steht (src/server/arbeitsplatz/satellit.ts), in einem Satz. */
+function workstationText(w) {
+  if (!w.on) return 'Aus: Deine Arbeiter laufen beim Gastgeber, mit deinen Anmeldungen dort.';
+  const st = w.stand;
+  if (!st || st.stand === 'verbinde') return '⏳ Dein Arbeitsplatz verbindet sich mit der Lobby …';
+  if (st.stand === 'verbunden') return '✅ Die Arbeiter, die du einstellst, laufen auf diesem Computer, mit seinem Claude und GitHub. Alle in der Lobby sehen und benutzen sie trotzdem.';
+  if (st.stand === 'abgelehnt') return `❌ ${st.grund}`;
+  return `⚠️ ${st.grund}. Neuer Versuch läuft …`;
+}
+
+/** Deine Arbeiter auf diesem Computer: dein Arbeitsplatz in der Lobby, und die Anmeldungen, mit denen sie hier laufen. */
+function workstationSection(s) {
+  const w = s.workstation;
+  return h(
+    'section',
+    {},
+    h('h2', {}, '🖥️ Deine Arbeiter auf diesem Computer'),
+    h('p', {}, workstationText(w)),
+    w.on ? hereCard(s, 'claude') : null,
+    w.on ? hereCard(s, 'github') : null,
+    h('div.row', {}, h('button', { type: 'button', onclick: click('ownWorkers', { on: !w.on }) }, w.on ? 'Lieber beim Gastgeber laufen lassen' : 'Auf diesem Computer laufen lassen')),
+  );
+}
+
 /** Your sign-ins, first thing: the lobby's own for an account, this computer's for the office here on its password. */
 function signinsSection(s) {
   const here = !s.signins;
@@ -363,6 +387,7 @@ function homeView(s) {
       ),
     ),
     s.lobby.here && s.relay ? relaySection(s) : null,
+    s.workstation ? workstationSection(s) : null,
     me.admin ? inviteSection(s) : null,
     h('p.foot', {}, who, ' · ', h('button.link', { type: 'button', onclick: click('logout') }, 'Abmelden')),
   ];

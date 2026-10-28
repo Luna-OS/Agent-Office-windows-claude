@@ -42,11 +42,38 @@ geht er, übernimmt der nächste. Das ist dann aber dessen Office, mit dessen Et
 | Wo | Was |
 | --- | --- |
 | Vermittler (Umbrel) | nur das Durchreichen: Verbindungen und WebSockets, Bytes in beide Richtungen |
-| Office des Gastgebers | das ganze Office: Etagen (Repos), Arbeiter (Claude Code & Co.), Terminals, Board, Warteschlange, Sprache, Dach |
+| Office des Gastgebers | das Office: Etagen (Repos), Board, Warteschlange, Sprache, Dach, und die Arbeiter des Gastgebers |
+| Arbeitsplatz jedes Spielers | seine Arbeiter (Claude Code & Co.) mit ihren Terminals und Worktrees, auf seinem PC |
 | Browser der Spieler | das 3D-Office (three.js), wie immer |
 
-Die Arbeiter laufen im Moment alle im Office des Gastgebers, auf seinem Computer. Als Nächstes laufen sie
-auf dem Computer dessen, der sie einstellt, mit dessen eigenem Claude und GitHub.
+## Dein Arbeitsplatz: deine Arbeiter auf deinem PC
+
+Bist du mit einem **eigenen Konto** in einer Lobby (Einladungslink, oder ☰ → 👥 Team), startet die App im
+Hintergrund dein **Arbeitsplatz**: ein eigenes Office nur auf deinem Computer (unter `<Daten>/arbeitsplatz`),
+das sich bei der Lobby meldet. Stellst du dann einen Arbeiter ein, läuft er dort, auf deinem PC, mit **deinem**
+Claude und GitHub (die Anmeldungen dieses Computers, die die App unter **🖥️ Deine Arbeiter auf diesem Computer**
+zeigt). Beim ersten Arbeiter auf einer Etage klont dein Arbeitsplatz ihr Repo auf deinen PC.
+
+Für alle anderen ist er ein Arbeiter wie jeder andere: Er sitzt am Schreibtisch, sein Laptop zeigt sein
+Terminal, und jeder kann es öffnen, hineintippen, ihm Aufgaben geben oder ihn nach Hause schicken. Das geht
+alles durch den Vermittler und das Office des Gastgebers zu deinem PC; beide rechnen dabei nichts.
+
+- Ausschalten: **Lieber beim Gastgeber laufen lassen** in der App; dann laufen deine Arbeiter wieder dort,
+  mit deinen Anmeldungen dort.
+- Ist deine App aus, sind deine Arbeiter in der Lobby weg; startest du sie wieder, sind sie zurück.
+- Mit dem Office-Passwort statt eines eigenen Kontos gibt es keinen Arbeitsplatz. Etagen ohne GitHub-Repo
+  und Arbeiter über mehrere Repos laufen beim Gastgeber.
+- Ohne App: `agent-office --arbeitsplatz http://umbrel.local:4600` mit deiner Sitzung in der Lobby in
+  `AGENT_OFFICE_ARBEITSPLATZ_SITZUNG` (das Cookie `ao_session_…`).
+
+Wie es funktioniert (`src/server/arbeitsplatz/`): Der Arbeitsplatz hält einen WebSocket zu
+`<Lobby>/arbeitsplatz` (nur mit Konto). Will jemand mit Arbeitsplatz einen Arbeiter einstellen, reicht das
+Office des Gastgebers die Nachricht dorthin weiter, ebenso alles für dessen Arbeiter (Terminal, Prompt,
+Änderungen, nach Hause). Der Arbeitsplatz lässt es von seinen eigenen Handlern erledigen, als käme es von
+Browsern bei ihm, und schickt zurück, was die ganze Etage sehen soll (`worker.update`, `worker.remove`,
+`screen`, `toast`) und was nur für einen Browser ist (sein Terminal, Antworten). Der Gastgeber zeigt die
+Arbeiter von außen auf seinen Etagen und lässt keinen Arbeitsplatz die eigenen Arbeiter oder die eines
+anderen ändern.
 
 ## Umbrel-App
 

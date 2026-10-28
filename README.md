@@ -4,8 +4,10 @@
 > Rust-App ohne Oberfläche (`crates/`), die nur zwischen den Spielern vermittelt: Positionen, Chat, Sprache, Repos,
 > Board und Konten. **Der erste Schritt ist da:** Die Umbrel-App „Agent Office Vermittler“ rechnet nichts mehr; die
 > Lobby läuft im Office eines Spielers, der in der App **🛰️ Über den Vermittler gastgeben** wählt, und alle anderen
-> treten über den Umbrel bei ([docs/vermittler.md](docs/vermittler.md)). Als Nächstes laufen die Arbeiter bei dem,
-> der sie einstellt, auf dessen eigenem PC. Mehr dazu in [ARCHITEKTUR.md](ARCHITEKTUR.md).
+> treten über den Umbrel bei ([docs/vermittler.md](docs/vermittler.md)). **Und die Arbeiter laufen bei dem, der sie
+> einstellt:** Wer mit eigenem Konto in der Lobby ist, dessen App ist sein Arbeitsplatz; seine Arbeiter laufen auf
+> seinem PC, mit seinem Claude und GitHub, und alle sehen und benutzen sie trotzdem
+> ([docs/vermittler.md](docs/vermittler.md#dein-arbeitsplatz-deine-arbeiter-auf-deinem-pc)). Mehr dazu in [ARCHITEKTUR.md](ARCHITEKTUR.md).
 
 > [!TIP]
 > **Ein Connector für Windows und Mac, das Office im Browser.** Diese Version gibt es als Windows-Installer
@@ -64,7 +66,7 @@ curl -fsSL https://raw.githubusercontent.com/AgentSystemLabs/agent-office/main/i
 
 - **Other maps.** Turn the whole building into a castle: sit on a throne of iron blades while your workers line up before you when they're done, send new ones off through the Hand of the King, and watch their beards grow long and grey as they toil. Send one home and the Kingsguard runs up from the dungeon, marches it down the stairs and throws it in a cell, where it starves, dies and rots down to a skeleton. Or make a map of your own, with its own way of seeing workers off in JSON ([docs/maps.md](docs/maps.md)).
 
-There's a lot more (a rooftop bar, an office dog, an arcade, supercars in the garage to drive round a scenic loop past a farm, pines, mountains and a beach): see [docs/features.md](docs/features.md).
+There's a lot more (a rooftop bar with a DJ who plays your YouTube links for everyone up there, an office dog, an arcade, supercars in the garage to drive round a scenic loop past a farm, pines, mountains and a beach): see [docs/features.md](docs/features.md).
 
 ## Requirements
 
