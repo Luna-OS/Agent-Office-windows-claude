@@ -12,17 +12,20 @@ description: >-
   ist eine Etage.
 
 
-  Diese App ist nur der Vermittler. Die Lobby mit ihren Etagen, Arbeitern und Terminals läuft im
-  Office eines Spielers, dem Gastgeber: Er wählt in der App „Agent Office“ (Windows oder Mac)
+  Diese App ist nur der Vermittler. Die Lobby mit ihren Etagen und dem Board läuft im Office eines
+  Spielers, dem Gastgeber: Er wählt in der App „Agent Office“ (Windows oder Mac)
   „🛰️ Über den Vermittler gastgeben“ und trägt die Adresse dieses Umbrel und das Passwort unten
   ein. Alle anderen treten in ihrer App unter „Lobby beitreten“ mit der Adresse des Umbrel bei.
-  Der Umbrel reicht die Verbindungen nur durch und rechnet nichts: Dafür reicht auch ein schwacher.
+  Die Arbeiter mit ihren Terminals laufen auf dem PC dessen, der sie einstellt, und sind trotzdem
+  für alle da. Der Umbrel reicht die Verbindungen nur durch und rechnet nichts: Dafür reicht auch
+  ein schwacher.
 
 
   Das Passwort unten braucht nur der Gastgeber. Mitspieler melden sich im Office mit dessen
-  Passwort oder einem Einladungslink an.
+  Passwort oder einem Einladungslink an; mit einem eigenen Konto laufen ihre Arbeiter bei ihnen.
 releaseNotes: >-
-  Neu: Der Umbrel vermittelt nur noch. Die Lobby und alle Arbeiter laufen im Office des Gastgebers.
+  Der Umbrel vermittelt nur. Die Lobby läuft im Office des Gastgebers, die Arbeiter laufen auf dem
+  PC dessen, der sie einstellt (App ab 0.1.41).
 developer: Luna-OS
 website: https://github.com/Luna-OS/Agent-Office-windows-claude
 dependencies: []
