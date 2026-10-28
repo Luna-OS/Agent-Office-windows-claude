@@ -1,6 +1,6 @@
 > [!TIP]
 > **Ein Connector für Windows und Mac, das Office im Browser.** Die Desktop-App (eine kleine Rust-Hülle) gibt es als
-> Windows-Installer und als Mac-Disk-Image unter *Releases*. Sie verbindet dich mit einer Lobby, meldet **jeden Spieler mit
+> Windows-Installer (`OpenAgenticOffice-Setup-<version>.exe`) und als Mac-Disk-Image (`.dmg`) im neuesten Release unter *Releases*. Sie verbindet dich mit einer Lobby, meldet **jeden Spieler mit
 > seinem eigenen Claude und GitHub** an und öffnet das Office im Browser, angemeldet als du, mit Sprache und Bildschirm teilen.
 > Alles dazu: [docs/connector.md](docs/connector.md), installieren: [Windows](docs/windows-app.md), [Mac](docs/mac-app.md).
 >

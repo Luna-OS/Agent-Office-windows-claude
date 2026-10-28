@@ -6,18 +6,25 @@ name: Release
 #
 # Pull Requests bauen dasselbe und starten den fertigen Server als Probe, veröffentlichen aber nichts.
 # Jedes Archiv enthält: open-agentic-office (Server), office-agenten (CLI), office-pty-wirt (Terminal-Wirt) und dist/ (Browser-Client).
+#
+# Auf main kommen ins selbe Release auch die Installer der Desktop-App: OpenAgenticOffice-Setup-<version>.exe
+# (windows-app.yml) und OpenAgenticOffice-<version>-mac-{arm64,x64}.dmg (mac-app.yml). So steht im neuesten
+# Release oben, was man zum Installieren braucht; die Archive sind für install.sh und install.ps1.
 
 on:
   push:
     branches: [main]
     paths:
       - 'crates/**'
+      - 'desktop/**'
       - 'Cargo.toml'
       - 'Cargo.lock'
       - 'rust-toolchain.toml'
       - 'install.sh'
       - 'install.ps1'
       - '.github/workflows/release.yml'
+      - '.github/workflows/windows-app.yml'
+      - '.github/workflows/mac-app.yml'
   pull_request:
     paths:
       - 'crates/**'
@@ -124,9 +131,19 @@ jobs:
           name: version
           path: version.txt
 
-  veroeffentlichen:
-    needs: bauen
+  # Die Installer der Desktop-App, nur für das Release (in Pull Requests prüfen die beiden Workflows sich selbst).
+  windows:
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/windows-app.yml
+
+  mac:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/mac-app.yml
+
+  veroeffentlichen:
+    needs: [bauen, windows, mac]
+    # Ein Installer, der nicht baut, hält das Release der Archive (install.sh, install.ps1) nicht auf.
+    if: ${{ !cancelled() && needs.bauen.result == 'success' && github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -140,10 +157,16 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          shopt -s nullglob
           tag="v$(cat artefakte/version.txt)"
+          version="${tag#v}"
+          # Die Installer der Desktop-App und die Archive.
+          dateien=(artefakte/OpenAgenticOffice-* artefakte/open-agentic-office-*)
           if gh release view "$tag" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
-            echo "$tag ist schon veröffentlicht"
+            echo "$tag ist schon veröffentlicht: lade fehlende Dateien nach"
+            gh release upload "$tag" "${dateien[@]}" --repo "$GITHUB_REPOSITORY" --clobber
             exit 0
           fi
-          gh release create "$tag" artefakte/open-agentic-office-* --repo "$GITHUB_REPOSITORY" \
-            --target "$GITHUB_SHA" --title "$tag" --generate-notes --latest
+          hinweis="**Installieren:** Windows: \`OpenAgenticOffice-Setup-$version.exe\` · Mac: \`OpenAgenticOffice-$version-mac-arm64.dmg\` (Apple-Chip) oder \`OpenAgenticOffice-$version-mac-x64.dmg\` (Intel). Die \`.zip\`- und \`.tar.gz\`-Archive sind der Server für die Kommandozeile (install.sh, install.ps1)."
+          gh release create "$tag" "${dateien[@]}" --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" --title "$tag" --notes "$hinweis" --generate-notes --latest

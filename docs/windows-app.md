@@ -14,8 +14,9 @@ Enterprise) startet statt mit einem Anthropic-API-Key.
 
 ## Installieren
 
-1. Lade `OpenAgenticOffice-Setup-<version>.exe` von der neuesten Release `windows-v…` auf der
-   Releases-Seite des Repositorys (oder als Artefakt des Workflows **Windows app** unter *Actions*).
+1. Lade `OpenAgenticOffice-Setup-<version>.exe` vom neuesten Release (`v0.1.…`, als „Latest“ markiert)
+   auf der Releases-Seite des Repositorys (oder als Artefakt des Workflows **Windows app** unter
+   *Actions*). Die `.zip`-Datei daneben ist nur der Server für die Kommandozeile, nicht die App.
 2. Starte den Installer. Er installiert nur für deinen Windows-Benutzer (keine Admin-Rechte nötig) nach
    `%LOCALAPPDATA%\Programs\OpenAgenticOffice`, den Ordner kannst du ändern. Windows SmartScreen kennt
    die unsignierte App nicht: *Weitere Informationen → Trotzdem ausführen*.

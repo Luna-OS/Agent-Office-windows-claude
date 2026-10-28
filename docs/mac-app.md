@@ -11,8 +11,9 @@ einem API-Key.
 
 ## Installieren
 
-1. Lade die Disk-Image-Datei von der neuesten Release `mac-v…` auf der Releases-Seite des Repositorys
-   (oder als Artefakt des Workflows **Mac app** unter *Actions*):
+1. Lade die Disk-Image-Datei vom neuesten Release (`v0.1.…`, als „Latest“ markiert) auf der
+   Releases-Seite des Repositorys (oder als Artefakt des Workflows **Mac app** unter *Actions*); die
+   `.tar.gz`-Dateien daneben sind nur der Server für die Kommandozeile:
    - `OpenAgenticOffice-<version>-mac-arm64.dmg` für Macs mit Apple-Chip (M1, M2, M3, M4 …)
    - `OpenAgenticOffice-<version>-mac-x64.dmg` für Macs mit Intel-Prozessor
 2. Öffne das Image und zieh **OpenAgenticOffice** in den Ordner **Programme**.
