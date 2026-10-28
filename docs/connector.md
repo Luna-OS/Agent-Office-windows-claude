@@ -86,5 +86,8 @@ soll dein PC geschont werden, nimm den Umbrel.
 - `desktop/src/server_start.rs`: den Server als Kindprozess starten (`--no-open --port --host --daten
   [--projekte] [--client]`), das Lobby-Passwort geht über die Umgebung (`OFFICE_PASSWORT`), nicht über die
   Kommandozeile. Mit „Worker nur mit Claude-Abo“ (Standard) werden `ANTHROPIC_API_KEY` & Co. entfernt.
-- `desktop/src/passthrough.rs`: die Durchleitung auf Port 48600, Byte für Byte, auch WebSockets.
+- `desktop/src/passthrough.rs`: die Durchleitung auf Port 48600, auch WebSockets. Im Anfragekopf setzt sie
+  `Host` (und ein `Origin` von hier) auf die Adresse der Lobby, sonst hielte das Office die Anfrage für einen
+  Dienste-Tunnel zum Server eines Arbeiters auf Port 48600. Andere Namen als 127.0.0.1 und localhost weist
+  sie ab.
 - `desktop/src/einstellungen.rs`: gemerkte Lobbys und Einstellungen als JSON im Konfigurationsordner.
