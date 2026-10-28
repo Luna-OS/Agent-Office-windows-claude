@@ -96,7 +96,8 @@ jobs:
           docker load -i /tmp/office-image.tar
           mkdir -p "$RUNNER_TEMP/data"
           docker run -d --name office -p 4600:4600 -v "$RUNNER_TEMP/data:/data" \
-            -e OFFICE_HOST=0.0.0.0 -e OFFICE_PASSWORT=ci-passwort open-agentic-office:ci
+            -e OAO_SSHD=off -e OAO_HOST=0.0.0.0 -e OAO_TRUST_PROXY=1 -e OFFICE_PASSWORT=ci-passwort \
+            open-agentic-office:ci
           code=000
           for _ in $(seq 120); do
             code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:4600/ || true)
