@@ -11,6 +11,11 @@ einem Server, zum Beispiel deinem [Umbrel](https://umbrel.com). Dein Computer ze
 Das ist **nicht** Claudes eigene Cloud (claude.ai/code): Die Lobby und ihre Worker laufen auf deinem
 eigenen Server, mit deinem Claude-Abo oder dem deiner Mitspieler.
 
+> [!TIP]
+> **Ist dein Server schwach?** Dann nimm den [Vermittler](vermittler.md): Die Umbrel-App „Agent Office
+> Vermittler“ rechnet nichts, sie reicht nur durch. Die Lobby mit ihren Workern läuft im Office eines
+> Spielers, der in der App **🛰️ Über den Vermittler gastgeben** wählt.
+
 ## 1. Die Lobby auf dem Umbrel installieren
 
 Die Umbrel-App „Agent Office“ kommt aus einem Community App Store, zum Beispiel deinem

@@ -13,17 +13,21 @@
 # Umbrel offers an update each time you publish a newer one. Run it again to update.
 #
 # Options:
+#   --app <name>      which app: agent-office (the office itself, its workers on the Umbrel) or
+#                     agent-office-vermittler (only the Vermittler; the lobby runs in a player's office,
+#                     see docs/vermittler.md). Default: agent-office
 #   --push            git add, commit and push the store afterwards
 #   --pr              the same, on a new branch agent-office-<version>, and print the link that opens
 #                     the pull request for it (Gitea and GitHub both take /compare/<base>...<branch>)
 #   --tag <version>   a particular image (default: the newest x.y.z tag)
-#   --image <repo>    another image repository (default: ghcr.io/luna-os/agent-office)
+#   --image <repo>    another image repository (default: ghcr.io/luna-os/<app>)
 #   --store-id <id>   the store's id, for a store without an umbrel-app-store.yml yet (one is made)
 #   --port <port>     the port the Umbrel serves the office on (default 4600)
 set -euo pipefail
 
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-image=ghcr.io/luna-os/agent-office
+app=agent-office
+image=''
 tag=''
 store=''
 store_id=''
@@ -36,6 +40,7 @@ usage() { sed -n '2,/^set -euo/p' "${BASH_SOURCE[0]}" | sed '$d; s/^# \{0,1\}//'
 
 while (($#)); do
   case "$1" in
+    --app) app=${2:?--app needs a name}; shift ;;
     --push) push=1 ;;
     --pr) push=1 pr=1 ;;
     --tag) tag=${2:?--tag needs a version}; shift ;;
@@ -51,6 +56,9 @@ done
 [[ -n "$store" ]] || usage 1
 [[ -d "$store" ]] || die "$store isn't a folder: clone your app store first (git clone <its url>)"
 [[ "$port" =~ ^[0-9]+$ ]] || die "--port must be a number"
+[[ "$app" == agent-office || "$app" == agent-office-vermittler ]] || die "--app is agent-office or agent-office-vermittler"
+[[ -n "$image" ]] || image=ghcr.io/luna-os/$app
+name=$(sed -n 's/^name:[[:space:]]*//p' "$here/$app/umbrel-app.yml" | head -1)
 
 # The store's id: from its umbrel-app-store.yml, or made with --store-id.
 manifest="$store/umbrel-app-store.yml"
@@ -65,7 +73,7 @@ else
   echo "==> made $manifest (id: $store_id)"
 fi
 [[ "$store_id" =~ ^[a-z0-9][a-z0-9-]*$ ]] || die "the store's id ($store_id) must be lowercase letters, digits and dashes"
-app_id="$store_id-agent-office"
+app_id="$store_id-$app"
 
 # The image: the newest x.y.z tag on the registry (or --tag), and its digest, read anonymously.
 registry=${image%%/*}
@@ -95,26 +103,26 @@ fi
 dest="$store/$app_id"
 rm -rf "$dest"
 mkdir -p "$dest"
-sed -e "s/^id: agent-office$/id: $app_id/" \
+sed -e "s/^id: $app$/id: $app_id/" \
   -e "s/^version: .*/version: \"$tag\"/" \
   -e "s/^port: .*/port: $port/" \
-  "$here/agent-office/umbrel-app.yml" >"$dest/umbrel-app.yml"
-sed -e "s|APP_HOST: agent-office_web_1|APP_HOST: ${app_id}_web_1|" \
-  -e "s|image: ghcr.io/luna-os/agent-office:latest|image: $ref|" \
-  "$here/agent-office/docker-compose.yml" >"$dest/docker-compose.yml"
+  "$here/$app/umbrel-app.yml" >"$dest/umbrel-app.yml"
+sed -e "s|APP_HOST: ${app}_web_1|APP_HOST: ${app_id}_web_1|" \
+  -e "s|image: ghcr.io/luna-os/$app:latest|image: $ref|" \
+  "$here/$app/docker-compose.yml" >"$dest/docker-compose.yml"
 grep -q "^id: $app_id$" "$dest/umbrel-app.yml" || die "couldn't set the app's id in $dest/umbrel-app.yml"
 grep -q "image: $ref" "$dest/docker-compose.yml" || die "couldn't set the image in $dest/docker-compose.yml"
-echo "==> $dest: Agent Office $tag ($ref) on port $port"
+echo "==> $dest: $name $tag ($ref) on port $port"
 
 if ((push)); then
   base=$(git -C "$store" rev-parse --abbrev-ref HEAD)
-  branch="agent-office-$tag"
+  branch="$app-$tag"
   ((pr)) && git -C "$store" checkout -q -B "$branch"
   git -C "$store" add umbrel-app-store.yml "$app_id"
   if git -C "$store" diff --cached --quiet; then
     echo "==> nothing new to commit: the store has this version already"
   else
-    git -C "$store" commit -m "Agent Office $tag"
+    git -C "$store" commit -m "$name $tag"
   fi
   if ((pr)); then
     git -C "$store" push -u origin "$branch"
@@ -122,11 +130,11 @@ if ((push)); then
     # The store's page: its remote without credentials or .git (an ssh remote's host and path, over https).
     web=$(git -C "$store" remote get-url origin | sed -E 's#^(https?://)[^/@]+@#\1#; s#^[^/@]+@([^:/]+):#https://\1/#; s#\.git$##')
     echo "==> pushed $branch. Open the pull request: $web/compare/$base...$branch"
-    echo "    Once it's merged: on the Umbrel, App Store → ⋯ → Community App Stores → add the store's URL (once), then install or update Agent Office."
+    echo "    Once it's merged: on the Umbrel, App Store → ⋯ → Community App Stores → add the store's URL (once), then install or update $name."
   else
     git -C "$store" push
-    echo "==> pushed. On the Umbrel: App Store → ⋯ → Community App Stores → add the store's URL (once), then install or update Agent Office."
+    echo "==> pushed. On the Umbrel: App Store → ⋯ → Community App Stores → add the store's URL (once), then install or update $name."
   fi
 else
-  echo "==> next: git -C '$store' add -A && git -C '$store' commit -m 'Agent Office $tag' && git -C '$store' push"
+  echo "==> next: git -C '$store' add -A && git -C '$store' commit -m '$name $tag' && git -C '$store' push"
 fi

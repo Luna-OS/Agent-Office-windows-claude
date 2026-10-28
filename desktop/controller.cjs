@@ -3,7 +3,7 @@
 // browser. main.cjs hands it what it needs from Electron and from the office on this computer, so
 // the tests drive it with plain stand-ins.
 const { Lobby, linkKeyOf } = require('./connector.cjs');
-const { inviteOf, lobbyName, lobbyOrigin, needsPassthrough, unreachable } = require('./lobby.cjs');
+const { inviteOf, lobbyName, lobbyOrigin, needsPassthrough, notARelay, unreachable } = require('./lobby.cjs');
 const { startPassthrough } = require('./passthrough.cjs');
 
 /** Only https:// pages are opened for a lobby (Claude's and GitHub's sign-in pages). */
@@ -66,6 +66,7 @@ function createController({ settings, save, seal = (s) => ({ p: s }), unseal = (
       viaPassthrough: !!lobby && needsPassthrough(lobby.origin),
       passthrough: passthrough?.origin ?? null,
       share: !!s.share,
+      relay: s.relay ? { url: s.relay.url, stand: here.relayStand?.() ?? null } : null,
     };
   };
   const push = () => onChange(state());
@@ -296,6 +297,29 @@ function createController({ settings, save, seal = (s) => ({ p: s }), unseal = (
       if (url) openExternal(url);
     },
     office: () => openOffice(),
+    /**
+     * Gastgeber über einen Vermittler: Das Office auf diesem Computer meldet sich dort an, und wer zum
+     * Vermittler kommt, landet hier. Die Lobby und ihre Worker laufen dann auf diesem Computer.
+     */
+    async relayHost({ url, password }) {
+      const origin = lobbyOrigin(text(url, 2048));
+      if (!origin) throw new Error('Das ist keine Adresse. Zum Beispiel: umbrel.local:4600 oder 100.78.107.162:4600');
+      const pw = text(password, 512);
+      if (!pw) throw new Error('Das Lobby-Passwort des Vermittlers fehlt (bei der Umbrel-App steht es auf ihrer Seite im App Store).');
+      show('busy', { busy: `Prüfe den Vermittler ${origin} …` });
+      const why = await notARelay(origin, get);
+      if (why) return show('lobbies', { error: why });
+      here.ensureSharePassword?.();
+      save({ relay: { url: origin, password: seal(pw) } });
+      if (here.running()) await here.stop();
+      return connectHere();
+    },
+    /** Nicht mehr über den Vermittler gastgeben: Das Office läuft weiter, nur für diesen Computer. */
+    async relayStop() {
+      save({ relay: null });
+      if (here.running()) await here.stop();
+      return connectHere();
+    },
     async invite({ role, name }) {
       const base = local ? here.inviteBase() : lobby.origin;
       if (!base) throw new Error('Das Office auf diesem Computer ist nur für dich offen. Öffne es zuerst für andere: Menü „Dieser Computer → Lobby für andere öffnen“.');
@@ -356,6 +380,8 @@ function createController({ settings, save, seal = (s) => ({ p: s }), unseal = (
     isHere: () => !!lobby && local,
     passthroughRunning: () => !!passthrough,
     openOffice: () => actions.office(),
+    /** Beim Vermittler hat sich etwas getan (siehe main.cjs): die Ansicht neu zeichnen. */
+    relayChanged: () => push(),
     close: () => {
       clearTimeout(timer);
       return passthrough?.close();

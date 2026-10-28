@@ -6,6 +6,7 @@ import { after, before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import http from 'node:http';
 import net from 'node:net';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -267,6 +268,43 @@ test('the connector: the office on this computer signs it in with its own link',
   await assert.rejects(c.run('invite', { role: 'member' }), /nur für dich offen/);
   const down = connector({}, { start: async () => Promise.reject(new Error('no node')) });
   assert.match((await down.c.do('here')).error ?? down.last().error, /startet nicht: no node/);
+});
+
+test('the connector: hosting through a Vermittler starts the office here with it, and stops again', async (t) => {
+  // Ein Vermittler zum Schein: sagt unter /vermittler/stand, dass er einer ist.
+  const relay = http.createServer((req, res) => {
+    if (req.url !== '/vermittler/stand') return void res.writeHead(404).end();
+    res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ dienst: 'agent-office-vermittler', gastgeber: null }));
+  });
+  await new Promise<void>((r) => relay.listen(0, '127.0.0.1', r));
+  t.after(() => relay.close());
+  const relayUrl = `http://127.0.0.1:${(relay.address() as net.AddressInfo).port}`;
+  let running = false;
+  let stops = 0;
+  const c = connector(
+    {},
+    {
+      running: () => running,
+      stop: async () => void ((running = false), stops++),
+      start: async () => ((running = true), { origin: base, link: `${base}${office.signInLink()}` }),
+      relayStand: () => ({ stand: 'gastgeber' }),
+      ensureSharePassword: () => 'pw',
+    },
+  );
+  t.after(() => c.c.close());
+  await assert.rejects(c.run('relayHost', { url: 'nope://x', password: 'x' }), /keine Adresse/);
+  await assert.rejects(c.run('relayHost', { url: relayUrl, password: '' }), /Lobby-Passwort/);
+  await c.run('relayHost', { url: base, password: 'geheim' });
+  assert.match(c.last().error, /kein Vermittler/, 'the office itself is no Vermittler');
+  let s = await c.run('relayHost', { url: relayUrl.replace('http://', ''), password: 'geheim' });
+  assert.equal(s.view, 'home');
+  assert.equal(s.lobby.here, true);
+  assert.deepEqual(s.relay, { url: relayUrl, stand: { stand: 'gastgeber' } });
+  assert.deepEqual(c.settings().relay, { url: relayUrl, password: { p: 'geheim' } });
+  s = await c.run('relayStop');
+  assert.equal(s.relay, null);
+  assert.equal(c.settings().relay, null);
+  assert.equal(stops, 1, 'the office here starts again without the Vermittler');
 });
 
 test("this computer's own sign-ins, as claude and gh tell them", async () => {

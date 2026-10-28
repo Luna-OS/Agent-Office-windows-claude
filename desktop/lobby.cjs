@@ -52,6 +52,22 @@ async function unreachable(origin, get = fetch, ms = 8000) {
   }
 }
 
+/**
+ * Why `origin` isn't a Vermittler (crates/vermittler) to host a lobby through, in a sentence; undefined
+ * when it is. It answers /vermittler/stand with who hosts there now.
+ */
+async function notARelay(origin, get = fetch, ms = 8000) {
+  try {
+    const res = await get(`${origin}/vermittler/stand`, { signal: AbortSignal.timeout(ms) });
+    const stand = res.ok ? await res.json().catch(() => null) : null;
+    if (stand?.dienst !== 'agent-office-vermittler') return `Unter ${origin} läuft kein Vermittler. Gemeint ist die Umbrel-App „Agent Office Vermittler“ (Port 4600).`;
+    return undefined;
+  } catch (err) {
+    const why = err?.name === 'TimeoutError' ? 'keine Antwort' : (err?.cause?.code ?? err?.message ?? String(err));
+    return `${origin} ist nicht erreichbar (${why}). Läuft der Vermittler, und ist dieser Computer im selben Netz (Heimnetz, Tailscale oder NetBird)?`;
+  }
+}
+
 /** A short name for a lobby: the one given, or its address. */
 function lobbyName(name, origin) {
   const clean = String(name ?? '')
@@ -61,4 +77,4 @@ function lobbyName(name, origin) {
   return clean || new URL(origin).host;
 }
 
-module.exports = { DOCS, inviteOf, lobbyOrigin, needsPassthrough, unreachable, lobbyName };
+module.exports = { DOCS, inviteOf, lobbyOrigin, needsPassthrough, notARelay, unreachable, lobbyName };

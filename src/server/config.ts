@@ -59,6 +59,8 @@ export interface Config {
   city?: string;
   /** Weather pinned for good, instead of made up or forecast. */
   weather?: Weather;
+  /** Gastgeber über einen Vermittler (--vermittler): Das Office meldet sich dort an, und wer zum Vermittler kommt, landet hier. */
+  vermittler?: { url: string; passwort: string; name: string };
 }
 
 export interface RTCIceServerLike {
@@ -150,6 +152,14 @@ Options:
                           whole day and night go by every hour
       --weather <kind>    Pin the weather: clear, cloudy, rain, storm, snow or
                           fog (env AGENT_OFFICE_WEATHER)
+      --vermittler <url>  Die Lobby über einen Vermittler anbieten, z. B.
+                          http://umbrel.local:4600 (env AGENT_OFFICE_VERMITTLER):
+                          Wer dorthin kommt, landet in diesem Office. Die Lobby
+                          und ihre Arbeiter laufen hier, der Vermittler reicht nur durch
+      --vermittler-passwort <pw>  Das Lobby-Passwort des Vermittlers
+                          (env AGENT_OFFICE_VERMITTLER_PASSWORT)
+      --vermittler-name <name>  Wie die anderen den Gastgeber sehen
+                          (Standard: der Name dieses Computers)
   -h, --help              Show this help
 
 Started in a terminal, the office opens in your browser already signed in, with
@@ -229,6 +239,9 @@ export function loadConfig(argv: string[]): Config {
   let webhook = process.env.AGENT_OFFICE_WEBHOOK;
   let city = process.env.AGENT_OFFICE_CITY || '';
   let weather = process.env.AGENT_OFFICE_WEATHER || '';
+  let vermittler = process.env.AGENT_OFFICE_VERMITTLER || '';
+  let vermittlerPasswort = process.env.AGENT_OFFICE_VERMITTLER_PASSWORT || '';
+  let vermittlerName = process.env.AGENT_OFFICE_VERMITTLER_NAME || '';
   const iceServers: RTCIceServerLike[] = [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] }];
 
   for (let i = 0; i < argv.length; i++) {
@@ -271,6 +284,15 @@ export function loadConfig(argv: string[]): Config {
         break;
       case '--trust-proxy':
         trustProxy = true;
+        break;
+      case '--vermittler':
+        vermittler = takeValue(argv, i++, a);
+        break;
+      case '--vermittler-passwort':
+        vermittlerPasswort = takeValue(argv, i++, a);
+        break;
+      case '--vermittler-name':
+        vermittlerName = takeValue(argv, i++, a);
         break;
       case '--claim-token':
         claimToken = takeValue(argv, i++, a);
@@ -397,6 +419,18 @@ export function loadConfig(argv: string[]): Config {
   save();
 
   let tls: Config['tls'];
+  if (vermittler) {
+    if (!vermittlerPasswort) {
+      console.error('agent-office: --vermittler braucht das Lobby-Passwort (--vermittler-passwort oder AGENT_OFFICE_VERMITTLER_PASSWORT)');
+      process.exit(2);
+    }
+    if (tlsCert || tlsKey || selfSigned) {
+      console.error('agent-office: --vermittler geht nicht mit HTTPS: Der Vermittler reicht die Verbindungen so durch, wie sie bei ihm ankommen');
+      process.exit(2);
+    }
+    // Der Vermittler sagt in X-Forwarded-For, von wem eine Verbindung kommt (für die Sperre nach falschen Passwörtern).
+    trustProxy = true;
+  }
   if (tlsCert || tlsKey) {
     if (!tlsCert || !tlsKey) {
       console.error('agent-office: --tls-cert and --tls-key go together');
@@ -445,6 +479,7 @@ export function loadConfig(argv: string[]): Config {
     webhook,
     city: city.trim() || undefined,
     weather: (weather as Weather) || undefined,
+    vermittler: vermittler ? { url: vermittler, passwort: vermittlerPasswort, name: vermittlerName.trim() || os.hostname() } : undefined,
   };
 }
 

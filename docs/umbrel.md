@@ -8,6 +8,10 @@ Die Umbrel-App „Agent Office“ ist das Office als [Online-Lobby](online-lobby
 GitHub. Diese Seite beschreibt, woraus die App besteht, wie sie in einen
 Community App Store (wie deinen nrzStore) kommt und wie du sie aktualisierst.
 
+Für einen schwachen Umbrel gibt es die App „Agent Office Vermittler“: Sie rechnet nichts, die Lobby
+läuft im Office eines Spielers ([Vermittler](vermittler.md)). Sie kommt genauso in den Store, mit
+`deploy/umbrel/publish.sh <Store> --app agent-office-vermittler --pr`.
+
 ## Woraus sie besteht
 
 - **Das Image** `ghcr.io/luna-os/agent-office`: derselbe Container wie für Railway, Fly.io und

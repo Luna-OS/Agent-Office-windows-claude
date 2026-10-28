@@ -1,4 +1,5 @@
 import http from 'node:http';
+import type { AddressInfo } from 'node:net';
 import https from 'node:https';
 import type { Config } from './config.js';
 import { resolveCommand } from './workers.js';
@@ -16,6 +17,7 @@ import { requestHandler } from './http/router.js';
 import { routes } from './http/routes/index.js';
 import { startHookServer } from './hooks/server.js';
 import { acceptWebSockets } from './ws/upgrade.js';
+import { gastgebenUeberVermittler } from './vermittler.js';
 
 /** What a test can set about how the office starts: the client bundle it serves, instead of the built one. */
 export interface StartOptions {
@@ -50,6 +52,7 @@ export async function startServer(cfg: Config, opts: StartOptions = {}) {
   const { services, tailnet } = ctx;
   services.start();
   tailnet.start(() => services.list().map((s) => s.port));
+  const vermittler = cfg.vermittler && gastgebenUeberVermittler({ ...cfg.vermittler, officeHost: cfg.host, officePort: (server.address() as AddressInfo).port });
 
   /** With `keep` (a restart), workers' terminals keep running for the next office to pick up. */
   const shutdown = (keep = false) => {
@@ -59,6 +62,7 @@ export async function startServer(cfg: Config, opts: StartOptions = {}) {
     ctx.upgrader.stop();
     services.stop();
     tailnet.stop();
+    if (vermittler) vermittler.stop();
     ctx.webhook.stop();
     ctx.machine.stop();
     ctx.sky.stop();
@@ -84,6 +88,8 @@ export async function startServer(cfg: Config, opts: StartOptions = {}) {
     publicDir,
     hookPort,
     signInLink,
+    /** Wie es beim Vermittler steht, wenn die Lobby über einen angeboten wird (--vermittler). */
+    vermittler: () => (vermittler ? vermittler.stand() : undefined),
     floors: () => [...ctx.floors.values()],
     projectsDir: () => ctx.building.projectsDir,
     resolvedAgent: resolveCommand(cfg.agentCmd),

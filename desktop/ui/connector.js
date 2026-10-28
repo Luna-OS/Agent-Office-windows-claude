@@ -111,8 +111,41 @@ function lobbiesView(s) {
       h('p', {}, 'Das Office und seine Worker laufen auf diesem Computer. Das braucht Rechenleistung, je mehr Worker, desto mehr.'),
       h('button', { type: 'button', onclick: click('here') }, 'Auf diesem Computer starten'),
     ),
-    h('p.foot', {}, 'Eine eigene Lobby hosten: die Umbrel-App „Agent Office“ · ', h('a', { href: `${DOCS}online-lobby.md` }, 'Anleitung')),
+    relaySection(s),
+    h('p.foot', {}, 'Eine eigene Lobby: über den Vermittler (Umbrel-App „Agent Office Vermittler“) · ', h('a', { href: `${DOCS}vermittler.md` }, 'Anleitung')),
   ];
+}
+
+/** Wie es beim Vermittler steht, in einem Satz (siehe src/server/vermittler.ts). */
+function relayStandText(st) {
+  if (!st || st.stand === 'verbinde') return '⏳ Verbinde mit dem Vermittler …';
+  if (st.stand === 'gastgeber') return '✅ Du bist Gastgeber: Wer zum Vermittler kommt, landet in deinem Office.';
+  if (st.stand === 'ersatz') return `🕒 ${st.gastgeber} ist gerade Gastgeber. Geht er, übernimmt dein Office.`;
+  if (st.stand === 'abgelehnt') return `❌ Der Vermittler lehnt ab: ${st.grund}`;
+  return `⚠️ ${st.grund}. Neuer Versuch läuft …`;
+}
+
+/** Gastgeber über einen Vermittler (die Umbrel-App): die Lobby läuft hier, der Vermittler reicht nur weiter. */
+function relaySection(s) {
+  if (s.relay) {
+    return h(
+      'section',
+      {},
+      h('h2', {}, '🛰️ Über den Vermittler gastgeben'),
+      h('p', {}, relayStandText(s.relay.stand)),
+      h('p.note', {}, `Mitspieler treten in ihrem Connector unter „Lobby beitreten“ mit ${s.relay.url} bei. Lade sie im Office mit einem Einladungslink ein: so bekommt jeder ein eigenes Konto mit eigenem Claude und GitHub.`),
+      h('button', { type: 'button', onclick: click('relayStop') }, 'Nicht mehr gastgeben'),
+    );
+  }
+  const url = field('relayUrl', { placeholder: 'Vermittler, z. B. umbrel.local:4600', spellcheck: 'false', autocomplete: 'off', required: true });
+  const pw = field('relayPw', { type: 'password', placeholder: 'Lobby-Passwort des Vermittlers', autocomplete: 'off', required: true });
+  return h(
+    'section.quiet',
+    {},
+    h('h2', {}, '🛰️ Über den Vermittler gastgeben'),
+    h('p', {}, 'Die Lobby läuft in deinem Office auf diesem Computer, mit allen Etagen und Workern. Der Vermittler (die Umbrel-App) reicht nur weiter: dafür reicht ein schwacher Server.'),
+    form([url, pw], 'Gastgeber werden', (b) => act(b, 'relayHost', { url: url.value, password: pw.value }).then((ok) => ok && clear('relayPw'))),
+  );
 }
 
 function signinView(s) {
@@ -329,6 +362,7 @@ function homeView(s) {
           : 'Er öffnet das Office in deinem Browser, angemeldet als du.',
       ),
     ),
+    s.lobby.here && s.relay ? relaySection(s) : null,
     me.admin ? inviteSection(s) : null,
     h('p.foot', {}, who, ' · ', h('button.link', { type: 'button', onclick: click('logout') }, 'Abmelden')),
   ];

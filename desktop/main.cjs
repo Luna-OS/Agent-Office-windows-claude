@@ -70,6 +70,8 @@ const DEFAULTS = {
   /** The office on this computer is open to the network (a lobby hosted here, see hosting.cjs), behind `sharePassword`. */
   share: false,
   sharePassword: null,
+  /** Gastgeber über einen Vermittler (crates/vermittler, etwa die Umbrel-App): { url, password (versiegelt) }. */
+  relay: null,
 };
 function readSettings() {
   try {
@@ -189,6 +191,8 @@ let win = null;
 let tray = null;
 let office = null;
 let officeInfo = null;
+/** Wie es beim Vermittler steht, solange über einen gastgegeben wird; null sonst. */
+let relayStand = null;
 let quitting = false;
 /** The app is on its way out, so closing the window closes it instead of keeping it in the tray. */
 let leaving = false;
@@ -224,7 +228,13 @@ async function startOffice() {
   const env = childEnv();
   // Through the environment, not the command line, where anyone on this computer could read it. The
   // office keeps its own password as it was, for when the lobby is closed again.
-  if (settings.share) env.AGENT_OFFICE_PASSWORD = settings.sharePassword;
+  if (settings.share || settings.relay) env.AGENT_OFFICE_PASSWORD = settings.sharePassword;
+  relayStand = null;
+  if (settings.relay) {
+    // Wer über den Vermittler kommt, landet in diesem Office; die Passwörter gehen über die Umgebung.
+    args.push('--vermittler', settings.relay.url, '--vermittler-name', os.userInfo().username || os.hostname());
+    env.AGENT_OFFICE_VERMITTLER_PASSWORT = unseal(settings.relay.password) ?? '';
+  }
   if (!app.isPackaged) env.AGENT_OFFICE_ROOT = paths.root;
   log(`starting: ${paths.node} ${args.join(' ')}`);
   const child = spawn(paths.node, args, { cwd: settings.home, env, stdio: ['ignore', 'pipe', 'pipe', 'ipc'], windowsHide: true });
@@ -237,6 +247,9 @@ async function startOffice() {
       if (msg?.t === 'ready') {
         officeInfo = msg;
         resolve(msg);
+      } else if (msg?.t === 'vermittler') {
+        relayStand = msg.stand;
+        controller.relayChanged();
       } else if (msg?.t === 'signIn') {
         signInWaiters.get(msg.id)?.(msg.url);
         signInWaiters.delete(msg.id);
@@ -320,8 +333,12 @@ const here = {
     await stopOffice().finally(() => (restarting = false));
     officeInfo = null;
   },
-  /** Where friends reach it: nowhere until it's opened to the network (toggleShare). */
-  inviteBase: () => (settings.share && officeInfo ? shareAddresses(Number(new URL(officeInfo.url).port))[0]?.url : undefined),
+  /** Where friends reach it: over the Vermittler, or nowhere until it's opened to the network (toggleShare). */
+  inviteBase: () => (settings.relay ? settings.relay.url : settings.share && officeInfo ? shareAddresses(Number(new URL(officeInfo.url).port))[0]?.url : undefined),
+  /** Wie es beim Vermittler steht (siehe office-entry.mjs), solange über einen gastgegeben wird. */
+  relayStand: () => relayStand,
+  /** Ein Passwort fürs Office, mit dem Mitspieler über den Vermittler hereinkommen. */
+  ensureSharePassword: () => settings.sharePassword || (saveSettings({ sharePassword: newPassword() }), settings.sharePassword),
   /** This computer's own sign-ins (see local-signins.cjs), and signing in in a console window. */
   look: (which) => (which === 'github' ? lookGithub(runTool) : lookClaude(runTool)),
   claude: () => openClaudeCode(['auth', 'login', '--claudeai']),

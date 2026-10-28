@@ -1,0 +1,19 @@
+[package]
+name = "vermittler"
+description = "Der Vermittler von Agent Office: eine Server-App ohne Oberfläche, die eine Lobby zwischen den Spielern vermittelt."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "agent-office-vermittler"
+path = "src/main.rs"
+
+[dependencies]
+tokio = { version = "1", features = ["full"] }
+tokio-tungstenite = "0.27"
+futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
+bytes = "1"
+serde = { workspace = true }
+serde_json = { workspace = true }

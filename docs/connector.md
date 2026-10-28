@@ -65,6 +65,15 @@ Karte von selbst ✅ mit deinem Konto. Einmal anmelden reicht, für alle Worker 
 Computer → Lobby auf diesem Computer für andere öffnen** herein ([so geht's](online-lobby.md#ohne-umbrel-die-lobby-auf-deinem-pc-hosten)).
 Das kostet Rechenleistung; soll dein PC geschont werden, nimm den Umbrel.
 
+## Über den Vermittler gastgeben
+
+Unter **🛰️ Über den Vermittler gastgeben** trägst du die Adresse eines [Vermittlers](vermittler.md)
+(etwa der Umbrel-App „Agent Office Vermittler“) und sein Passwort ein: Dein Office auf diesem Computer
+wird dann die Lobby, und wer zum Vermittler kommt, landet bei dir. Der Connector zeigt, wie es steht
+(✅ Gastgeber, 🕒 Ersatz, ❌ abgelehnt). Deine Mitspieler treten unter **🌐 Lobby beitreten** mit der
+Adresse des Vermittlers bei; Einladungslinks aus dem Office zeigen von selbst auf ihn.
+**Nicht mehr gastgeben** meldet dein Office dort wieder ab.
+
 ## Wenn etwas nicht geht
 
 - **„… ist nicht erreichbar“**: Läuft die Umbrel-App? Ist dein Computer im selben Netz (Heimnetz,

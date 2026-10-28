@@ -2,8 +2,10 @@
 > **Neuer Aufbau, in Arbeit.** Der Client ist wieder der TypeScript-Client von vor der Rust-Umstellung: das 3D-Office
 > (three.js, läuft in jedem Browser und im App-Fenster) und die Electron-App für Windows und Mac. Der Server wird eine
 > Rust-App ohne Oberfläche (`crates/`), die nur zwischen den Spielern vermittelt: Positionen, Chat, Sprache, Repos,
-> Board und Konten. Die Arbeiter laufen dann bei jedem Spieler auf dem eigenen PC. Bis der Vermittler fertig ist, gilt
-> alles unten so wie vor der Umstellung. Mehr dazu in [ARCHITEKTUR.md](ARCHITEKTUR.md).
+> Board und Konten. **Der erste Schritt ist da:** Die Umbrel-App „Agent Office Vermittler“ rechnet nichts mehr; die
+> Lobby läuft im Office eines Spielers, der in der App **🛰️ Über den Vermittler gastgeben** wählt, und alle anderen
+> treten über den Umbrel bei ([docs/vermittler.md](docs/vermittler.md)). Als Nächstes laufen die Arbeiter bei dem,
+> der sie einstellt, auf dessen eigenem PC. Mehr dazu in [ARCHITEKTUR.md](ARCHITEKTUR.md).
 
 > [!TIP]
 > **Ein Connector für Windows und Mac, das Office im Browser.** Diese Version gibt es als Windows-Installer
@@ -386,6 +388,7 @@ Every change to the app that lands on `main` is published as a GitHub release by
 - [Mac app](docs/mac-app.md): the same app for macOS (Apple silicon and Intel)
 - [Online lobby](docs/online-lobby.md): the office on your Umbrel, joined from the connector, with the host's AI or each player's own
 - [Umbrel app](docs/umbrel.md): what the Umbrel app is made of, and putting it in your community app store with `deploy/umbrel/publish.sh`
+- [Vermittler](docs/vermittler.md): eine Lobby über einen schwachen Server (Umbrel), der nur vermittelt: Die Lobby läuft im Office eines Spielers
 - [Features](docs/features.md): everything in the office, room by room
 - [Agents](docs/agents.md): Claude Code, Codex and OpenCode, models and effort, and the office's prompts
 - [Configuration](docs/configuration.md): every command-line option, and where the office keeps its data
