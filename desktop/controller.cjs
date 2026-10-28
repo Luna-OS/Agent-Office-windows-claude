@@ -67,6 +67,8 @@ function createController({ settings, save, seal = (s) => ({ p: s }), unseal = (
       passthrough: passthrough?.origin ?? null,
       share: !!s.share,
       relay: s.relay ? { url: s.relay.url, stand: here.relayStand?.() ?? null } : null,
+      // Dein Arbeitsplatz: in einer Lobby mit eigenem Konto laufen deine Arbeiter auf diesem Computer.
+      workstation: here.workstation && lobby && !local && me?.account ? { on: s.ownWorkers !== false, stand: here.workstation.state()?.stand ?? null } : null,
     };
   };
   const push = () => onChange(state());
@@ -158,9 +160,25 @@ function createController({ settings, save, seal = (s) => ({ p: s }), unseal = (
 
   async function home() {
     signins = me.account ? await lobby.signins() : null;
+    syncWorkstation();
     await lookHere();
     show('home');
     afterLook();
+  }
+
+  /** Dein Arbeitsplatz soll laufen: in einer Lobby (nicht hier), mit eigenem Konto, und wenn du es nicht ausgeschaltet hast. */
+  const workstationWanted = () => !!here.workstation && !!lobby && !local && !!me?.account && !!lobby.cookie && settings().ownWorkers !== false;
+
+  /** Startet oder beendet deinen Arbeitsplatz, wie es gerade sein soll (here.workstation, siehe main.cjs). */
+  function syncWorkstation() {
+    const ws = here.workstation;
+    if (!ws) return;
+    if (workstationWanted()) {
+      ws.start(lobby.origin, lobby.cookie).catch((err) => {
+        error = `Dein Arbeitsplatz startet nicht: ${err?.message ?? err}`;
+        push();
+      });
+    } else void ws.stop();
   }
 
   /**
@@ -168,7 +186,8 @@ function createController({ settings, save, seal = (s) => ({ p: s }), unseal = (
    * (they're the ones its workers use), and GitHub's, while a lobby account has none of its own yet.
    */
   async function lookHere() {
-    const kinds = local && !me?.account ? KINDS : !local && me?.account && signins?.github?.status !== 'ok' ? ['github'] : [];
+    // Mit Arbeitsplatz laufen deine Arbeiter hier: Dann zählen Claude und GitHub dieses Computers.
+    const kinds = (local && !me?.account) || workstationWanted() ? KINDS : !local && me?.account && signins?.github?.status !== 'ok' ? ['github'] : [];
     const found = {};
     for (const k of kinds) found[k] = await here.look(k).catch(() => ({ status: 'none' }));
     mine = found;
@@ -218,6 +237,7 @@ function createController({ settings, save, seal = (s) => ({ p: s }), unseal = (
     lobby = null;
     local = false;
     me = null;
+    syncWorkstation();
     show('lobbies', { error: why });
   }
 
@@ -314,6 +334,13 @@ function createController({ settings, save, seal = (s) => ({ p: s }), unseal = (
       if (here.running()) await here.stop();
       return connectHere();
     },
+    /** Deine Arbeiter auf diesem Computer (an), oder beim Gastgeber (aus). */
+    async ownWorkers({ on }) {
+      save({ ownWorkers: on !== false });
+      syncWorkstation();
+      await lookHere();
+      push();
+    },
     /** Nicht mehr über den Vermittler gastgeben: Das Office läuft weiter, nur für diesen Computer. */
     async relayStop() {
       save({ relay: null });
@@ -333,6 +360,7 @@ function createController({ settings, save, seal = (s) => ({ p: s }), unseal = (
       keepSession();
       me = null;
       signins = null;
+      syncWorkstation();
       show('signin');
     },
     /** This computer's own sign-in, in a console window: the window looks every few seconds until it's done. */

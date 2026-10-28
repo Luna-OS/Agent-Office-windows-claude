@@ -61,6 +61,8 @@ export interface Config {
   weather?: Weather;
   /** Gastgeber über einen Vermittler (--vermittler): Das Office meldet sich dort an, und wer zum Vermittler kommt, landet hier. */
   vermittler?: { url: string; passwort: string; name: string };
+  /** Arbeitsplatz in der Lobby `url` (--arbeitsplatz): Die Arbeiter, die der Spieler dort einstellt, laufen hier. */
+  arbeitsplatz?: { url: string; sitzung: string };
 }
 
 export interface RTCIceServerLike {
@@ -160,6 +162,11 @@ Options:
                           (env AGENT_OFFICE_VERMITTLER_PASSWORT)
       --vermittler-name <name>  Wie die anderen den Gastgeber sehen
                           (Standard: der Name dieses Computers)
+      --arbeitsplatz <url>  Arbeitsplatz in der Lobby unter <url> sein (env
+                          AGENT_OFFICE_ARBEITSPLATZ): Die Arbeiter, die du dort einstellst,
+                          laufen auf diesem Computer, mit seinem Claude und GitHub.
+                          Deine Anmeldung dort kommt als Cookie aus
+                          AGENT_OFFICE_ARBEITSPLATZ_SITZUNG (die App macht das)
   -h, --help              Show this help
 
 Started in a terminal, the office opens in your browser already signed in, with
@@ -242,6 +249,7 @@ export function loadConfig(argv: string[]): Config {
   let vermittler = process.env.AGENT_OFFICE_VERMITTLER || '';
   let vermittlerPasswort = process.env.AGENT_OFFICE_VERMITTLER_PASSWORT || '';
   let vermittlerName = process.env.AGENT_OFFICE_VERMITTLER_NAME || '';
+  let arbeitsplatz = process.env.AGENT_OFFICE_ARBEITSPLATZ || '';
   const iceServers: RTCIceServerLike[] = [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] }];
 
   for (let i = 0; i < argv.length; i++) {
@@ -293,6 +301,9 @@ export function loadConfig(argv: string[]): Config {
         break;
       case '--vermittler-name':
         vermittlerName = takeValue(argv, i++, a);
+        break;
+      case '--arbeitsplatz':
+        arbeitsplatz = takeValue(argv, i++, a);
         break;
       case '--claim-token':
         claimToken = takeValue(argv, i++, a);
@@ -431,6 +442,10 @@ export function loadConfig(argv: string[]): Config {
     // Der Vermittler sagt in X-Forwarded-For, von wem eine Verbindung kommt (für die Sperre nach falschen Passwörtern).
     trustProxy = true;
   }
+  if (arbeitsplatz && !process.env.AGENT_OFFICE_ARBEITSPLATZ_SITZUNG) {
+    console.error('agent-office: --arbeitsplatz braucht deine Anmeldung in der Lobby (AGENT_OFFICE_ARBEITSPLATZ_SITZUNG)');
+    process.exit(2);
+  }
   if (tlsCert || tlsKey) {
     if (!tlsCert || !tlsKey) {
       console.error('agent-office: --tls-cert and --tls-key go together');
@@ -480,6 +495,7 @@ export function loadConfig(argv: string[]): Config {
     city: city.trim() || undefined,
     weather: (weather as Weather) || undefined,
     vermittler: vermittler ? { url: vermittler, passwort: vermittlerPasswort, name: vermittlerName.trim() || os.hostname() } : undefined,
+    arbeitsplatz: arbeitsplatz ? { url: arbeitsplatz, sitzung: process.env.AGENT_OFFICE_ARBEITSPLATZ_SITZUNG ?? '' } : undefined,
   };
 }
 

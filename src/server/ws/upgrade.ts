@@ -6,6 +6,7 @@ import { relayUpgrade, tunneledPort } from '../relay.js';
 import { sameOrigin } from '../http/util.js';
 import type { Ctx } from '../office/context.js';
 import { onConnection } from './connection.js';
+import { arbeitsplatzAnnehmen } from '../arbeitsplatz/gastgeber.js';
 
 function refuseUpgrade(socket: Duplex) {
   socket.write('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n');
@@ -33,6 +34,12 @@ export function acceptWebSockets(ctx: Ctx, server: http.Server | https.Server) {
     } catch {
       socket.destroy();
       return;
+    }
+    // Der Arbeitsplatz eines Spielers (sein Office im Hintergrund): nur mit einem eigenen Konto.
+    if (url.pathname === '/arbeitsplatz') {
+      const account = sameOrigin(req, cfg) ? auth.fromRequest(req)?.account : undefined;
+      if (!account) return refuseUpgrade(socket);
+      return wss.handleUpgrade(req, socket, head, (ws) => arbeitsplatzAnnehmen(ctx, ws, account));
     }
     const session = url.pathname === '/ws' && sameOrigin(req, cfg) ? auth.fromRequest(req) : undefined;
     if (!session) return refuseUpgrade(socket);

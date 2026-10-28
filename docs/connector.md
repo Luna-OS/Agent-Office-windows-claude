@@ -74,6 +74,13 @@ wird dann die Lobby, und wer zum Vermittler kommt, landet bei dir. Der Connector
 Adresse des Vermittlers bei; Einladungslinks aus dem Office zeigen von selbst auf ihn.
 **Nicht mehr gastgeben** meldet dein Office dort wieder ab.
 
+## Deine Arbeiter auf diesem Computer
+
+Mit einem eigenen Konto in einer Lobby laufen die Arbeiter, die du einstellst, auf deinem Computer: Die
+App startet dafür im Hintergrund deinen [Arbeitsplatz](vermittler.md#dein-arbeitsplatz-deine-arbeiter-auf-deinem-pc).
+Unter **🖥️ Deine Arbeiter auf diesem Computer** siehst du, ob er verbunden ist, und die Anmeldungen bei
+Claude und GitHub, mit denen deine Arbeiter hier laufen. **Lieber beim Gastgeber laufen lassen** schaltet ihn ab.
+
 ## Wenn etwas nicht geht
 
 - **„… ist nicht erreichbar“**: Läuft die Umbrel-App? Ist dein Computer im selben Netz (Heimnetz,

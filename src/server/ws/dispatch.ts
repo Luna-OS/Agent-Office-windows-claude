@@ -2,6 +2,7 @@ import type { ClientMsg } from '../../shared/protocol.js';
 import type { Ctx } from '../office/context.js';
 import type { Client } from '../office/client.js';
 import { handlers } from './handlers/index.js';
+import { fernAbfangen } from '../arbeitsplatz/gastgeber.js';
 
 type AnyHandler = (ctx: Ctx, c: Client, msg: ClientMsg) => void;
 
@@ -12,5 +13,7 @@ type AnyHandler = (ctx: Ctx, c: Client, msg: ClientMsg) => void;
  */
 export function dispatch(ctx: Ctx, c: Client, msg: ClientMsg): void {
   if (typeof msg.t !== 'string' || !Object.hasOwn(handlers, msg.t)) return;
+  // Ein Arbeiter auf dem Computer eines Spielers: Das geht zu dessen Arbeitsplatz (arbeitsplatz/gastgeber.ts).
+  if (fernAbfangen(ctx, c, msg)) return;
   (handlers[msg.t] as AnyHandler)(ctx, c, msg);
 }

@@ -24,6 +24,7 @@ import { usageHandlers } from './usage.js';
 import { whiteboardHandlers, whiteboardHooks, whiteboardView } from './whiteboard.js';
 import { jailView, workerHandlers, workerHooks, workersView } from './workers.js';
 import type { FeatureHooks, HandlerMap, ViewPieces } from './types.js';
+import { arbeitsplatzHooks, fernArbeiter } from '../../arbeitsplatz/gastgeber.js';
 
 /** Each domain's handlers put together, in alphabetical order. */
 export const handlers: HandlerMap<ClientMsg> = {
@@ -55,12 +56,13 @@ export const handlers: HandlerMap<ClientMsg> = {
  * The features that keep something per person on a floor, in the order they let go of it when
  * someone leaves the floor or the office (see FeatureHooks): the order the office has always done it in.
  */
-export const features: readonly FeatureHooks[] = [workerHooks, changesHooks, whiteboardHooks, ballHooks, carHooks, cabinetHooks];
+export const features: readonly FeatureHooks[] = [workerHooks, changesHooks, whiteboardHooks, ballHooks, carHooks, cabinetHooks, arbeitsplatzHooks];
 
 /** What someone arriving on a floor is sent (see office/views.ts): a piece from each feature, in the order it has always gone out. */
 export const views: ViewPieces = {
   project: projectView,
-  workers: workersView,
+  // Dazu die Arbeiter, die auf den Computern der Spieler laufen (arbeitsplatz/gastgeber.ts).
+  workers: (ctx, floor) => [...workersView(ctx, floor), ...fernArbeiter(ctx, floor)],
   issues: issuesView,
   pulls: pullsView,
   queue: queueView,

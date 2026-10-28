@@ -5,8 +5,9 @@
 > PC) und `desktop/` (die Electron-App). In Rust bleibt der Server, und der wird zum **Vermittler**: eine App ohne
 > Oberfläche (Umbrel, Docker oder ein PC), mit der sich die lokalen Offices verbinden. Sie reicht Positionen, Chat,
 > Sprach-Signale, Repos, Board, Arbeiter-Stände und Konten zwischen den Spielern weiter und merkt sich den gemeinsamen
-> Stand. Der Vermittler ist `crates/vermittler` ([docs/vermittler.md](docs/vermittler.md)); im ersten Schritt reicht er die
-> Verbindungen aller Spieler zum Office des Gastgebers durch. Die übrigen Crates unten sind der Rust-Neubau des ganzen
+> Stand. Der Vermittler ist `crates/vermittler` ([docs/vermittler.md](docs/vermittler.md)); er reicht die Verbindungen aller
+> Spieler zum Office des Gastgebers durch. Die Arbeiter eines Spielers mit eigenem Konto laufen auf seinem
+> Arbeitsplatz (`src/server/arbeitsplatz/`): seinem eigenen Office im Hintergrund, an das der Gastgeber weiterreicht. Die übrigen Crates unten sind der Rust-Neubau des ganzen
 > Office; sie bleiben als Grundlage, bis der Vermittler sie ablöst.
 
 ## Der Rust-Neubau (bisher)
