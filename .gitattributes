@@ -6,3 +6,8 @@
 # cmd.exe misreads batch files with bare LF line endings (labels and gotos break).
 *.cmd text eol=crlf
 *.nsh text eol=crlf
+# Alles andere: LF im Repo.
+* text=auto eol=lf
+*.png binary
+*.ico binary
+*.ps1 text eol=crlf

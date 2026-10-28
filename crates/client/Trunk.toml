@@ -1,0 +1,21 @@
+# Baut den Browser-Client: `trunk build --release` in crates/client.
+# Die Ausgabe landet in dist/ im Repo-Root; der Server (crates/server) liefert sie unter / aus.
+
+[build]
+target = "index.html"
+dist = "../../dist"
+public_url = "/"
+
+[tools]
+tailwindcss = "4.1.13"
+
+[serve]
+# Zum Entwickeln: `trunk serve` reicht /api und /ws an den laufenden Server weiter.
+port = 8081
+
+[[proxy]]
+backend = "http://127.0.0.1:4600/api"
+
+[[proxy]]
+backend = "ws://127.0.0.1:4600/ws"
+ws = true

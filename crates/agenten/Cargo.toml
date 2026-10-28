@@ -1,0 +1,34 @@
+[package]
+name = "agenten"
+description = "Arbeiter-Verwaltung: PTYs, Git-Worktrees, Agent-Provider (Claude, Codex, ...), Hook-Server und die Kommunikation zwischen Agenten."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "office-agenten"
+path = "src/bin/office-agenten.rs"
+
+[[bin]]
+name = "office-pty-wirt"
+path = "src/bin/office-pty-wirt.rs"
+
+[dependencies]
+protokoll.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+anyhow = "1"
+axum = { version = "0.8", features = ["ws"] }
+tokio = { version = "1", features = ["full"] }
+portable-pty = "0.9"
+vt100 = "0.16"
+rand = "0.9"
+ureq = { version = "3", features = ["json"] }
+tracing = "0.1"
+listeners = "0.6"
+sysinfo = { version = "0.39", default-features = false, features = ["system"] }
+
+[dev-dependencies]
+tempfile = "3"
+tower = { version = "0.5", features = ["util"] }
+http-body-util = "0.1"

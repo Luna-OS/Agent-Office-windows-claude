@@ -1,0 +1,41 @@
+[package]
+name = "welt"
+description = "Die 3D-Welt mit kiss3d: Gebäude, Etagen, Dachterrasse, Figuren, Bewegung."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[features]
+# Ohne "3d" bleibt nur die reine Daten-Schicht (Grundriss, Kollision, Fahrphysik, Zustand),
+# z. B. für den Server: welt = { workspace = true, default-features = false }.
+default = ["3d"]
+3d = ["dep:kiss3d", "dep:log", "dep:web-time", "dep:wgpu", "dep:gltf"]
+
+[dependencies]
+protokoll.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+kiss3d = { version = "0.47", optional = true }
+log = { version = "0.4", optional = true }
+web-time = { version = "1", optional = true }
+wgpu = { version = "30", optional = true }
+gltf = { version = "1.4", optional = true }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+js-sys = "0.3"
+console_error_panic_hook = "0.1"
+web-sys = { version = "0.3", features = [
+    "Window", "Navigator", "Document", "Element", "HtmlElement", "HtmlCanvasElement", "DomRect",
+    "KeyboardEvent", "MouseEvent", "WheelEvent", "Event", "EventTarget", "AddEventListenerOptions",
+    "console", "Performance", "Location", "HtmlImageElement", "CanvasRenderingContext2d", "ImageData",
+] }
+
+[[example]]
+name = "minimal"
+required-features = ["3d"]
+
+[[example]]
+name = "vorschau"
+required-features = ["3d"]

@@ -1,9 +1,9 @@
 #!/bin/bash
-# Signs the GitHub CLI (gh) in, for the Agent Office Mac app (menu "GitHub", and on start when gh
+# Signs the GitHub CLI (gh) in, for the OpenAgenticOffice Mac app (menu "GitHub", and on start when gh
 # isn't signed in yet): the Mac twin of github-login.cmd. The office lists, clones and opens PRs on
 # your repositories with it. The app ships its own gh and puts it on the PATH after any gh you
 # installed yourself.
-printf '\033]0;%s\007' 'Agent Office - Bei GitHub anmelden'
+printf '\033]0;%s\007' 'OpenAgenticOffice - Bei GitHub anmelden'
 
 pause() { echo; read -r -p "  Enter drücken zum Schließen … " _; }
 
@@ -16,16 +16,16 @@ if ! command -v gh >/dev/null 2>&1; then
 fi
 
 echo
-echo "  Agent Office braucht die GitHub CLI (gh), um deine Repositorys zu sehen,"
+echo "  OpenAgenticOffice braucht die GitHub CLI (gh), um deine Repositorys zu sehen,"
 echo "  zu klonen und Issues / Pull Requests anzuzeigen."
 echo
 echo "  Gleich öffnet sich GitHub im Browser: den hier angezeigten Code eingeben"
-echo "  und bestätigen. Danach startet Agent Office neu."
+echo "  und bestätigen. Danach startet OpenAgenticOffice neu."
 echo
 if ! gh auth login --web --hostname github.com --git-protocol https; then
   echo
   echo "  Die Anmeldung hat nicht geklappt. Versuch es noch einmal über"
-  echo "  das Menü \"GitHub → Bei GitHub anmelden\" in Agent Office."
+  echo "  das Menü \"GitHub → Bei GitHub anmelden\" in OpenAgenticOffice."
   pause
   exit 1
 fi

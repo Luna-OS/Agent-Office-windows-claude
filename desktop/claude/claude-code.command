@@ -1,7 +1,7 @@
 #!/bin/bash
 # Claude Code with your Claude subscription (Pro / Max / Team / Enterprise) instead of an API key.
 #
-# The Mac twin of claude-code.cmd, behind the Agent Office app's menu "Claude Code → Claude Code
+# The Mac twin of claude-code.cmd, behind the OpenAgenticOffice app's menu "Claude Code → Claude Code
 # öffnen (ohne API-Key)" (⌘⇧C). A set ANTHROPIC_API_KEY (or ANTHROPIC_AUTH_TOKEN) takes precedence
 # over the subscription login in Claude Code and is billed per token, so it is removed here, for
 # this window only. Nothing else on the Mac changes. Any arguments are passed on to claude, e.g.
@@ -32,7 +32,7 @@ fi
 
 if ! xcode-select -p >/dev/null 2>&1 && ! command -v brew >/dev/null 2>&1; then
   echo
-  echo "  Hinweis: Agent Office und Claude Code brauchen Git. Installieren mit:"
+  echo "  Hinweis: OpenAgenticOffice und Claude Code brauchen Git. Installieren mit:"
   echo "    xcode-select --install"
 fi
 echo

@@ -1,0 +1,115 @@
+/* Das Aussehen der Oberfläche: Tailwind v4 mit den Farbrollen von rust-ui (https://rust-ui.com),
+   gefüllt mit den Farben des Office (Papier, Tinte, Orange). Die Komponenten stehen in crates/oberflaeche. */
+
+@import "tailwindcss";
+
+@source "../../oberflaeche/src";
+
+:root {
+  --radius: 0.75rem;
+  --tinte: #2b2d42;
+  --papier: #fffaf3;
+  --papier-2: #fff1de;
+  --background: var(--papier);
+  --foreground: var(--tinte);
+  --card: var(--papier);
+  --card-foreground: var(--tinte);
+  --popover: #ffffff;
+  --popover-foreground: var(--tinte);
+  --primary: #ff8a5b;
+  --primary-foreground: #ffffff;
+  --secondary: var(--papier-2);
+  --secondary-foreground: var(--tinte);
+  --muted: var(--papier-2);
+  --muted-foreground: #7a6f65;
+  --accent: #ffe6cc;
+  --accent-foreground: var(--tinte);
+  --destructive: #ef476f;
+  --success: #06d6a0;
+  --success-foreground: #ffffff;
+  --warning: #ffd166;
+  --warning-foreground: var(--tinte);
+  --info: #5bc0eb;
+  --info-foreground: #ffffff;
+  --border: rgb(43 45 66 / 0.18);
+  --input: rgb(43 45 66 / 0.35);
+  --ring: #ff8a5b;
+  --font-sans: "Nunito", ui-rounded, "SF Pro Rounded", system-ui, -apple-system, sans-serif;
+}
+
+@theme inline {
+  --font-sans: var(--font-sans);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+@layer base {
+  * { border-color: var(--border); }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #bfe3ff; }
+  body { font-family: var(--font-sans); color: var(--foreground); -webkit-font-smoothing: antialiased; }
+  #welt { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; outline: none; }
+}
+
+@layer components {
+  /* Die Tafeln des HUD: Papier mit dicker Tinte, wie im alten Office. */
+  .hud-panel {
+    background: var(--papier);
+    color: var(--tinte);
+    border: 3px solid var(--tinte);
+    border-radius: 16px;
+    box-shadow: 0 4px 0 var(--tinte);
+  }
+  .anmeldung { background: linear-gradient(160deg, #bfe3ff 0%, #ffe6cc 100%); }
+  .fenster { animation: fenster-auf 0.12s ease-out; }
+  @keyframes fenster-auf { from { transform: scale(0.97); opacity: 0; } }
+
+  /* Das Terminal: feste Zeichenbreite, Zeilen als DOM. */
+  .terminal { font-family: "Cascadia Mono", "JetBrains Mono", Consolas, ui-monospace, monospace; font-size: 13px; line-height: 1.25; }
+  .terminal pre { margin: 0; height: 1.25em; white-space: pre; }
+  .terminal .cursor { outline: 1px solid #f8f8f2; }
+}
+
+/* Markdown (Bücherregal, GitHub-Texte). */
+@layer components {
+  .markdown { line-height: 1.55; overflow-wrap: anywhere; }
+  .markdown h1 { font-size: 1.5rem; font-weight: 800; margin: 0.8em 0 0.4em; }
+  .markdown h2 { font-size: 1.25rem; font-weight: 800; margin: 0.8em 0 0.4em; }
+  .markdown h3, .markdown h4 { font-size: 1.05rem; font-weight: 800; margin: 0.7em 0 0.3em; }
+  .markdown p, .markdown ul, .markdown ol, .markdown pre, .markdown table, .markdown blockquote { margin: 0.5em 0; }
+  .markdown ul { list-style: disc; padding-left: 1.4em; }
+  .markdown ol { list-style: decimal; padding-left: 1.4em; }
+  .markdown a { color: var(--primary); font-weight: 700; text-decoration: underline; }
+  .markdown code { font-family: "Cascadia Mono", Consolas, ui-monospace, monospace; font-size: 0.9em; background: var(--muted); padding: 0 0.25em; border-radius: 4px; }
+  .markdown pre { background: #1e1f2e; color: #e6e6f0; padding: 0.7em; border-radius: 8px; overflow: auto; }
+  .markdown pre code { background: none; padding: 0; }
+  .markdown blockquote { border-left: 4px solid var(--border); padding-left: 0.8em; color: var(--muted-foreground); }
+  .markdown table { border-collapse: collapse; }
+  .markdown th, .markdown td { border: 1px solid var(--border); padding: 0.25em 0.6em; }
+  .markdown img { max-width: 100%; }
+}

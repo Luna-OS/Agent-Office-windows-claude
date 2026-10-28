@@ -1,21 +1,21 @@
 #!/usr/bin/env bash
-# Deploy your own Agent Office to Fly.io with one command, using flyctl.
+# Dein eigenes OpenAgenticOffice mit einem Befehl auf Fly.io bereitstellen, mit flyctl.
 #
-#   deploy/fly.sh up        create the app, build and start the office, open it
-#   deploy/fly.sh open      tunnel to the office and open it in your browser
-#   deploy/fly.sh destroy   delete the app, its volume and everything on it (asks first)
+#   deploy/fly.sh up        App anlegen, das Office bauen und starten, im Browser öffnen
+#   deploy/fly.sh open      Tunnel zum Office aufbauen und im Browser öffnen
+#   deploy/fly.sh destroy   App, Volume und alles darauf löschen (fragt vorher)
 #
-# The office is never on the internet: it listens on 127.0.0.1 in its Fly Machine, and everyone
-# reaches it through an SSH tunnel to the machine's sshd, on the app's dedicated IPv4 address. What
-# it keeps (accounts, floors, projects, sign-ins, teammates' keys, the SSH host key) is on a Fly
-# volume at /data, so restarts and redeploys lose none of it. The image is the one deploy/railway.sh
-# runs, deploy/container/Dockerfile, built from this checkout. Run `deploy/fly.sh help` for all
-# commands and options.
+# Das Office ist nie im Internet: Es hört in seiner Fly Machine auf 127.0.0.1, und alle erreichen es
+# über einen SSH-Tunnel zum sshd der Maschine, auf der eigenen IPv4-Adresse der App. Was es aufbewahrt
+# (Konten, Etagen, Projekte, Anmeldungen, Schlüssel der Teammitglieder, der SSH-Hostschlüssel) liegt
+# auf einem Fly-Volume unter /data, sodass Neustarts und erneute Deployments nichts davon verlieren.
+# Das Image ist dasselbe wie bei deploy/railway.sh, deploy/container/Dockerfile, gebaut aus diesem
+# Checkout. `deploy/fly.sh help` zeigt alle Befehle und Optionen.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-NAME="agent-office"
+NAME="open-agentic-office"
 APP_ARG=""
 ORG_ARG=""
 REGION_ARG=""
@@ -29,10 +29,10 @@ ANTHROPIC_KEY=""
 YES=0
 NO_OPEN=0
 DOCKERFILE="deploy/container/Dockerfile"
-SSH_USER="agentoffice" # your key's shell in the machine: the user that runs the office
-TEAM_USER="office"     # teammates' keys log in as this user, which can only tunnel to the office
-OFFICE_PORT=4600       # where the office listens in the machine (127.0.0.1 only)
-SSHD_PORT=2222         # the machine's sshd: Fly's own (`fly ssh console`) has port 22 there
+SSH_USER="agentoffice" # die Shell deines Schlüssels in der Maschine: der Benutzer, der das Office betreibt
+TEAM_USER="office"     # Schlüssel der Teammitglieder melden sich als dieser Benutzer an, der nur zum Office tunneln darf
+OFFICE_PORT=4600       # wo das Office in der Maschine lauscht (nur 127.0.0.1)
+SSHD_PORT=2222         # der sshd der Maschine: Flys eigener (`fly ssh console`) hat dort Port 22
 DEFAULT_VM_SIZE="shared-cpu-4x"
 DEFAULT_MEMORY_MB=8192
 LOCAL_PORT=4600
@@ -40,61 +40,63 @@ LOCAL_PORT_SET=0
 
 usage() {
   cat <<'EOF'
-Agent Office on Fly.io — one command up, one command down.
+OpenAgenticOffice auf Fly.io — ein Befehl hoch, ein Befehl runter.
 
-Usage: deploy/fly.sh <command> [options]
+Aufruf: deploy/fly.sh <Befehl> [Optionen]
 
-The office is never on the internet. It listens on 127.0.0.1 in its Fly Machine, and everyone
-reaches it through an SSH tunnel on http://localhost:4600, to the machine's sshd on the app's own
-IPv4 address. Accounts, floors, projects, sign-ins and teammates' keys live on a volume, so they
-survive restarts and redeploys.
+Das Office ist nie im Internet. Es hört in seiner Fly Machine auf 127.0.0.1, und alle erreichen es
+über einen SSH-Tunnel auf http://localhost:4600, zum sshd der Maschine auf der eigenen IPv4-Adresse
+der App. Konten, Etagen, Projekte, Anmeldungen und Schlüssel der Teammitglieder liegen auf einem
+Volume und überstehen Neustarts und erneute Deployments.
 
-Commands
-  up                 Create (or reuse) the Fly app, build this checkout and start the office, then
-                     open it in your browser. The first page shows the office password ONCE.
-  open               Tunnel to your office and open it in the browser (Ctrl-C closes the tunnel)
-  update             Build this checkout again and redeploy it (running workers stop, and come back
-                     where they left off)
-  restart            Restart the office's machine without rebuilding it
-  resize <size> [memory]
-                     Change the machine, e.g. resize performance-2x or resize shared-cpu-8x 16gb
-                     (sizes: fly platform vm-sizes). Memory stays the same unless you give it
-  pause              Stop the machine, and with it the bill for its CPU and memory
-  resume             Start it again and open it
-  destroy            Delete the Fly app: the office, its volume and everything on it (asks you to
-                     type the office name first). `down` does the same.
+Voraussetzungen: flyctl (angemeldet), ssh, curl, jq.
 
-  service <port>     Open a worker's web server from the office's 🌐 Services board on
-                     http://localhost:<port> (through the office; Ctrl-C closes the tunnel)
-  invite <gh-user>   Let a teammate tunnel in with the SSH keys on their GitHub account, and
-                     print the one command to send them. Or: invite <name> <public-key-file>
-  uninvite <name>    Remove a teammate's keys and drop open tunnels
-  team               List who is invited
-  status             Show the app, the machine, the SSH address and whether the office is up
-  ssh                A shell in the machine, as the user that runs the office
-  logs               Follow the office's logs
-  reset-password     Forget the password and show a new one once in your browser
+Befehle
+  up                 Die Fly-App anlegen (oder wiederverwenden), diesen Checkout bauen und das Office
+                     starten, dann im Browser öffnen. Die erste Seite zeigt das Office-Passwort EINMAL.
+  open               Tunnel zu deinem Office aufbauen und im Browser öffnen (Strg-C schließt den Tunnel)
+  update             Diesen Checkout neu bauen und erneut bereitstellen (laufende Arbeiter stoppen und
+                     machen danach dort weiter, wo sie waren)
+  restart            Die Maschine des Office neu starten, ohne neu zu bauen
+  resize <größe> [speicher]
+                     Die Maschine ändern, z. B. resize performance-2x oder resize shared-cpu-8x 16gb
+                     (Größen: fly platform vm-sizes). Der Speicher bleibt gleich, wenn du keinen angibst
+  pause              Die Maschine anhalten, und damit die Rechnung für ihre CPU und ihren Speicher
+  resume             Wieder starten und öffnen
+  destroy            Die Fly-App löschen: das Office, sein Volume und alles darauf (du musst vorher den
+                     Office-Namen eintippen). `down` tut dasselbe.
 
-Options
-  --name <name>             Office name (default: agent-office). Several offices = several apps
-  --app <name>              Fly app name for a new office. App names are unique across all of
-                            Fly.io (default: the office name plus a random suffix)
-  --org <slug>              Fly organization for a new office (needed if you're in more than one)
-  --region <code>           Fly region for a new office (default: the one nearest you; see: fly
-                            platform regions). Its volume stays there
-  --vm-size <size>          Machine size (default: shared-cpu-4x)
-  --memory <size>           Machine memory, like 8gb or 16384 (MB) (default: 8gb)
-  --disk <GB>               Volume size for a new office (default: 50)
-  --port <n>                Local port for the tunnel (default: 4600, or the next free one)
-  --github-token <token>    GitHub token for private repos + the issue/PR boards
-                            (default: your local `gh auth token`)
-  --no-github-token         Don't put any GitHub token in the office
-  --claude-token <token>    Claude subscription token from `claude setup-token`
-                            (default: $CLAUDE_CODE_OAUTH_TOKEN). Without one, log in from the
-                            first worker's terminal in the office.
-  --anthropic-api-key <key> Use an Anthropic API key instead
-  --no-open                 Don't open the browser (up: don't open the tunnel either)
-  -y, --yes                 Don't ask for confirmation
+  service <port>     Den Webserver eines Arbeiters von der 🌐 Dienste-Tafel des Office auf
+                     http://localhost:<port> öffnen (durch das Office; Strg-C schließt den Tunnel)
+  invite <gh-user>   Ein Teammitglied mit den SSH-Schlüsseln seines GitHub-Kontos hereinlassen und den
+                     einen Befehl ausgeben, den du ihm schickst. Oder: invite <name> <öffentlicher-Schlüssel-Datei>
+  uninvite <name>    Die Schlüssel eines Teammitglieds entfernen und offene Tunnel trennen
+  team               Auflisten, wer eingeladen ist
+  status             App, Maschine, SSH-Adresse zeigen und ob das Office läuft
+  ssh                Eine Shell in der Maschine, als der Benutzer, der das Office betreibt
+  logs               Die Logs des Office verfolgen
+  reset-password     Das Passwort vergessen und ein neues einmal im Browser anzeigen
+
+Optionen
+  --name <name>             Name des Office (Standard: open-agentic-office). Mehrere Offices = mehrere Apps
+  --app <name>              Fly-App-Name für ein neues Office. App-Namen sind auf ganz Fly.io eindeutig
+                            (Standard: der Office-Name plus ein zufälliges Suffix)
+  --org <slug>              Fly-Organisation für ein neues Office (nötig, wenn du in mehreren bist)
+  --region <code>           Fly-Region für ein neues Office (Standard: die nächste zu dir; siehe: fly
+                            platform regions). Sein Volume bleibt dort
+  --vm-size <größe>         Maschinengröße (Standard: shared-cpu-4x)
+  --memory <größe>          Speicher der Maschine, etwa 8gb oder 16384 (MB) (Standard: 8gb)
+  --disk <GB>               Volume-Größe für ein neues Office (Standard: 50)
+  --port <n>                Lokaler Port für den Tunnel (Standard: 4600, sonst der nächste freie)
+  --github-token <token>    GitHub-Token für private Repos + die Issue-/PR-Tafeln
+                            (Standard: dein lokales `gh auth token`)
+  --no-github-token         Kein GitHub-Token ins Office legen
+  --claude-token <token>    Claude-Abo-Token von `claude setup-token`
+                            (Standard: $CLAUDE_CODE_OAUTH_TOKEN). Ohne einen meldest du dich im
+                            Terminal des ersten Arbeiters im Office an.
+  --anthropic-api-key <key> Stattdessen einen Anthropic-API-Schlüssel verwenden
+  --no-open                 Den Browser nicht öffnen (up: auch den Tunnel nicht öffnen)
+  -y, --yes                 Nicht um Bestätigung bitten
 EOF
 }
 
@@ -106,14 +108,14 @@ die() {
   exit 1
 }
 
-# The first word that isn't an option is the command; options can go before or after it (the office
-# suggests `deploy/fly.sh --name <name> service <port>`).
+# Das erste Wort, das keine Option ist, ist der Befehl; Optionen dürfen davor oder danach stehen (das
+# Office schlägt `deploy/fly.sh --name <name> service <port>` vor).
 CMD=""
 POSITIONAL=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --name | --app | --org | --region | --vm-size | --memory | --disk | --port | --github-token | --claude-token | --anthropic-api-key)
-      [[ $# -ge 2 ]] || die "$1 needs a value (see: deploy/fly.sh help)" ;;
+      [[ $# -ge 2 ]] || die "$1 braucht einen Wert (siehe: deploy/fly.sh help)" ;;
   esac
   case "$1" in
     --name) NAME="$2"; shift 2 ;;
@@ -131,7 +133,7 @@ while [[ $# -gt 0 ]]; do
     --no-open) NO_OPEN=1; shift ;;
     -y | --yes) YES=1; shift ;;
     -h | --help) usage; exit 0 ;;
-    -*) die "unknown option $1 (see: deploy/fly.sh help)" ;;
+    -*) die "unbekannte Option $1 (siehe: deploy/fly.sh help)" ;;
     *)
       if [[ -z "$CMD" ]]; then CMD="$1"; else POSITIONAL+=("$1"); fi
       shift
@@ -140,7 +142,7 @@ while [[ $# -gt 0 ]]; do
 done
 CMD="${CMD:-help}"
 
-# 8gb, 16g, 8192mb or 8192 → megabytes
+# 8gb, 16g, 8192mb oder 8192 → Megabyte
 memory_mb() {
   local m
   m=$(tr '[:upper:]' '[:lower:]' <<<"$1")
@@ -152,37 +154,36 @@ memory_mb() {
   esac
 }
 
-[[ "$NAME" =~ ^[a-zA-Z0-9-]+$ ]] || die "--name may only contain letters, numbers and dashes"
-[[ -z "$APP_ARG" || "$APP_ARG" =~ ^[a-z0-9][a-z0-9-]{1,62}$ ]] || die "--app may only contain lowercase letters, numbers and dashes"
-[[ -z "$ORG_ARG" || "$ORG_ARG" =~ ^[a-zA-Z0-9_-]+$ ]] || die "--org takes an organization's slug (see: fly orgs list)"
-[[ -z "$REGION_ARG" || "$REGION_ARG" =~ ^[a-z]{3}$ ]] || die "--region takes a three-letter region code (see: fly platform regions)"
-[[ -z "$VM_SIZE_ARG" || "$VM_SIZE_ARG" =~ ^[a-z0-9-]+$ ]] || die "--vm-size takes a size like shared-cpu-4x (see: fly platform vm-sizes)"
-[[ -z "$MEMORY_ARG" || $(memory_mb "$MEMORY_ARG") -ge 256 ]] 2>/dev/null || die "--memory takes a size like 8gb or 16384 (MB)"
-[[ "$DISK" =~ ^[0-9]+$ && $DISK -ge 1 && $DISK -le 500 ]] || die "--disk must be a size in GB, 1 to 500"
-[[ "$LOCAL_PORT" =~ ^[0-9]+$ && $LOCAL_PORT -gt 0 && $LOCAL_PORT -lt 65536 ]] || die "--port must be a port number"
-STATE_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/agent-office/fly/$NAME"
+[[ "$NAME" =~ ^[a-zA-Z0-9-]+$ ]] || die "--name darf nur Buchstaben, Ziffern und Bindestriche enthalten"
+[[ -z "$APP_ARG" || "$APP_ARG" =~ ^[a-z0-9][a-z0-9-]{1,62}$ ]] || die "--app darf nur Kleinbuchstaben, Ziffern und Bindestriche enthalten"
+[[ -z "$ORG_ARG" || "$ORG_ARG" =~ ^[a-zA-Z0-9_-]+$ ]] || die "--org erwartet den Slug einer Organisation (siehe: fly orgs list)"
+[[ -z "$REGION_ARG" || "$REGION_ARG" =~ ^[a-z]{3}$ ]] || die "--region erwartet einen dreibuchstabigen Regionscode (siehe: fly platform regions)"
+[[ -z "$VM_SIZE_ARG" || "$VM_SIZE_ARG" =~ ^[a-z0-9-]+$ ]] || die "--vm-size erwartet eine Größe wie shared-cpu-4x (siehe: fly platform vm-sizes)"
+[[ -z "$MEMORY_ARG" || $(memory_mb "$MEMORY_ARG") -ge 256 ]] 2>/dev/null || die "--memory erwartet eine Größe wie 8gb oder 16384 (MB)"
+[[ "$DISK" =~ ^[0-9]+$ && $DISK -ge 1 && $DISK -le 500 ]] || die "--disk muss eine Größe in GB sein, 1 bis 500"
+[[ "$LOCAL_PORT" =~ ^[0-9]+$ && $LOCAL_PORT -gt 0 && $LOCAL_PORT -lt 65536 ]] || die "--port muss eine Portnummer sein"
+STATE_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/open-agentic-office/fly/$NAME"
 NAME_FLAG=""
-[[ "$NAME" != "agent-office" ]] && NAME_FLAG=" --name $NAME"
+[[ "$NAME" != "open-agentic-office" ]] && NAME_FLAG=" --name $NAME"
 KEY_FILE="$STATE_DIR/id_ed25519"
 KNOWN_HOSTS="$STATE_DIR/known_hosts"
 CLAIM_FILE="$STATE_DIR/claim-token"
-TOML="$STATE_DIR/fly.toml"          # written from the settings below before each deploy
+TOML="$STATE_DIR/fly.toml"          # vor jedem Deploy aus den Einstellungen unten geschrieben
 IDS_FILE="$STATE_DIR/fly.env"        # APP ORG REGION VM_SIZE VM_MEMORY SSH_HOST SSH_PORT
 APP="" ORG="" REGION="" VM_SIZE="" VM_MEMORY="" SSH_HOST="" SSH_PORT=""
 FLYCTL=""
 
-need() { command -v "$1" >/dev/null 2>&1 || die "$1 is required (${2:-install it first})"; }
+need() { command -v "$1" >/dev/null 2>&1 || die "$1 wird gebraucht (${2:-installiere es zuerst})"; }
 
-# Evaluates a JavaScript expression over the JSON on stdin (as j) and prints the result: json 'j.id'
+# Wertet einen jq-Ausdruck über das JSON auf stdin aus und gibt das Ergebnis aus (Strings roh, Objekte
+# kompakt, nichts bei null): json '.id'. Weitere Argumente gehen an jq: json '.Name == $x' --arg x "$wert"
 json() {
-  node -e 'let s = "";
-    process.stdin.on("data", (d) => (s += d)).on("end", () => {
-      const v = new Function("j", `return (${process.argv[1]})`)(JSON.parse(s));
-      if (v !== undefined && v !== null) console.log(typeof v === "object" ? JSON.stringify(v) : String(v));
-    });' "$1"
+  local filter="$1"
+  shift
+  jq -rc "$@" "($filter) | select(. != null)"
 }
 
-# flyctl, run in the state directory: it reads the fly.toml there, never one in your current directory.
+# flyctl, im Zustandsordner ausgeführt: Es liest die fly.toml dort, nie eine aus deinem aktuellen Verzeichnis.
 fl() {
   (
     cd "$STATE_DIR" 2>/dev/null || cd /
@@ -191,13 +192,13 @@ fl() {
 }
 
 preflight() {
-  # Homebrew and Fly's installer put both names on PATH; Concourse CI's CLI is also called `fly`.
-  FLYCTL=$(command -v flyctl || command -v fly) || die "flyctl is required (https://fly.io/docs/flyctl/install/)"
+  # Homebrew und Flys Installer legen beide Namen in den PATH; die CLI von Concourse CI heißt auch `fly`.
+  FLYCTL=$(command -v flyctl || command -v fly) || die "flyctl wird gebraucht (https://fly.io/docs/flyctl/install/)"
   export FLY_NO_UPDATE_CHECK=1
   need ssh
   need curl
-  need node "https://nodejs.org"
-  "$FLYCTL" auth whoami >/dev/null 2>&1 </dev/null || die "flyctl isn't logged in (run: fly auth login)"
+  need jq "https://jqlang.github.io/jq/"
+  "$FLYCTL" auth whoami >/dev/null 2>&1 </dev/null || die "flyctl ist nicht angemeldet (führe aus: fly auth login)"
 }
 
 load_ids() {
@@ -213,7 +214,7 @@ save_ids() {
 
 require_office() {
   load_ids
-  [[ -n "$APP" && -n "$SSH_HOST" ]] || die "no office named \"$NAME\" on Fly.io — run: deploy/fly.sh up$NAME_FLAG"
+  [[ -n "$APP" && -n "$SSH_HOST" ]] || die "es gibt kein Office namens \"$NAME\" auf Fly.io — führe aus: deploy/fly.sh up$NAME_FLAG"
 }
 
 random_token() { od -An -N24 -tx1 /dev/urandom | tr -d ' \n'; }
@@ -230,55 +231,55 @@ open_url() {
 
 # --- Fly.io ----------------------------------------------------------------------------------------
 
-# Whether $APP is still on Fly.io. Only a listing that worked can say it's gone: when Fly can't be
-# asked (network, expired login), this dies, so nothing gets made again or forgotten over an app
-# that's still running.
+# Ob $APP noch auf Fly.io existiert. Nur eine Liste, die funktioniert hat, kann sagen, dass sie weg ist:
+# Kann Fly nicht gefragt werden (Netzwerk, abgelaufene Anmeldung), bricht das hier ab, damit nichts neu
+# angelegt oder vergessen wird, während die App noch läuft.
 app_exists() {
   local list found
   list=$(fl apps list --json </dev/null) ||
-    die "couldn't list your Fly.io apps, so can't tell whether \"$NAME\" ($APP) is still there — check: fly auth whoami"
-  found=$(json "Array.isArray(j) ? j.some((a) => (a.Name ?? a.name) === '$APP') : j === null ? false : 'unreadable'" <<<"$list" 2>/dev/null) || found=""
+    die "deine Fly.io-Apps konnten nicht aufgelistet werden, also ist unklar, ob \"$NAME\" ($APP) noch existiert — prüfe: fly auth whoami"
+  found=$(json 'if type == "array" then any(.[]; (.Name // .name) == $app) elif . == null then false else "unreadable" end' --arg app "$APP" <<<"$list" 2>/dev/null) || found=""
   [[ "$found" == true || "$found" == false ]] ||
-    die "couldn't read Fly.io's list of apps (fly apps list --json), so can't tell whether \"$NAME\" ($APP) is still there"
+    die "Flys App-Liste (fly apps list --json) war nicht lesbar, also ist unklar, ob \"$NAME\" ($APP) noch existiert"
   [[ "$found" == true ]]
 }
 
-# The Fly region nearest this computer: the one Fly's edge answers from.
+# Die Fly-Region, die diesem Computer am nächsten ist: die, aus der Flys Edge antwortet.
 nearest_region() {
   curl -fsSI --max-time 5 https://debug.fly.dev 2>/dev/null | tr -d '\r' | tr '[:upper:]' '[:lower:]' |
     sed -n 's/^fly-region: *\([a-z]\{3\}\)$/\1/p' | head -n 1
 }
 
-# Decides the app, organization, region and machine size, remembered in $IDS_FILE; makes nothing.
-# A new office gets a new app name, a region and the default size; an existing one keeps its own,
-# except for the size and memory you pass.
+# Legt App, Organisation, Region und Maschinengröße fest, gemerkt in $IDS_FILE; legt nichts an.
+# Ein neues Office bekommt einen neuen App-Namen, eine Region und die Standardgröße; ein bestehendes
+# behält seine eigenen, außer Größe und Speicher, die du angibst.
 resolve_settings() {
   load_ids
   if [[ -n "$APP" ]] && ! app_exists; then
     if [[ -n "$SSH_HOST" ]]; then
-      warn "the Fly app for \"$NAME\" ($APP) is gone; making a new one"
-      rm -f "$KNOWN_HOSTS" # a new machine, with a new host key
+      warn "die Fly-App für \"$NAME\" ($APP) ist weg; lege eine neue an"
+      rm -f "$KNOWN_HOSTS" # eine neue Maschine, mit neuem Hostschlüssel
     fi
     SSH_HOST="" SSH_PORT=""
-    [[ -z "$APP_ARG" ]] || APP="" # named below
+    [[ -z "$APP_ARG" ]] || APP="" # unten benannt
     [[ -z "$ORG_ARG" ]] || ORG="$ORG_ARG"
     [[ -z "$REGION_ARG" ]] || REGION="$REGION_ARG"
   elif [[ -n "$APP" ]]; then
-    [[ -z "$APP_ARG" || "$APP_ARG" == "$APP" ]] || die "office \"$NAME\" is already the Fly app $APP (--app only names a new one)"
-    [[ -z "$REGION_ARG" || "$REGION_ARG" == "$REGION" ]] || warn "office \"$NAME\" stays in $REGION: its volume is there"
+    [[ -z "$APP_ARG" || "$APP_ARG" == "$APP" ]] || die "Office \"$NAME\" ist schon die Fly-App $APP (--app benennt nur eine neue)"
+    [[ -z "$REGION_ARG" || "$REGION_ARG" == "$REGION" ]] || warn "Office \"$NAME\" bleibt in $REGION: Sein Volume liegt dort"
   fi
   if [[ -z "$APP" ]]; then
     APP="${APP_ARG:-$(tr '[:upper:]' '[:lower:]' <<<"$NAME")-$(od -An -N3 -tx1 /dev/urandom | tr -d ' \n')}"
-    # Never an app that's already there: the office would take it over, and `destroy` delete it.
-    ! app_exists || die "you already have a Fly app called $APP — give this office a new one with --app <name>"
+    # Nie eine App, die es schon gibt: Das Office würde sie übernehmen und `destroy` sie löschen.
+    ! app_exists || die "du hast schon eine Fly-App namens $APP — gib diesem Office mit --app <name> eine neue"
   fi
   if [[ -z "$ORG" ]]; then
     ORG="$ORG_ARG"
     if [[ -z "$ORG" ]]; then
       local orgs
-      orgs=$(fl orgs list --json </dev/null | json 'Object.keys(j).join("\n")') || orgs=""
-      [[ -n "$orgs" ]] || die "couldn't list your Fly.io organizations (fly orgs list)"
-      [[ $(wc -l <<<"$orgs") -eq 1 ]] || die "you're in several Fly.io organizations; pick one with --org:
+      orgs=$(fl orgs list --json </dev/null | json 'keys_unsorted | join("\n")') || orgs=""
+      [[ -n "$orgs" ]] || die "deine Fly.io-Organisationen konnten nicht aufgelistet werden (fly orgs list)"
+      [[ $(wc -l <<<"$orgs") -eq 1 ]] || die "du bist in mehreren Fly.io-Organisationen; wähle eine mit --org:
 $(sed 's/^/   /' <<<"$orgs")"
       ORG="$orgs"
     fi
@@ -291,79 +292,80 @@ $(sed 's/^/   /' <<<"$orgs")"
   [[ -z "$MEMORY_ARG" ]] || VM_MEMORY=$(memory_mb "$MEMORY_ARG")
   VM_SIZE="${VM_SIZE:-$DEFAULT_VM_SIZE}"
   VM_MEMORY="${VM_MEMORY:-$DEFAULT_MEMORY_MB}"
-  # The public SSH port: a random one, like Railway's TCP proxy, so the scanners that knock on
-  # port 22 of every address all day don't fill the office's logs.
+  # Der öffentliche SSH-Port: ein zufälliger, wie bei Railways TCP-Proxy, damit die Scanner, die den
+  # ganzen Tag an Port 22 jeder Adresse klopfen, nicht die Logs des Office füllen.
   SSH_PORT="${SSH_PORT:-$((20000 + RANDOM % 40000))}"
   save_ids
 }
 
-# The app itself. Its name is saved before it's made (resolve_settings checked it's a new one), so a
-# failure here never makes the next `up` create a second app (or `destroy` miss the first).
+# Die App selbst. Ihr Name wird vor dem Anlegen gespeichert (resolve_settings hat geprüft, dass sie neu
+# ist), damit ein Fehler hier nie dazu führt, dass das nächste `up` eine zweite App anlegt (oder
+# `destroy` die erste verfehlt).
 ensure_app() {
   app_exists && return
   fl apps create "$APP" --org "$ORG" </dev/null >/dev/null 2>"$STATE_DIR/fly.log" ||
-    die "couldn't create the Fly app $APP: $(tail -n 3 "$STATE_DIR/fly.log") (app names are unique across Fly.io: pick another with --app <name>)"
-  ok "Fly app $APP ($ORG)"
+    die "die Fly-App $APP konnte nicht angelegt werden: $(tail -n 3 "$STATE_DIR/fly.log") (App-Namen sind auf ganz Fly.io eindeutig: wähle einen anderen mit --app <name>)"
+  ok "Fly-App $APP ($ORG)"
 }
 
-# Everything the office keeps goes on this volume (see deploy/container/start.sh).
+# Alles, was das Office aufbewahrt, liegt auf diesem Volume (siehe deploy/container/start.sh).
 ensure_volume() {
   local list have
-  list=$(fl volumes list -a "$APP" --json </dev/null) || die "couldn't list the app's volumes"
-  have=$(json "(j || []).filter((v) => v.name === 'data' && !/destroy/.test(v.state)).length" <<<"$list")
+  list=$(fl volumes list -a "$APP" --json </dev/null) || die "die Volumes der App konnten nicht aufgelistet werden"
+  have=$(json '(. // []) | map(select(.name == "data" and ((.state // "") | test("destroy") | not))) | length' <<<"$list")
   if [[ "${have:-0}" -eq 0 ]]; then
     fl volumes create data -a "$APP" --region "$REGION" --size "$DISK" --yes </dev/null >/dev/null 2>"$STATE_DIR/fly.log" ||
-      die "couldn't create the volume in $REGION: $(tail -n 3 "$STATE_DIR/fly.log") (another region: --region <code>, see: fly platform regions)"
-    ok "Volume on /data ($DISK GB in $REGION)"
+      die "das Volume in $REGION konnte nicht angelegt werden: $(tail -n 3 "$STATE_DIR/fly.log") (andere Region: --region <code>, siehe: fly platform regions)"
+    ok "Volume auf /data ($DISK GB in $REGION)"
   fi
 }
 
-# The app's dedicated IPv4 address, or nothing; dies when Fly can't say.
+# Die eigene IPv4-Adresse der App, oder nichts; bricht ab, wenn Fly es nicht sagen kann.
 dedicated_ipv4() {
   local list
-  list=$(fl ips list -a "$APP" --json </dev/null) || die "couldn't list the app's IP addresses"
-  json "((j || []).find((i) => (i.Type ?? i.type) === 'v4') || {}).Address" <<<"$list"
+  list=$(fl ips list -a "$APP" --json </dev/null) || die "die IP-Adressen der App konnten nicht aufgelistet werden"
+  json '(. // []) | map(select((.Type // .type) == "v4")) | (.[0] // {}) | .Address' <<<"$list"
 }
 
-# SSH is the only way in, on an address of the app's own: Fly's shared IPv4 addresses carry only
-# HTTP and TLS.
+# SSH ist der einzige Weg hinein, auf einer Adresse der App selbst: Flys gemeinsame IPv4-Adressen
+# tragen nur HTTP und TLS.
 ensure_ip() {
   SSH_HOST=$(dedicated_ipv4)
   if [[ -z "$SSH_HOST" ]]; then
     fl ips allocate-v4 -a "$APP" --yes </dev/null >/dev/null 2>"$STATE_DIR/fly.log" ||
-      die "couldn't get the app an IPv4 address: $(tail -n 3 "$STATE_DIR/fly.log")"
+      die "die App bekam keine IPv4-Adresse: $(tail -n 3 "$STATE_DIR/fly.log")"
     SSH_HOST=$(dedicated_ipv4)
-    [[ -n "$SSH_HOST" ]] || die "the app has no IPv4 address yet (run this again to retry)"
+    [[ -n "$SSH_HOST" ]] || die "die App hat noch keine IPv4-Adresse (führe das hier erneut aus)"
   fi
   save_ids
-  ok "SSH at $SSH_HOST:$SSH_PORT"
+  ok "SSH unter $SSH_HOST:$SSH_PORT"
 }
 
-# The app's configuration, from the settings in $IDS_FILE. Your key gets a shell in the machine, and
-# the office's panels suggest this script's commands.
+# Die Konfiguration der App, aus den Einstellungen in $IDS_FILE. Dein Schlüssel bekommt eine Shell in
+# der Maschine, und die Panels des Office schlagen die Befehle dieses Skripts vor.
 write_toml() {
   cat >"$TOML" <<EOF
-# Written by deploy/fly.sh for office "$NAME". It writes this file again before every deploy: change
-# the machine with \`deploy/fly.sh resize\`, and settings with \`fly secrets set\`.
+# Von deploy/fly.sh für Office "$NAME" geschrieben. Es schreibt diese Datei vor jedem Deploy neu: Ändere
+# die Maschine mit \`deploy/fly.sh resize\` und Einstellungen mit \`fly secrets set\`.
 app = "$APP"
 primary_region = "$REGION"
 kill_signal = "SIGTERM"
 kill_timeout = 30
 
 [env]
-  AGENT_OFFICE_ADMIN_KEYS = "$(cat "$KEY_FILE.pub")"
-  AGENT_OFFICE_DEPLOY_SCRIPT = "deploy/fly.sh$NAME_FLAG"
-  AGENT_OFFICE_PUBLIC_HOST = "$SSH_HOST:$SSH_PORT"
-  AGENT_OFFICE_SSHD_PORT = "$SSHD_PORT"
-  # Fly's init is PID 1, so tini reaps what workers leave behind as a subreaper instead.
+  OAO_ADMIN_KEYS = "$(cat "$KEY_FILE.pub")"
+  OFFICE_DEPLOY_BEFEHL = "deploy/fly.sh$NAME_FLAG"
+  OFFICE_OEFFENTLICHER_HOST = "$SSH_HOST:$SSH_PORT"
+  OAO_SSHD_PORT = "$SSHD_PORT"
+  # Flys init ist PID 1, also sammelt tini als Subreaper ein, was Arbeiter hinterlassen.
   TINI_SUBREAPER = "1"
 
 [[mounts]]
   source = "data"
   destination = "/data"
 
-# SSH and nothing else: the app's IPv4 address on port $SSH_PORT, to the machine's sshd. The machine
-# always runs; only \`deploy/fly.sh pause\` stops it, and nothing but \`resume\` starts it again.
+# SSH und sonst nichts: die IPv4-Adresse der App auf Port $SSH_PORT, zum sshd der Maschine. Die Maschine
+# läuft immer; nur \`deploy/fly.sh pause\` hält sie an, und nur \`resume\` startet sie wieder.
 [[services]]
   protocol = "tcp"
   internal_port = $SSHD_PORT
@@ -382,41 +384,41 @@ kill_timeout = 30
 EOF
 }
 
-# The office's machine, as "<id> <state>" (started, stopped, …), or nothing before the first deploy.
+# Die Maschine des Office, als "<id> <zustand>" (started, stopped, …), oder nichts vor dem ersten Deploy.
 machine() {
   local list
-  list=$(fl machine list -a "$APP" --json </dev/null) || die "couldn't list the app's machines"
-  json "(j || []).filter((m) => !/destroy/.test(m.state)).map((m) => m.id + ' ' + m.state)[0]" <<<"$list"
+  list=$(fl machine list -a "$APP" --json </dev/null) || die "die Maschinen der App konnten nicht aufgelistet werden"
+  json '(. // []) | map(select((.state // "") | test("destroy") | not)) | map(.id + " " + .state) | .[0]' <<<"$list"
 }
 
 machine_id() {
   local m
   m=$(machine)
-  [[ -n "$m" ]] || die "office \"$NAME\" has no machine — run: deploy/fly.sh update$NAME_FLAG"
+  [[ -n "$m" ]] || die "Office \"$NAME\" hat keine Maschine — führe aus: deploy/fly.sh update$NAME_FLAG"
   echo "${m%% *}"
 }
 
 require_running() {
   local m
   m=$(machine)
-  [[ "${m#* }" != stopped && "${m#* }" != suspended ]] || die "office \"$NAME\" is paused — start it with: deploy/fly.sh resume$NAME_FLAG"
+  [[ "${m#* }" != stopped && "${m#* }" != suspended ]] || die "Office \"$NAME\" ist pausiert — starte es mit: deploy/fly.sh resume$NAME_FLAG"
 }
 
-# Builds this checkout with deploy/container/Dockerfile on Fly's builders and deploys it.
+# Baut diesen Checkout mit deploy/container/Dockerfile auf Flys Buildern und stellt ihn bereit.
 deploy() {
   local log="$STATE_DIR/deploy.log" what
-  what=$(git -C "$REPO_DIR" log -1 --format='%h %s' 2>/dev/null || echo 'not a git checkout')
-  [[ -z "$(git -C "$REPO_DIR" status --porcelain 2>/dev/null)" ]] || what+=", with your uncommitted changes"
-  say "Building and deploying this checkout ($what) — a few minutes"
+  what=$(git -C "$REPO_DIR" log -1 --format='%h %s' 2>/dev/null || echo 'kein Git-Checkout')
+  [[ -z "$(git -C "$REPO_DIR" status --porcelain 2>/dev/null)" ]] || what+=", mit deinen nicht committeten Änderungen"
+  say "Baue und stelle diesen Checkout bereit ($what) — ein paar Minuten"
   write_toml
-  # One machine (--ha=false): the volume can only be on one. The IP address is ensure_ip's.
+  # Eine Maschine (--ha=false): Das Volume kann nur an einer hängen. Die IP-Adresse kommt von ensure_ip.
   if ! fl deploy "$REPO_DIR" --config "$TOML" --dockerfile "$REPO_DIR/$DOCKERFILE" \
     --ignorefile "$REPO_DIR/$DOCKERFILE.dockerignore" --remote-only --ha=false --no-public-ips \
     --wait-timeout 10m --yes </dev/null >"$log" 2>&1; then
     tail -n 40 "$log" >&2
-    die "the deploy failed (the whole log: $log)"
+    die "das Deployment ist fehlgeschlagen (das ganze Log: $log)"
   fi
-  ok "Deployed"
+  ok "Bereitgestellt"
 }
 
 # --- SSH -------------------------------------------------------------------------------------------
@@ -427,7 +429,7 @@ ssh_opts() {
 }
 
 remote() {
-  [[ -f "$KEY_FILE" ]] || die "the SSH key for this office isn't on this machine ($KEY_FILE)"
+  [[ -f "$KEY_FILE" ]] || die "der SSH-Schlüssel dieses Office liegt nicht auf diesem Rechner ($KEY_FILE)"
   # shellcheck disable=SC2046
   ssh $(ssh_opts) "$SSH_USER@$SSH_HOST" "$@"
 }
@@ -440,16 +442,16 @@ wait_healthy() {
     rc=0
     remote "for i in \$(seq 60); do curl -fs --max-time 4 http://127.0.0.1:$OFFICE_PORT/api/health >/dev/null && exit 0; sleep 2; done; exit 1" \
       2>/dev/null || rc=$?
-    [[ $rc -eq 255 ]] || return "$rc" # 255: ssh itself failed, the machine is still starting
+    [[ $rc -eq 255 ]] || return "$rc" # 255: ssh selbst ist fehlgeschlagen, die Maschine startet noch
     sleep 5
   done
   return 1
 }
 
-# When the machine's first process started: it changes when the machine restarts.
+# Wann der erste Prozess der Maschine gestartet ist: ändert sich, wenn die Maschine neu startet.
 started() { remote 'stat -c %Y /proc/1' 2>/dev/null || true; }
 
-# After a restart or redeploy: waits for the restarted machine, then for the office on it.
+# Nach einem Neustart oder erneuten Deployment: wartet auf die neu gestartete Maschine, dann auf das Office darauf.
 wait_replaced() {
   local was="$1" i now
   for ((i = 0; i < 60; i++)); do
@@ -465,84 +467,84 @@ port_busy() { (exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null || (exec 3<>"/dev/tc
 pick_port() {
   local p
   if [[ $LOCAL_PORT_SET -eq 1 ]]; then
-    port_busy "$LOCAL_PORT" && die "localhost:$LOCAL_PORT is already in use"
+    port_busy "$LOCAL_PORT" && die "localhost:$LOCAL_PORT ist schon belegt"
     echo "$LOCAL_PORT"
     return
   fi
   for ((p = LOCAL_PORT; p < LOCAL_PORT + 50; p++)); do
     port_busy "$p" || { echo "$p"; return; }
   done
-  die "no free local port from $LOCAL_PORT up (pick one with --port)"
+  die "ab $LOCAL_PORT ist kein lokaler Port frei (wähle einen mit --port)"
 }
 
-# Forward localhost:<port> to the office in the machine, open the browser, and hold until Ctrl-C.
+# localhost:<port> zum Office in der Maschine weiterleiten, den Browser öffnen und bis Strg-C halten.
 tunnel() {
   local path="$1" port pid i up=0
   port=$(pick_port) || exit 1
   # shellcheck disable=SC2046
   ssh $(ssh_opts) -N -o ExitOnForwardFailure=yes -L "$port:127.0.0.1:$OFFICE_PORT" "$SSH_USER@$SSH_HOST" &
   pid=$!
-  trap 'kill "$pid" 2>/dev/null; echo; ok "Tunnel closed"; exit 0' INT TERM
+  trap 'kill "$pid" 2>/dev/null; echo; ok "Tunnel geschlossen"; exit 0' INT TERM
   for ((i = 0; i < 40; i++)); do
-    kill -0 "$pid" 2>/dev/null || die "couldn't open the SSH tunnel to $SSH_HOST:$SSH_PORT"
+    kill -0 "$pid" 2>/dev/null || die "der SSH-Tunnel zu $SSH_HOST:$SSH_PORT konnte nicht geöffnet werden"
     curl -fs --max-time 2 "http://localhost:$port/api/health" >/dev/null 2>&1 && { up=1; break; }
     sleep 0.5
   done
   if [[ $up -ne 1 ]]; then
     kill "$pid" 2>/dev/null
-    die "the tunnel opened but the office didn't answer through it — check: deploy/fly.sh logs$NAME_FLAG"
+    die "der Tunnel ist offen, aber das Office antwortet nicht darüber — prüfe: deploy/fly.sh logs$NAME_FLAG"
   fi
-  ok "Your office: http://localhost:$port$path"
-  echo "   (tunneled over SSH to $SSH_HOST:$SSH_PORT — keep this running while you use it; Ctrl-C closes it)"
+  ok "Dein Office: http://localhost:$port$path"
+  echo "   (per SSH nach $SSH_HOST:$SSH_PORT getunnelt — lass das laufen, solange du es benutzt; Strg-C schließt es)"
   open_url "http://localhost:$port$path"
   wait "$pid" || true
   trap - INT TERM
-  warn "The tunnel dropped — reopen it with: deploy/fly.sh open$NAME_FLAG"
+  warn "Der Tunnel ist abgebrochen — öffne ihn wieder mit: deploy/fly.sh open$NAME_FLAG"
 }
 
-# A worker's server from the 🌐 Services board: localhost:<port> tunnels to the office, which
-# relays it by that port (see src/server/relay.ts), so the local port must match the service's.
+# Der Server eines Arbeiters von der 🌐 Dienste-Tafel: localhost:<port> tunnelt zum Office, das ihn
+# über diesen Port weiterreicht, also muss der lokale Port dem des Dienstes entsprechen.
 service_tunnel() {
   local port="$1" pid i up=0
-  port_busy "$port" && die "localhost:$port is already in use on this computer — stop whatever runs there first"
+  port_busy "$port" && die "localhost:$port ist auf diesem Computer schon belegt — beende zuerst, was dort läuft"
   # shellcheck disable=SC2046
   ssh $(ssh_opts) -N -o ExitOnForwardFailure=yes -L "$port:127.0.0.1:$OFFICE_PORT" "$SSH_USER@$SSH_HOST" &
   pid=$!
-  trap 'kill "$pid" 2>/dev/null; echo; ok "Tunnel closed"; exit 0' INT TERM
+  trap 'kill "$pid" 2>/dev/null; echo; ok "Tunnel geschlossen"; exit 0' INT TERM
   for ((i = 0; i < 40; i++)); do
-    kill -0 "$pid" 2>/dev/null || die "couldn't open the SSH tunnel to $SSH_HOST:$SSH_PORT"
+    kill -0 "$pid" 2>/dev/null || die "der SSH-Tunnel zu $SSH_HOST:$SSH_PORT konnte nicht geöffnet werden"
     port_busy "$port" && { up=1; break; }
     sleep 0.5
   done
-  [[ $up -eq 1 ]] || { kill "$pid" 2>/dev/null; die "the tunnel didn't come up"; }
-  ok "The worker's server: http://localhost:$port"
-  echo "   (through the office — sign in with the office password if it asks; Ctrl-C closes it)"
+  [[ $up -eq 1 ]] || { kill "$pid" 2>/dev/null; die "der Tunnel ist nicht hochgekommen"; }
+  ok "Der Server des Arbeiters: http://localhost:$port"
+  echo "   (durch das Office — melde dich mit dem Office-Passwort an, falls es fragt; Strg-C schließt es)"
   open_url "http://localhost:$port"
   wait "$pid" || true
   trap - INT TERM
-  warn "The tunnel dropped — reopen it with: deploy/fly.sh service $port$NAME_FLAG"
+  warn "Der Tunnel ist abgebrochen — öffne ihn wieder mit: deploy/fly.sh service $port$NAME_FLAG"
 }
 
 open_office() {
   local claimable path="/"
-  claimable=$(office_get /api/claim 2>/dev/null || true)
+  claimable=$(office_get /api/beanspruchen 2>/dev/null || true)
   if [[ "$claimable" == *'"claimable":true'* && -f "$CLAIM_FILE" ]]; then
-    path="/claim?t=$(cat "$CLAIM_FILE")"
-    say "Opening the one-time password page — write the password down, it is never shown again"
+    path="/beanspruchen?t=$(cat "$CLAIM_FILE")"
+    say "Öffne die Einmal-Passwort-Seite — schreib das Passwort auf, es wird nie wieder angezeigt"
   fi
   tunnel "$path"
 }
 
-valid_member() { [[ "$1" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,38}$ ]] || die "names are letters, numbers, dots, dashes and underscores: $1"; }
+valid_member() { [[ "$1" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,38}$ ]] || die "Namen bestehen aus Buchstaben, Ziffern, Punkten, Bindestrichen und Unterstrichen: $1"; }
 
-team_members() { remote "agent-office-team list"; } # "<name> <number of keys>" per line
+team_members() { remote "open-agentic-office-team list"; } # "<name> <Anzahl Schlüssel>" pro Zeile
 
-# --- commands --------------------------------------------------------------------------------------
+# --- Befehle ---------------------------------------------------------------------------------------
 
 cmd_up() {
   preflight
   need ssh-keygen
-  [[ -f "$REPO_DIR/$DOCKERFILE" ]] || die "run this from a clone of agent-office ($DOCKERFILE is missing)"
+  [[ -f "$REPO_DIR/$DOCKERFILE" ]] || die "führe das in einem Klon von open-agentic-office aus ($DOCKERFILE fehlt)"
 
   local gh_token="$GH_TOKEN_ARG"
   if [[ -z "$gh_token" && $NO_GH_TOKEN -eq 0 ]] && command -v gh >/dev/null 2>&1; then
@@ -554,46 +556,46 @@ cmd_up() {
   chmod 700 "$STATE_DIR"
   resolve_settings
 
-  say "Agent Office \"$NAME\" on Fly.io ($("$FLYCTL" auth whoami 2>/dev/null </dev/null | tail -n 1))"
-  echo "   app:      this checkout, built with $DOCKERFILE, as the Fly app $APP ($ORG, $REGION)"
-  echo "   machine:  $VM_SIZE with $((VM_MEMORY / 1024)) GB (change it with: deploy/fly.sh resize <size>)"
-  echo "   data:     a volume on /data: accounts, floors, projects (~/workspace), sign-ins, team keys"
-  echo "   access:   SSH tunnel only (the office is never exposed), on a dedicated IPv4 address"
+  say "OpenAgenticOffice \"$NAME\" auf Fly.io ($("$FLYCTL" auth whoami 2>/dev/null </dev/null | tail -n 1))"
+  echo "   App:      dieser Checkout, gebaut mit $DOCKERFILE, als Fly-App $APP ($ORG, $REGION)"
+  echo "   Maschine: $VM_SIZE mit $((VM_MEMORY / 1024)) GB (ändern mit: deploy/fly.sh resize <größe>)"
+  echo "   Daten:    ein Volume auf /data: Konten, Etagen, Projekte (~/workspace), Anmeldungen, Team-Schlüssel"
+  echo "   Zugang:   nur per SSH-Tunnel (das Office ist nie offen), auf einer eigenen IPv4-Adresse"
   if [[ -n "$gh_token" ]]; then
-    echo "   github:   your GitHub token goes in the office (private clones, issue/PR boards, pushes)"
+    echo "   GitHub:   dein GitHub-Token kommt ins Office (private Klone, Issue-/PR-Tafeln, Pushes)"
   else
-    echo "   github:   no token — private repos and the boards won't work until gh is signed in"
+    echo "   GitHub:   kein Token — private Repos und die Tafeln gehen erst, wenn gh angemeldet ist"
   fi
   if [[ -n "$CLAUDE_TOKEN" || -n "$ANTHROPIC_KEY" ]]; then
-    echo "   claude:   signed in with the token you provided"
+    echo "   Claude:   mit dem angegebenen Token angemeldet"
   else
-    echo "   claude:   not signed in — log in from the first worker's terminal (or pass --claude-token)"
+    echo "   Claude:   nicht angemeldet — melde dich im Terminal des ersten Arbeiters an (oder gib --claude-token an)"
   fi
 
-  [[ -f "$KEY_FILE" ]] || ssh-keygen -q -t ed25519 -N '' -C "agent-office-$NAME" -f "$KEY_FILE"
+  [[ -f "$KEY_FILE" ]] || ssh-keygen -q -t ed25519 -N '' -C "open-agentic-office-$NAME" -f "$KEY_FILE"
   [[ -f "$CLAIM_FILE" ]] || (umask 077 && random_token >"$CLAIM_FILE")
 
   ensure_app
   ensure_volume
   ensure_ip
 
-  # Secrets, read from stdin so no token is in a command line. The claim link shows the generated
-  # password once; the deploy puts them all in the machine.
+  # Secrets, von stdin gelesen, damit kein Token in einer Befehlszeile steht. Der Beanspruchen-Link zeigt
+  # das erzeugte Passwort einmal; das Deployment legt sie alle in die Maschine.
   {
-    printf 'AGENT_OFFICE_CLAIM_TOKEN=%s\n' "$(cat "$CLAIM_FILE")"
+    printf 'OFFICE_BEANSPRUCH_TOKEN=%s\n' "$(cat "$CLAIM_FILE")"
     [[ -z "$CLAUDE_TOKEN" ]] || printf 'CLAUDE_CODE_OAUTH_TOKEN=%s\n' "$CLAUDE_TOKEN"
     [[ -z "$ANTHROPIC_KEY" ]] || printf 'ANTHROPIC_API_KEY=%s\n' "$ANTHROPIC_KEY"
-  } | fl secrets import --stage -a "$APP" >/dev/null || die "couldn't set the app's secrets"
+  } | fl secrets import --stage -a "$APP" >/dev/null || die "die Secrets der App konnten nicht gesetzt werden"
 
   deploy
-  say "Waiting for the office to answer over SSH"
-  wait_healthy || die "the office didn't come up — check: deploy/fly.sh logs$NAME_FLAG"
+  say "Warte, dass das Office über SSH antwortet"
+  wait_healthy || die "das Office ist nicht hochgekommen — prüfe: deploy/fly.sh logs$NAME_FLAG"
 
   if [[ -n "$gh_token" ]]; then
-    say "Signing the GitHub CLI in"
-    # Kept in gh's own config on the volume, so gh, git, the boards and the workers all use it.
+    say "Melde die GitHub CLI an"
+    # In der eigenen gh-Konfiguration auf dem Volume abgelegt, damit gh, git, die Tafeln und die Arbeiter es alle nutzen.
     printf '%s' "$gh_token" | remote 'gh auth login --hostname github.com --git-protocol https --with-token &&
-      gh auth setup-git --hostname github.com && gh api user --jq "\"    as \" + .login"' || warn "couldn't sign the GitHub CLI in"
+      gh auth setup-git --hostname github.com && gh api user --jq "\"    als \" + .login"' || warn "die GitHub CLI konnte nicht angemeldet werden"
   fi
   local git_name git_email
   git_name=$(git config user.name 2>/dev/null || true)
@@ -601,12 +603,12 @@ cmd_up() {
   [[ -z "$git_name" ]] || remote "git config --global user.name $(printf '%q' "$git_name")"
   [[ -z "$git_email" ]] || remote "git config --global user.email $(printf '%q' "$git_email")"
 
-  ok "Your office is running on Fly.io (reachable only through SSH)"
+  ok "Dein Office läuft auf Fly.io (nur über SSH erreichbar)"
   echo
-  echo "   Open it later:     deploy/fly.sh open$NAME_FLAG"
-  echo "   Add a teammate:    the 👥 Invite button in the office, or deploy/fly.sh invite <their-github-username>$NAME_FLAG"
-  echo "   Update it:         deploy/fly.sh update$NAME_FLAG"
-  echo "   Stop paying:       deploy/fly.sh pause$NAME_FLAG (or destroy$NAME_FLAG)"
+  echo "   Später öffnen:        deploy/fly.sh open$NAME_FLAG"
+  echo "   Teammitglied holen:   der 👥-Einladen-Knopf im Office, oder deploy/fly.sh invite <github-benutzername>$NAME_FLAG"
+  echo "   Aktualisieren:        deploy/fly.sh update$NAME_FLAG"
+  echo "   Nicht mehr zahlen:    deploy/fly.sh pause$NAME_FLAG (oder destroy$NAME_FLAG)"
   echo
   [[ $NO_OPEN -eq 1 ]] && return
   open_office
@@ -616,7 +618,7 @@ cmd_open() {
   preflight
   require_office
   require_running
-  wait_healthy || die "the office isn't answering — check: deploy/fly.sh logs$NAME_FLAG"
+  wait_healthy || die "das Office antwortet nicht — prüfe: deploy/fly.sh logs$NAME_FLAG"
   open_office
 }
 
@@ -625,8 +627,8 @@ cmd_update() {
   require_office
   require_running
   deploy
-  wait_healthy || die "the office didn't come back — check: deploy/fly.sh logs$NAME_FLAG"
-  ok "Updated (workers that were running come back where they left off)"
+  wait_healthy || die "das Office ist nicht zurückgekommen — prüfe: deploy/fly.sh logs$NAME_FLAG"
+  ok "Aktualisiert (Arbeiter, die liefen, machen dort weiter, wo sie waren)"
 }
 
 cmd_restart() {
@@ -636,32 +638,32 @@ cmd_restart() {
   local was id
   id=$(machine_id)
   was=$(started)
-  say "Restarting"
-  fl machine restart "$id" -a "$APP" </dev/null >/dev/null || die "couldn't restart the office"
-  wait_replaced "$was" || die "the office didn't come back — check: deploy/fly.sh logs$NAME_FLAG"
-  ok "Restarted"
+  say "Starte neu"
+  fl machine restart "$id" -a "$APP" </dev/null >/dev/null || die "das Office konnte nicht neu gestartet werden"
+  wait_replaced "$was" || die "das Office ist nicht zurückgekommen — prüfe: deploy/fly.sh logs$NAME_FLAG"
+  ok "Neu gestartet"
 }
 
 cmd_resize() {
   preflight
   [[ ${#POSITIONAL[@]} -ge 1 && ${#POSITIONAL[@]} -le 2 && "${POSITIONAL[0]}" =~ ^[a-z0-9-]+$ ]] ||
-    die "usage: deploy/fly.sh resize <size> [memory]   (e.g. resize performance-2x, resize shared-cpu-8x 16gb; sizes: fly platform vm-sizes)"
+    die "Aufruf: deploy/fly.sh resize <größe> [speicher]   (z. B. resize performance-2x, resize shared-cpu-8x 16gb; Größen: fly platform vm-sizes)"
   local mem was
   require_office
   require_running
   mem="$VM_MEMORY"
   if [[ ${#POSITIONAL[@]} -eq 2 ]]; then
     mem=$(memory_mb "${POSITIONAL[1]}")
-    [[ -n "$mem" && $mem -ge 256 ]] || die "memory is a size like 8gb or 16384 (MB)"
+    [[ -n "$mem" && $mem -ge 256 ]] || die "Speicher ist eine Größe wie 8gb oder 16384 (MB)"
   fi
   was=$(started)
-  say "Resizing to ${POSITIONAL[0]} with $((mem / 1024)) GB (the office restarts)"
+  say "Ändere auf ${POSITIONAL[0]} mit $((mem / 1024)) GB (das Office startet neu)"
   fl scale vm "${POSITIONAL[0]}" --vm-memory "$mem" -a "$APP" </dev/null >"$STATE_DIR/fly.log" 2>&1 ||
-    die "couldn't resize: $(tail -n 3 "$STATE_DIR/fly.log")"
+    die "die Größe konnte nicht geändert werden: $(tail -n 3 "$STATE_DIR/fly.log")"
   VM_SIZE="${POSITIONAL[0]}" VM_MEMORY="$mem"
-  save_ids # and so in fly.toml at the next deploy
-  wait_replaced "$was" || die "the office didn't come back — check: deploy/fly.sh logs$NAME_FLAG"
-  ok "Now $VM_SIZE with $((VM_MEMORY / 1024)) GB"
+  save_ids # und damit beim nächsten Deploy auch in der fly.toml
+  wait_replaced "$was" || die "das Office ist nicht zurückgekommen — prüfe: deploy/fly.sh logs$NAME_FLAG"
+  ok "Jetzt $VM_SIZE mit $((VM_MEMORY / 1024)) GB"
 }
 
 cmd_pause() {
@@ -669,13 +671,13 @@ cmd_pause() {
   require_office
   local m
   m=$(machine)
-  [[ -n "$m" ]] || die "office \"$NAME\" has no machine"
+  [[ -n "$m" ]] || die "Office \"$NAME\" hat keine Maschine"
   if [[ "${m#* }" == stopped ]]; then
-    ok "Office \"$NAME\" is already paused"
+    ok "Office \"$NAME\" ist schon pausiert"
     return
   fi
-  fl machine stop "${m%% *}" -a "$APP" </dev/null >/dev/null || die "couldn't stop the machine"
-  ok "Paused: Fly stops billing its CPU and memory (the volume and the IP address still are). Start it again with: deploy/fly.sh resume$NAME_FLAG"
+  fl machine stop "${m%% *}" -a "$APP" </dev/null >/dev/null || die "die Maschine konnte nicht angehalten werden"
+  ok "Pausiert: Fly berechnet CPU und Speicher nicht mehr (das Volume und die IP-Adresse aber weiter). Wieder starten mit: deploy/fly.sh resume$NAME_FLAG"
 }
 
 cmd_resume() {
@@ -683,13 +685,13 @@ cmd_resume() {
   require_office
   local m
   m=$(machine)
-  [[ -n "$m" ]] || die "office \"$NAME\" has no machine — run: deploy/fly.sh update$NAME_FLAG"
+  [[ -n "$m" ]] || die "Office \"$NAME\" hat keine Maschine — führe aus: deploy/fly.sh update$NAME_FLAG"
   if [[ "${m#* }" != started ]]; then
-    say "Starting the machine"
-    fl machine start "${m%% *}" -a "$APP" </dev/null >/dev/null || die "couldn't start the machine"
+    say "Starte die Maschine"
+    fl machine start "${m%% *}" -a "$APP" </dev/null >/dev/null || die "die Maschine konnte nicht gestartet werden"
   fi
-  wait_healthy || die "the office didn't come up — check: deploy/fly.sh logs$NAME_FLAG"
-  ok "Running"
+  wait_healthy || die "das Office ist nicht hochgekommen — prüfe: deploy/fly.sh logs$NAME_FLAG"
+  ok "Läuft"
   [[ $NO_OPEN -eq 1 ]] && return
   open_office
 }
@@ -697,8 +699,8 @@ cmd_resume() {
 cmd_service() {
   preflight
   [[ ${#POSITIONAL[@]} -eq 1 && "${POSITIONAL[0]}" =~ ^[0-9]+$ && ${POSITIONAL[0]} -gt 0 && ${POSITIONAL[0]} -lt 65536 ]] ||
-    die "usage: deploy/fly.sh service <port>   (a port from the office's 🌐 Services board)"
-  [[ "${POSITIONAL[0]}" -ne $OFFICE_PORT ]] || die "$OFFICE_PORT is the office itself — use: deploy/fly.sh open"
+    die "Aufruf: deploy/fly.sh service <port>   (ein Port von der 🌐 Dienste-Tafel des Office)"
+  [[ "${POSITIONAL[0]}" -ne $OFFICE_PORT ]] || die "$OFFICE_PORT ist das Office selbst — nimm: deploy/fly.sh open"
   require_office
   service_tunnel "${POSITIONAL[0]}"
 }
@@ -707,69 +709,70 @@ cmd_status() {
   preflight
   load_ids
   if [[ -z "$APP" ]]; then
-    echo "No office named \"$NAME\" on Fly.io."
+    echo "Es gibt kein Office namens \"$NAME\" auf Fly.io."
     return
   fi
   local m
   m=$(machine)
-  echo "office:     $NAME (Fly app $APP, $ORG, $REGION)"
-  echo "machine:    ${m:-none} — $VM_SIZE with $((VM_MEMORY / 1024)) GB"
-  echo "ssh:        ${SSH_HOST:-none}:${SSH_PORT}  (open the office with: deploy/fly.sh open$NAME_FLAG)"
+  echo "Office:      $NAME (Fly-App $APP, $ORG, $REGION)"
+  echo "Maschine:    ${m:-keine} — $VM_SIZE mit $((VM_MEMORY / 1024)) GB"
+  echo "SSH:         ${SSH_HOST:-keins}:${SSH_PORT}  (Office öffnen mit: deploy/fly.sh open$NAME_FLAG)"
   if [[ -n "$SSH_HOST" && -f "$KEY_FILE" && "${m#* }" == started ]] && office_get /api/health >/dev/null 2>&1; then
-    echo "volume:     $(remote "df -h /data | awk 'NR == 2 {print \$6 \", \" \$3 \" used of \" \$2}'")"
-    echo "office:     up"
+    echo "Volume:      $(remote "df -h /data | awk 'NR == 2 {print \$6 \", \" \$3 \" von \" \$2 \" belegt\"}'")"
+    echo "Office:      läuft"
     local team
     team=$(team_members 2>/dev/null | awk '{printf "%s%s", sep, $1; sep=", "}')
-    echo "team:       ${team:-nobody invited yet}"
+    echo "Team:        ${team:-noch niemand eingeladen}"
   else
-    echo "volume:     $(fl volumes list -a "$APP" --json </dev/null | json "(j || []).filter((v) => !/destroy/.test(v.state)).map((v) => '/data, ' + v.size_gb + ' GB').join('; ') || 'none'")"
-    if [[ "${m#* }" == stopped ]]; then echo "office:     paused (deploy/fly.sh resume$NAME_FLAG)"; else echo "office:     not answering"; fi
+    echo "Volume:      $(fl volumes list -a "$APP" --json </dev/null | json '(. // []) | map(select((.state // "") | test("destroy") | not)) | map("/data, " + (.size_gb | tostring) + " GB") | join("; ") | if . == "" then "keins" else . end')"
+    if [[ "${m#* }" == stopped ]]; then echo "Office:      pausiert (deploy/fly.sh resume$NAME_FLAG)"; else echo "Office:      antwortet nicht"; fi
   fi
 }
 
 cmd_invite() {
   preflight
   [[ ${#POSITIONAL[@]} -ge 1 && ${#POSITIONAL[@]} -le 2 ]] ||
-    die "usage: deploy/fly.sh invite <github-username>   or   deploy/fly.sh invite <name> <public-key-file>"
+    die "Aufruf: deploy/fly.sh invite <github-benutzername>   oder   deploy/fly.sh invite <name> <öffentlicher-Schlüssel-Datei>"
   local who="${POSITIONAL[0]}" src raw
   valid_member "$who"
   if [[ ${#POSITIONAL[@]} -eq 2 ]]; then
     src="${POSITIONAL[1]}"
-    [[ -f "$src" ]] || die "no such file: $src"
+    [[ -f "$src" ]] || die "keine solche Datei: $src"
     raw=$(cat "$src")
   else
     src="github.com/$who.keys"
-    raw=$(curl -fsS --max-time 10 "https://github.com/$who.keys") || die "couldn't fetch https://$src"
+    raw=$(curl -fsS --max-time 10 "https://github.com/$who.keys") || die "https://$src konnte nicht geladen werden"
   fi
-  [[ -n "$raw" ]] || die "no SSH public keys found in $src"
+  [[ -n "$raw" ]] || die "keine öffentlichen SSH-Schlüssel in $src gefunden"
   require_office
   local n fp
-  # The machine keeps only valid keys and restricts each one to opening the tunnel.
-  n=$(printf '%s\n' "$raw" | remote "agent-office-team add $who") || die "couldn't add $who's keys from $src"
-  ok "$who is invited ($n key(s) from $src)"
-  fp=$(remote "agent-office-team fingerprint")
+  # Die Maschine behält nur gültige Schlüssel und beschränkt jeden darauf, den Tunnel zu öffnen.
+  n=$(printf '%s\n' "$raw" | remote "open-agentic-office-team add $who") || die "die Schlüssel von $who aus $src konnten nicht hinzugefügt werden"
+  ok "$who ist eingeladen ($n Schlüssel aus $src)"
+  fp=$(remote "open-agentic-office-team fingerprint")
   echo
-  echo "   Send $who this:"
+  echo "   Schick $who das hier:"
   echo
   echo "     ssh -L 4600:localhost:$OFFICE_PORT ssh://$TEAM_USER@$SSH_HOST:$SSH_PORT"
   echo
-  echo "     Leave it running, open http://localhost:4600 and sign in with the office password."
-  echo "     The first time, ssh asks you to trust the server. Only say yes if it shows"
+  echo "     Lass es laufen, öffne http://localhost:4600 und melde dich mit dem Office-Passwort an."
+  echo "     Beim ersten Mal fragt ssh, ob du dem Server vertraust. Sag nur ja, wenn es"
   echo "     ED25519 key fingerprint $fp"
+  echo "     anzeigt."
   echo
 }
 
 cmd_uninvite() {
   preflight
-  [[ ${#POSITIONAL[@]} -eq 1 ]] || die "usage: deploy/fly.sh uninvite <name>"
+  [[ ${#POSITIONAL[@]} -eq 1 ]] || die "Aufruf: deploy/fly.sh uninvite <name>"
   local who="${POSITIONAL[0]}" out rc=0
   valid_member "$who"
   require_office
-  out=$(remote "agent-office-team remove $who" 2>&1) || rc=$?
-  [[ $rc -eq 66 ]] && die "$who isn't invited (see: deploy/fly.sh team$NAME_FLAG)"
-  [[ $rc -eq 0 ]] || die "couldn't remove the keys: $out"
-  ok "$who's keys are removed and open tunnels were dropped (other teammates just reconnect)"
-  echo "   They still know the office password. To change it: deploy/fly.sh reset-password$NAME_FLAG"
+  out=$(remote "open-agentic-office-team remove $who" 2>&1) || rc=$?
+  [[ $rc -eq 66 ]] && die "$who ist nicht eingeladen (siehe: deploy/fly.sh team$NAME_FLAG)"
+  [[ $rc -eq 0 ]] || die "die Schlüssel konnten nicht entfernt werden: $out"
+  ok "Die Schlüssel von $who sind entfernt und offene Tunnel getrennt (andere Teammitglieder verbinden sich einfach neu)"
+  echo "   Es kennt weiterhin das Office-Passwort. Zum Ändern: deploy/fly.sh reset-password$NAME_FLAG"
 }
 
 cmd_team() {
@@ -778,10 +781,10 @@ cmd_team() {
   local list
   list=$(team_members)
   if [[ -z "$list" ]]; then
-    echo "Nobody is invited yet. Add someone: deploy/fly.sh invite <github-username>$NAME_FLAG"
+    echo "Noch niemand ist eingeladen. Hol jemanden: deploy/fly.sh invite <github-benutzername>$NAME_FLAG"
     return
   fi
-  echo "$list" | awk '{printf "%s  (%d key%s)\n", $1, $2, ($2 == 1 ? "" : "s")}'
+  echo "$list" | awk '{printf "%s  (%d Schlüssel)\n", $1, $2}'
 }
 
 cmd_ssh() {
@@ -802,16 +805,16 @@ cmd_reset_password() {
   require_office
   require_running
   (umask 077 && random_token >"$CLAIM_FILE")
-  say "Resetting the office password"
+  say "Setze das Office-Passwort zurück"
   local was
   was=$(started)
-  remote "node /opt/agent-office/bin/agent-office.js --reset-password >/dev/null" || die "reset failed"
-  # Setting the secret restarts the machine, so the office starts with the new claim token (and
-  # makes the new password).
-  printf 'AGENT_OFFICE_CLAIM_TOKEN=%s\n' "$(cat "$CLAIM_FILE")" | fl secrets import -a "$APP" >/dev/null ||
-    die "couldn't set the new claim token"
-  wait_replaced "$was" || die "the office didn't come back — check: deploy/fly.sh logs$NAME_FLAG"
-  ok "Everyone has been signed out"
+  remote "/opt/open-agentic-office/open-agentic-office --daten ~/open-agentic-office --passwort-zuruecksetzen >/dev/null" || die "das Zurücksetzen ist fehlgeschlagen"
+  # Das Setzen des Secrets startet die Maschine neu, damit das Office mit dem neuen Beanspruchen-Token
+  # startet (und das neue Passwort erzeugt).
+  printf 'OFFICE_BEANSPRUCH_TOKEN=%s\n' "$(cat "$CLAIM_FILE")" | fl secrets import -a "$APP" >/dev/null ||
+    die "das neue Beanspruchen-Token konnte nicht gesetzt werden"
+  wait_replaced "$was" || die "das Office ist nicht zurückgekommen — prüfe: deploy/fly.sh logs$NAME_FLAG"
+  ok "Alle wurden abgemeldet"
   open_office
 }
 
@@ -819,26 +822,27 @@ cmd_down() {
   preflight
   load_ids
   if [[ -z "$APP" ]]; then
-    echo "Nothing to delete for \"$NAME\"."
+    echo "Für \"$NAME\" gibt es nichts zu löschen."
     rm -rf "$STATE_DIR"
     return
   fi
-  # The state directory (this office's SSH key, claim token and settings) goes only once the app
-  # has: app_exists dies when Fly can't say, and a failed delete stops here.
+  # Der Zustandsordner (SSH-Schlüssel, Beanspruchen-Token und Einstellungen dieses Office) verschwindet
+  # erst, wenn die App weg ist: app_exists bricht ab, wenn Fly es nicht sagen kann, und ein
+  # fehlgeschlagenes Löschen hält hier an.
   if app_exists; then
-    say "This permanently deletes office \"$NAME\": Fly app $APP, its volume and everything on it."
-    echo "   Anything in the office that isn't pushed to GitHub is lost."
+    say "Das löscht Office \"$NAME\" endgültig: Fly-App $APP, ihr Volume und alles darauf."
+    echo "   Alles im Office, was nicht nach GitHub gepusht ist, geht verloren."
     if [[ $YES -ne 1 ]]; then
-      read -r -p "   Type the office name ($NAME) to confirm: " answer
-      [[ "$answer" == "$NAME" ]] || die "cancelled"
+      read -r -p "   Tippe zur Bestätigung den Office-Namen ($NAME) ein: " answer
+      [[ "$answer" == "$NAME" ]] || die "abgebrochen"
     fi
-    fl apps destroy "$APP" --yes </dev/null >/dev/null || die "couldn't delete the app (try: fly apps destroy $APP)"
-    ok "Fly app deleted (its machine, volume and IP address go with it)"
+    fl apps destroy "$APP" --yes </dev/null >/dev/null || die "die App konnte nicht gelöscht werden (versuche: fly apps destroy $APP)"
+    ok "Fly-App gelöscht (ihre Maschine, ihr Volume und ihre IP-Adresse gehen mit)"
   else
-    ok "Fly app $APP is gone already"
+    ok "Die Fly-App $APP ist schon weg"
   fi
   rm -rf "$STATE_DIR"
-  ok "All gone"
+  ok "Alles weg"
 }
 
 case "$CMD" in
@@ -859,5 +863,5 @@ case "$CMD" in
   reset-password) cmd_reset_password ;;
   destroy | down) cmd_down ;;
   help | -h | --help) usage ;;
-  *) die "unknown command \"$CMD\" (see: deploy/fly.sh help)" ;;
+  *) die "unbekannter Befehl \"$CMD\" (siehe: deploy/fly.sh help)" ;;
 esac

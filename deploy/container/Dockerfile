@@ -1,27 +1,30 @@
-# Agent Office in a container, the way deploy/railway.sh runs it on Railway, deploy/fly.sh on Fly.io
-# and deploy/dokploy.sh on Dokploy. Any Docker host works the same way: mount a volume at /data and
-# publish port 22 (or the port in AGENT_OFFICE_SSHD_PORT, which deploy/fly.sh sets to 2222).
+# OpenAgenticOffice in einem Container, so wie deploy/railway.sh es auf Railway, deploy/fly.sh auf
+# Fly.io und deploy/dokploy.sh auf Dokploy laufen lassen. Jeder Docker-Host geht genauso: ein Volume
+# nach /data einhängen und Port 22 veröffentlichen (oder den Port aus OAO_SSHD_PORT, den
+# deploy/fly.sh auf 2222 setzt).
 #
-# The office listens on 127.0.0.1:4600 inside the container and is never published. sshd on port 22
-# is the only way in: the keys in AGENT_OFFICE_ADMIN_KEYS get a shell as agentoffice, the user that
-# runs the office, and teammates invited from the office log in as `office`, which can only open
-# the tunnel. Everything that has to outlive a restart or a redeploy is on the volume (start.sh).
+# Das Office lauscht im Container auf 127.0.0.1:4600 und wird nie veröffentlicht. sshd auf Port 22 ist
+# der einzige Weg hinein: die Schlüssel in OAO_ADMIN_KEYS bekommen eine Shell als agentoffice, den
+# Benutzer, unter dem das Office läuft; Mitspieler, die im Office eingeladen werden, melden sich als
+# `office` an, der nur den Tunnel öffnen darf. Alles, was einen Neustart oder ein neues Deployment
+# überleben muss, liegt auf dem Volume (start.sh).
 #
-# Build it from the repository root: docker build -f deploy/container/Dockerfile .
-FROM node:22-bookworm-slim AS build
-WORKDIR /opt/agent-office
-COPY package.json package-lock.json ./
-# No install scripts: `prepare` would build before the sources are here.
-RUN npm ci --ignore-scripts --no-audit --no-fund
-COPY . .
-# Dokploy unpacks deploy/dokploy.sh's upload without file modes, so the scripts get theirs back here.
-RUN chmod 755 bin/*.js deploy/container/*.sh \
-  && npm run build && npm prune --omit=dev --ignore-scripts --no-audit --no-fund
+# Aus dem Repository-Wurzelordner bauen: docker build -f deploy/container/Dockerfile .
 
-FROM node:22-bookworm-slim
+# Stufe 1: Server (Rust) und Browser-Client (WASM, mit trunk) bauen.
+FROM rust:1-bookworm AS build
+RUN rustup target add wasm32-unknown-unknown \
+  && cargo install --locked trunk
+WORKDIR /quelle
+COPY . .
+# Dokploy entpackt den Upload von deploy/dokploy.sh ohne Dateirechte, die Skripte bekommen sie hier zurück.
+RUN chmod 755 deploy/container/*.sh   && cargo build --release --workspace --exclude client --bins   && (cd crates/client && trunk build --release)   && mkdir /ausgabe   && cp target/release/open-agentic-office /ausgabe/   && cp -r dist /ausgabe/dist   && for b in office-agenten office-pty-wirt; do if [ -f target/release/$b ]; then cp target/release/$b /ausgabe/; fi; done
+
+# Stufe 2: schlankes Debian zum Laufen.
+FROM debian:bookworm-slim
 ENV DEBIAN_FRONTEND=noninteractive LANG=C.UTF-8
-# sshd for the tunnels, tini to reap what workers leave behind, and what workers need: git, the
-# GitHub CLI (from GitHub's own apt repo, like deploy/provision.sh) and build tools.
+# sshd für die Tunnel, tini räumt auf, was Arbeiter hinterlassen, und was Arbeiter brauchen: git, die
+# GitHub CLI (aus GitHubs eigenem apt-Repository, wie deploy/provision.sh) und Build-Werkzeuge.
 RUN apt-get update \
   && apt-get install -y --no-install-recommends openssh-server sudo tini procps ca-certificates curl git less build-essential python3 \
   && install -d -m 755 /etc/apt/keyrings \
@@ -32,7 +35,10 @@ RUN apt-get update \
   && apt-get update \
   && apt-get install -y --no-install-recommends gh \
   && rm -rf /var/lib/apt/lists/*
-COPY --from=build /opt/agent-office /opt/agent-office
-RUN /opt/agent-office/deploy/container/install.sh
+COPY --from=build /ausgabe /opt/open-agentic-office
+COPY --from=build /quelle/deploy /opt/open-agentic-office/deploy
+RUN chmod 755 /opt/open-agentic-office/open-agentic-office /opt/open-agentic-office/deploy/container/*.sh \
+  && { [ ! -f /opt/open-agentic-office/office-agenten ] || ln -s /opt/open-agentic-office/office-agenten /usr/local/bin/office-agenten; } \
+  && /opt/open-agentic-office/deploy/container/install.sh
 EXPOSE 22
-ENTRYPOINT ["/usr/bin/tini", "--", "/opt/agent-office/deploy/container/start.sh"]
+ENTRYPOINT ["/usr/bin/tini", "--", "/opt/open-agentic-office/deploy/container/start.sh"]

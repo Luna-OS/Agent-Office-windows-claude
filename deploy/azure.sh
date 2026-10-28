@@ -1,27 +1,27 @@
 #!/usr/bin/env bash
-# Deploy your own Agent Office to Azure with one command, using only the Azure CLI.
+# Stelle dein eigenes OpenAgenticOffice mit einem Befehl auf Azure bereit, nur mit der Azure CLI.
 #
-#   deploy/azure.sh up        create the VM, install and start the office, open it
-#   deploy/azure.sh open      tunnel to the office and open it in your browser
-#   deploy/azure.sh pause     deallocate the VM to save money (asks first)
-#   deploy/azure.sh resume    start it again
-#   deploy/azure.sh destroy   delete everything it created (asks first)
+#   deploy/azure.sh up        die VM anlegen, das Office installieren, starten und öffnen
+#   deploy/azure.sh open      Tunnel zum Office aufbauen und im Browser öffnen
+#   deploy/azure.sh pause     die VM freigeben (deallocate), um Geld zu sparen (fragt vorher)
+#   deploy/azure.sh resume    wieder starten
+#   deploy/azure.sh destroy   alles löschen, was angelegt wurde (fragt vorher)
 #
-# Everything goes in one resource group of its own (agent-office, or agent-office-<name>), so
-# destroy is a single `az group delete`. The office is never exposed to the internet: it listens on
-# the VM's loopback and everyone reaches it through an SSH tunnel. Run `deploy/azure.sh help` for all
-# commands and options. It's deploy/aws.sh for Azure: same commands, same deploy/provision.sh.
+# Alles liegt in einer eigenen Ressourcengruppe (open-agentic-office oder open-agentic-office-<name>), sodass
+# destroy ein einziges `az group delete` ist. Das Office ist nie im Internet: Es hört auf dem Loopback
+# der VM, und alle erreichen es über einen SSH-Tunnel. `deploy/azure.sh help` zeigt alle Befehle und
+# Optionen. Es ist deploy/aws.sh für Azure: dieselben Befehle, dasselbe deploy/provision.sh.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-NAME="agent-office"
-# 4 vCPU and 16 GiB, like the t3.xlarge deploy/aws.sh uses, at about its price. Not the burstable
-# B4s_v2: a t3 on AWS bursts without limit by default, while a B-series VM that runs out of CPU
-# credits (under an hour of busy workers) slows to 40%.
+NAME="open-agentic-office"
+# 4 vCPU und 16 GiB wie die t3.xlarge von deploy/aws.sh, zu etwa demselben Preis. Nicht die burstbare
+# B4s_v2: Eine t3 auf AWS bursted standardmäßig unbegrenzt, während eine VM der B-Serie, der die
+# CPU-Guthaben ausgehen (unter einer Stunde mit beschäftigten Arbeitern), auf 40 % gedrosselt wird.
 DEFAULT_SIZE="Standard_D4as_v5"
 SIZE="$DEFAULT_SIZE"
 SIZE_SET=0
-DISK_GB=64 # Premium SSD is billed by tier, and anything from 33 to 64 GiB is the same P6 tier
+DISK_GB=64 # Premium SSD wird nach Stufe abgerechnet, und alles von 33 bis 64 GiB ist dieselbe P6-Stufe
 LOCATION_ARG=""
 SUBSCRIPTION_ARG=""
 APP_REF="main"
@@ -35,77 +35,84 @@ YES=0
 NO_OPEN=0
 EXTRA_ALLOW=()
 SSH_USER="azureuser"
-TEAM_USER="office"   # teammates' keys log in as this user, which can only tunnel to the office
-OFFICE_PORT=4600     # where the office listens on the VM (127.0.0.1 only)
+TEAM_USER="office"   # die Schlüssel der Teammitglieder melden sich als dieser Benutzer an, der nur zum Office tunneln darf
+OFFICE_PORT=4600     # wo das Office auf der VM hört (nur 127.0.0.1)
 LOCAL_PORT=4600
 LOCAL_PORT_SET=0
-SSH_RULE="agent-office-ssh" # the network security group's one inbound rule
+SSH_RULE="open-agentic-office-ssh" # die eine eingehende Regel der Netzwerksicherheitsgruppe
 
 usage() {
   cat <<'EOF'
-Agent Office on Azure — one command up, one command down.
+OpenAgenticOffice auf Azure — ein Befehl hoch, ein Befehl runter.
 
-Usage: deploy/azure.sh <command> [options]
+Aufruf: deploy/azure.sh <Befehl> [Optionen]
 
-The office is never on the internet. It listens on the VM's loopback, the firewall only opens
-SSH, and everyone reaches the office through an SSH tunnel on http://localhost:4600.
+Das Office ist nie im Internet. Es hört auf dem Loopback der VM, die Firewall öffnet nur SSH,
+und alle erreichen das Office über einen SSH-Tunnel auf http://localhost:4600.
 
-Commands
-  up                 Create (or reuse) your office on an Azure VM, install and start it, and open
-                     it in your browser. The first page shows the office password ONCE — write it down.
-  open               Tunnel to your office and open it in the browser (Ctrl-C closes the tunnel)
-  pause              Deallocate the VM to save money (asks first). The disk, the address and
-                     everything on it stay; only the disk and the address are billed while paused
-  resume             Start a paused office again and open it in the browser
-  destroy            Delete the office's resource group and everything in it (asks you to type
-                     the office name first). `down` does the same.
-  connect            Let this computer manage an office made on another one: adds this
-                     computer's SSH key to the VM and its IP to the firewall, and nothing else
+Befehle
+  up                 Dein Office auf einer Azure-VM anlegen (oder weiterverwenden), installieren,
+                     starten und im Browser öffnen. Die erste Seite zeigt das Office-Passwort
+                     EINMAL — schreib es auf.
+  open               Zu deinem Office tunneln und es im Browser öffnen (Strg-C schließt den Tunnel)
+  pause              Die VM freigeben (deallocate), um Geld zu sparen (fragt vorher). Platte, Adresse
+                     und alles darauf bleiben; nur Platte und Adresse kosten, solange pausiert ist
+  resume             Ein pausiertes Office wieder starten und im Browser öffnen
+  destroy            Die Ressourcengruppe des Office und alles darin löschen (du tippst vorher den
+                     Office-Namen). `down` tut dasselbe.
+  connect            Diesen Computer ein Office verwalten lassen, das auf einem anderen angelegt
+                     wurde: legt den SSH-Schlüssel dieses Computers auf die VM und seine IP in die
+                     Firewall, sonst nichts
 
-  service <port>     Open a worker's web server from the office's 🌐 Services board on
-                     http://localhost:<port> (through the office; Ctrl-C closes the tunnel)
-  invite <gh-user>   Let a teammate tunnel in with the SSH keys on their GitHub account, and
-                     print the one command to send them. Or: invite <name> <public-key-file>
-  uninvite <name>    Remove a teammate's keys and drop open tunnels
-  team               List who is invited
-  status             Show the VM, whether the office is up and which IPs may SSH in
-  allow <ip|me>      Let an IP (or CIDR) reach SSH. "me" = your current IP. "anywhere" opens SSH
-                     to every IP — reasonable, since it only accepts your key and invited keys
-  revoke <ip|me>     Take that access away again
-  ssh                SSH into the VM
-  logs               Follow the office's logs
-  resize <size>      Change the VM size, e.g. Standard_D8as_v5 (stops it for a few minutes; the
-                     address stays the same). `up --size <size>` does this too.
-  update             Install the latest agent-office on the VM and restart it
-  reset-password     Forget the password and show a new one once in your browser
+  service <port>     Den Webserver eines Arbeiters von der 🌐 Dienste-Tafel des Office auf
+                     http://localhost:<port> öffnen (über das Office; Strg-C schließt den Tunnel)
+  invite <gh-user>   Ein Teammitglied mit den SSH-Schlüsseln seines GitHub-Kontos hereintunneln
+                     lassen und den einen Befehl ausgeben, den du ihm schickst.
+                     Oder: invite <name> <public-key-datei>
+  uninvite <name>    Die Schlüssel eines Teammitglieds entfernen und offene Tunnel kappen
+  team               Auflisten, wer eingeladen ist
+  status             Die VM zeigen, ob das Office läuft und welche IPs per SSH hinein dürfen
+  allow <ip|me>      Einer IP (oder einem CIDR) SSH erlauben. "me" = deine aktuelle IP. "anywhere"
+                     öffnet SSH für alle IPs — vertretbar, da nur dein Schlüssel und eingeladene
+                     Schlüssel angenommen werden
+  revoke <ip|me>     Diesen Zugang wieder entziehen
+  ssh                Per SSH auf die VM
+  logs               Die Logs des Office verfolgen
+  resize <größe>     Die VM-Größe ändern, z. B. Standard_D8as_v5 (hält sie für ein paar Minuten
+                     an; die Adresse bleibt gleich). `up --size <größe>` tut das auch.
+  update             Das neueste open-agentic-office auf der VM installieren und neu starten
+  reset-password     Das Passwort vergessen und im Browser einmal ein neues anzeigen
 
-Options
-  --name <name>             Deployment name, lets you run several offices (default: agent-office).
-                            Each goes in a resource group of its own: agent-office-<name>
-  --location <region>       Azure region for a new office, e.g. westeurope (default: your az CLI's
-                            default location, else eastus). An office stays in the region it was
-                            created in. --region works too
-  --subscription <id|name>  Azure subscription (default: the az CLI's current one)
-  --size <vm-size>          VM size (default: Standard_D4as_v5 — 4 vCPU, 16 GiB). --instance-type
-                            works too
-  --disk <GiB>              OS disk size, Premium SSD (default: 64)
-  --allow <ip|cidr>         With up or invite: also allow this IP to SSH in (repeatable).
-                            Your own IP is always allowed.
-  --port <n>                Local port for the tunnel (default: 4600, or the next free one)
-  --project <owner/repo>    Also clone this GitHub repo as the office's first floor. Without it
-                            the office opens on its elevator, which lists every repo your GitHub
-                            token can see: pick one there. Projects go in ~/workspace on the VM
-  --app-repo <url>          agent-office repo to install (default: this checkout's GitHub origin)
-  --app-ref <ref>           Branch or tag to install (default: main)
-  --github-token <token>    GitHub token for private repos + the issue/PR boards
-                            (default: your local `gh auth token`)
-  --no-github-token         Don't put any GitHub token on the VM
-  --claude-token <token>    Claude subscription token from `claude setup-token`
-                            (default: $CLAUDE_CODE_OAUTH_TOKEN). Without one, log in from the
-                            first worker's terminal in the office.
-  --anthropic-api-key <key> Use an Anthropic API key instead
-  --no-open                 Don't open the browser (up, resume: don't open the tunnel either)
-  -y, --yes                 Don't ask for confirmation
+Optionen
+  --name <name>             Name der Bereitstellung, mit dem du mehrere Offices betreiben kannst
+                            (Standard: open-agentic-office). Jedes liegt in einer eigenen
+                            Ressourcengruppe: open-agentic-office-<name>
+  --location <region>       Azure-Region für ein neues Office, z. B. westeurope (Standard: die
+                            Standard-Location deiner az CLI, sonst eastus). Ein Office bleibt in der
+                            Region, in der es angelegt wurde. --region geht auch
+  --subscription <id|name>  Azure-Abonnement (Standard: das aktuelle der az CLI)
+  --size <vm-größe>         VM-Größe (Standard: Standard_D4as_v5 — 4 vCPU, 16 GiB). --instance-type
+                            geht auch
+  --disk <GiB>              Größe der OS-Platte, Premium SSD (Standard: 64)
+  --allow <ip|cidr>         Mit up oder invite: dieser IP ebenfalls SSH erlauben (wiederholbar).
+                            Deine eigene IP ist immer erlaubt.
+  --port <n>                Lokaler Port für den Tunnel (Standard: 4600, sonst der nächste freie)
+  --project <owner/repo>    Dieses GitHub-Repo zusätzlich als erste Etage des Office klonen. Ohne
+                            diese Option öffnet sich das Office im Aufzug, der jedes Repo auflistet,
+                            das dein GitHub-Token sieht: wähl dort eines. Projekte liegen in
+                            ~/workspace auf der VM
+  --app-repo <url>          Das open-agentic-office-Repo, das installiert wird (Standard: das
+                            GitHub-Origin dieses Checkouts)
+  --app-ref <ref>           Branch oder Tag zum Installieren (Standard: main)
+  --github-token <token>    GitHub-Token für private Repos und die Issue-/PR-Tafeln
+                            (Standard: dein lokales `gh auth token`)
+  --no-github-token         Kein GitHub-Token auf die VM legen
+  --claude-token <token>    Claude-Abo-Token von `claude setup-token`
+                            (Standard: $CLAUDE_CODE_OAUTH_TOKEN). Ohne einen meldest du dich im
+                            Terminal des ersten Arbeiters im Office an.
+  --anthropic-api-key <key> Stattdessen einen Anthropic-API-Schlüssel verwenden
+  --no-open                 Den Browser nicht öffnen (bei up, resume: auch den Tunnel nicht öffnen)
+  -y, --yes                 Nicht um Bestätigung bitten
 EOF
 }
 
@@ -117,14 +124,14 @@ die() {
   exit 1
 }
 
-# The first word that isn't an option is the command; options can go before or after it.
+# Das erste Wort, das keine Option ist, ist der Befehl; Optionen dürfen davor oder danach stehen.
 CMD=""
 POSITIONAL=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --name | --location | --region | --subscription | --size | --instance-type | --disk | --allow | --port | --project | \
       --app-repo | --app-ref | --github-token | --claude-token | --anthropic-api-key)
-      [[ $# -ge 2 ]] || die "$1 needs a value (see: deploy/azure.sh help)" ;;
+      [[ $# -ge 2 ]] || die "$1 braucht einen Wert (siehe: deploy/azure.sh help)" ;;
   esac
   case "$1" in
     --name) NAME="$2"; shift 2 ;;
@@ -144,7 +151,7 @@ while [[ $# -gt 0 ]]; do
     --no-open) NO_OPEN=1; shift ;;
     -y | --yes) YES=1; shift ;;
     -h | --help) usage; exit 0 ;;
-    -*) die "unknown option $1 (see: deploy/azure.sh help)" ;;
+    -*) die "unbekannte Option $1 (siehe: deploy/azure.sh help)" ;;
     *)
       if [[ -z "$CMD" ]]; then CMD="$1"; else POSITIONAL+=("$1"); fi
       shift
@@ -152,42 +159,42 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 CMD="${CMD:-help}"
-# Azure's resource group names ignore case, so the office's name does too.
+# Die Namen von Azure-Ressourcengruppen ignorieren Groß-/Kleinschreibung, also auch der Name des Office.
 NAME=$(printf '%s' "$NAME" | tr '[:upper:]' '[:lower:]')
 
-# Resource names are built from it, and a Linux VM's name can't start or end with a dash.
+# Daraus werden Ressourcennamen gebaut, und der Name einer Linux-VM darf nicht mit einem Bindestrich beginnen oder enden.
 [[ "$NAME" =~ ^[a-zA-Z0-9]([a-zA-Z0-9-]{0,38}[a-zA-Z0-9])?$ ]] ||
-  die "--name may only contain letters, numbers and dashes (not first or last), up to 40 of them"
-[[ "$LOCAL_PORT" =~ ^[0-9]+$ && $LOCAL_PORT -gt 0 && $LOCAL_PORT -lt 65536 ]] || die "--port must be a port number"
-[[ "$DISK_GB" =~ ^[0-9]+$ && $DISK_GB -ge 30 && $DISK_GB -le 4095 ]] || die "--disk must be a size in GiB, from 30 to 4095"
-[[ "$SIZE" =~ ^[A-Za-z0-9_]+$ ]] || die "not a VM size: $SIZE (e.g. $DEFAULT_SIZE)"
-RESOURCE="agent-office-$NAME"
-[[ "$NAME" == "agent-office" ]] && RESOURCE="agent-office"
+  die "--name darf nur Buchstaben, Ziffern und Bindestriche enthalten (nicht am Anfang oder Ende), höchstens 40"
+[[ "$LOCAL_PORT" =~ ^[0-9]+$ && $LOCAL_PORT -gt 0 && $LOCAL_PORT -lt 65536 ]] || die "--port muss eine Portnummer sein"
+[[ "$DISK_GB" =~ ^[0-9]+$ && $DISK_GB -ge 30 && $DISK_GB -le 4095 ]] || die "--disk muss eine Größe in GiB von 30 bis 4095 sein"
+[[ "$SIZE" =~ ^[A-Za-z0-9_]+$ ]] || die "keine VM-Größe: $SIZE (z. B. $DEFAULT_SIZE)"
+RESOURCE="open-agentic-office-$NAME"
+[[ "$NAME" == "open-agentic-office" ]] && RESOURCE="open-agentic-office"
 RG="$RESOURCE"
 VM="$RESOURCE"
 NSG="$RESOURCE-nsg"
 PIP="$RESOURCE-ip"
 VNET="$RESOURCE-vnet"
-STATE_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/agent-office/azure/$NAME"
+STATE_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/open-agentic-office/azure/$NAME"
 NAME_FLAG=""
-[[ "$NAME" != "agent-office" ]] && NAME_FLAG=" --name $NAME"
-# RSA, which every Azure path takes (ED25519 support is newer, and not everywhere).
+[[ "$NAME" != "open-agentic-office" ]] && NAME_FLAG=" --name $NAME"
+# RSA, das jeder Azure-Pfad nimmt (ED25519 wird erst neuer unterstützt, und nicht überall).
 KEY_FILE="$STATE_DIR/id_rsa"
 KNOWN_HOSTS="$STATE_DIR/known_hosts"
 CLAIM_FILE="$STATE_DIR/claim-token"
-# The subscription `up` made the office in, so later commands look there without --subscription.
+# Das Abonnement, in dem `up` das Office angelegt hat, damit spätere Befehle ohne --subscription dort suchen.
 SUB_FILE="$STATE_DIR/subscription"
 
-need() { command -v "$1" >/dev/null 2>&1 || die "$1 is required (${2:-install it first})"; }
+need() { command -v "$1" >/dev/null 2>&1 || die "$1 wird gebraucht (${2:-bitte zuerst installieren})"; }
 lower() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
 
-# The Azure CLI, pinned to one subscription, without warnings, and without the \r it prints on
-# Windows. Not for `az account list-locations` or `az config`, which don't take --subscription.
+# Die Azure CLI, auf ein Abonnement festgelegt, ohne Warnungen und ohne das \r, das sie unter
+# Windows ausgibt. Nicht für `az account list-locations` oder `az config`, die kein --subscription nehmen.
 SUB_ARGS=()
 azc() { az "$@" "${SUB_ARGS[@]+"${SUB_ARGS[@]}"}" --only-show-errors | tr -d '\r'; }
-# One value. az prints None for a missing one in a list, and nothing for a missing one on its own.
+# Ein Wert. az gibt für einen fehlenden in einer Liste None aus, für einen einzelnen fehlenden nichts.
 azv() { azc "$@" -o tsv | sed 's/^None$//'; }
-# az's tsv rows as space-separated words, with - for a missing value, so `read` keeps each in place.
+# Die tsv-Zeilen von az als durch Leerzeichen getrennte Wörter, mit - für einen fehlenden Wert, damit `read` jeden an seinem Platz behält.
 words() { awk -F'\t' '{ for (i = 1; i <= NF; i++) { gsub(/ /, "", $i); if ($i == "" || $i == "None") $i = "-" } $1 = $1; print }'; }
 
 preflight() {
@@ -196,14 +203,14 @@ preflight() {
   need curl
   [[ -z "$SUBSCRIPTION_ARG" && -s "$SUB_FILE" ]] && SUBSCRIPTION_ARG=$(cat "$SUB_FILE")
   [[ -n "$SUBSCRIPTION_ARG" ]] && SUB_ARGS=(--subscription "$SUBSCRIPTION_ARG")
-  # Fetching a token refreshes the sign-in, so an expired one fails here and not halfway through.
+  # Ein Token abzuholen erneuert die Anmeldung, also scheitert eine abgelaufene hier und nicht mittendrin.
   azc account get-access-token -o none 2>/dev/null ||
-    die "the Azure CLI isn't signed in${SUBSCRIPTION_ARG:+ to subscription $SUBSCRIPTION_ARG} (try: az login)"
+    die "die Azure CLI ist nicht angemeldet${SUBSCRIPTION_ARG:+ beim Abonnement $SUBSCRIPTION_ARG} (versuch: az login)"
   local row
-  row=$(azc account show --query '[[id, name]]' -o tsv 2>/dev/null) || die "couldn't read your Azure subscription (try: az login)"
+  row=$(azc account show --query '[[id, name]]' -o tsv 2>/dev/null) || die "konnte dein Azure-Abonnement nicht lesen (versuch: az login)"
   SUB_ID="${row%%$'\t'*}"
   SUB_NAME="${row#*$'\t'}"
-  # By ID from here on, so every call hits the same subscription even if the default changes.
+  # Ab hier per ID, damit jeder Aufruf dasselbe Abonnement trifft, auch wenn sich der Standard ändert.
   SUB_ARGS=(--subscription "$SUB_ID")
 }
 
@@ -215,10 +222,10 @@ my_ip() {
 
 to_cidr() {
   local v="$1"
-  [[ "$v" == "me" ]] && { v=$(my_ip) || die "couldn't detect your public IP"; }
+  [[ "$v" == "me" ]] && { v=$(my_ip) || die "konnte deine öffentliche IP nicht ermitteln"; }
   [[ "$v" == "anywhere" ]] && v="0.0.0.0/0"
   [[ "$v" == */* ]] || v="$v/32"
-  [[ "$v" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}/[0-9]{1,2}$ ]] || die "not an IPv4 address or CIDR: $1"
+  [[ "$v" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}/[0-9]{1,2}$ ]] || die "keine IPv4-Adresse und kein CIDR: $1"
   echo "$v"
 }
 
@@ -230,36 +237,36 @@ open_url() {
   if command -v open >/dev/null 2>&1; then open "$url"
   elif command -v xdg-open >/dev/null 2>&1; then xdg-open "$url" >/dev/null 2>&1 &
   elif command -v wslview >/dev/null 2>&1; then wslview "$url"
-  elif command -v cmd.exe >/dev/null 2>&1; then MSYS2_ARG_CONV_EXCL='*' cmd.exe /c start "" "$url" # Git Bash would make /c C:/
+  elif command -v cmd.exe >/dev/null 2>&1; then MSYS2_ARG_CONV_EXCL='*' cmd.exe /c start "" "$url" # Git Bash würde aus /c ein C:/ machen
   fi
 }
 
 confirm() {
   [[ $YES -eq 1 ]] && return
   local answer
-  read -r -p "   Continue? [y/N] " answer
-  [[ "$answer" =~ ^[Yy] ]] || die "cancelled"
+  read -r -p "   Fortfahren? [j/N] " answer
+  [[ "$answer" =~ ^[JjYy] ]] || die "abgebrochen"
 }
 
-# --- Azure lookups ------------------------------------------------------------------------------
+# --- Azure-Abfragen -----------------------------------------------------------------------------
 
-# Sets LOCATION to the region of the office's resource group ('' when there's none yet), after
-# making sure this script made it: destroy deletes the whole group.
+# Setzt LOCATION auf die Region der Ressourcengruppe des Office ('' wenn es noch keine gibt), nachdem
+# sichergestellt ist, dass dieses Skript sie angelegt hat: destroy löscht die ganze Gruppe.
 load_group() {
   local exists row tag
   LOCATION=""
-  exists=$(azv group exists -n "$RG") || die "couldn't look up the resource group $RG (above)"
+  exists=$(azv group exists -n "$RG") || die "konnte die Ressourcengruppe $RG nicht nachschlagen (siehe oben)"
   [[ "$exists" == "true" ]] || return 0
-  row=$(azc group show -n "$RG" --query '[[location, tags."agent-office"]]' -o tsv | words) ||
-    die "couldn't read the resource group $RG (above)"
+  row=$(azc group show -n "$RG" --query '[[location, tags."open-agentic-office"]]' -o tsv | words) ||
+    die "konnte die Ressourcengruppe $RG nicht lesen (siehe oben)"
   read -r LOCATION tag <<<"$row"
   [[ "$tag" == "$NAME" ]] ||
-    die "the resource group $RG wasn't made by deploy/azure.sh (it has no agent-office=$NAME tag) — pick another --name"
+    die "die Ressourcengruppe $RG wurde nicht von deploy/azure.sh angelegt (sie hat kein Tag open-agentic-office=$NAME) — wähl einen anderen --name"
 }
 
 require_group() {
   load_group
-  [[ -n "$LOCATION" ]] || die "no office named \"$NAME\" in subscription $SUB_NAME — run: deploy/azure.sh up$NAME_FLAG"
+  [[ -n "$LOCATION" ]] || die "kein Office namens \"$NAME\" im Abonnement $SUB_NAME — führ aus: deploy/azure.sh up$NAME_FLAG"
 }
 
 default_location() {
@@ -268,31 +275,31 @@ default_location() {
   echo "${l:-eastus}"
 }
 
-# "West Europe" and "westeurope" are the same region; Azure's name for it is the second.
+# "West Europe" und "westeurope" sind dieselbe Region; Azures Name dafür ist der zweite.
 normalize_location() { lower "$1" | tr -d ' '; }
 
-# The office's VM ID, or nothing when it has none. A list rather than `vm show`, so that any other
-# error stops the script instead of reading as "no VM".
+# Die VM-ID des Office oder nichts, wenn es keine hat. Eine Liste statt `vm show`, damit jeder andere
+# Fehler das Skript stoppt, statt als "keine VM" zu gelten.
 find_vm() { azv vm list -g "$RG" --query "[?name=='$VM'].id | [0]"; }
 vm_size() { azv vm show -g "$RG" -n "$VM" --query hardwareProfile.vmSize; }
 
 require_vm_exists() {
   VM_ID=$(find_vm)
-  [[ -n "$VM_ID" ]] || die "office \"$NAME\" has no VM — run: deploy/azure.sh up$NAME_FLAG"
+  [[ -n "$VM_ID" ]] || die "das Office \"$NAME\" hat keine VM — führ aus: deploy/azure.sh up$NAME_FLAG"
 }
 
-# A network resource of the office's, by kind (nsg, public-ip) and name: its ID, or nothing. Here
-# too an error stops the script: taking one for "missing" would re-create, and so reset, what's there.
+# Eine Netzwerkressource des Office nach Art (nsg, public-ip) und Name: ihre ID oder nichts. Auch hier
+# stoppt ein Fehler das Skript: Ihn für "fehlt" zu halten würde neu anlegen und damit zurücksetzen, was da ist.
 find_resource() { azv network "$1" list -g "$RG" --query "[?name=='$2'].id | [0]"; }
 
-# running, starting, stopping, stopped (off, still billed), deallocating or deallocated (paused).
+# running, starting, stopping, stopped (aus, wird aber noch berechnet), deallocating oder deallocated (pausiert).
 vm_power() {
   azv vm get-instance-view -g "$RG" -n "$VM" --query "instanceView.statuses[?starts_with(code, 'PowerState/')].code | [0]" 2>/dev/null |
     sed 's#^PowerState/##' || true
 }
 
-# The power state once it's done changing (a start, stop or deallocate in progress). Gives up
-# after 10 minutes, or after 30 seconds of Azure not saying.
+# Der Energiezustand, sobald er sich nicht mehr ändert (ein laufender Start, Stopp oder Deallocate).
+# Gibt nach 10 Minuten auf, oder nach 30 Sekunden, in denen Azure nichts sagt.
 settled_power() {
   local p="" i blank=0
   for ((i = 0; i < 120; i++)); do
@@ -305,24 +312,24 @@ settled_power() {
         ;;
       *) break ;;
     esac
-    [[ $i -eq 0 ]] && say "Waiting for the VM, which is ${p:-busy}" >&2
+    [[ $i -eq 0 ]] && say "Warte auf die VM, die ${p:-beschäftigt} ist" >&2
     sleep 5
   done
   echo "$p"
 }
 
-# Start a paused (deallocated or stopped) VM; a running one is left alone.
+# Eine pausierte (deallocated oder stopped) VM starten; eine laufende bleibt unberührt.
 start_vm() {
   [[ "$(settled_power)" == "running" ]] && return 0
-  say "Starting $VM"
+  say "Starte $VM"
   azc vm start -g "$RG" -n "$VM" -o none
 }
 
 public_ip() { azv network public-ip show -g "$RG" -n "$PIP" --query ipAddress 2>/dev/null || true; }
 
-# "<name> <arch> <generations> <no Trusted Launch> <premium SSD> <temp disk MB> <disk controllers>"
-# for a size this subscription can use in $LOCATION (- where Azure doesn't say), or nothing when it
-# can't. Fails when Azure can't list the sizes at all.
+# "<name> <arch> <generationen> <ohne Trusted Launch> <Premium SSD> <Temp-Platte MB> <Platten-Controller>"
+# für eine Größe, die dieses Abonnement in $LOCATION nutzen kann (- wo Azure es nicht sagt), oder
+# nichts, wenn nicht. Scheitert, wenn Azure die Größen gar nicht auflisten kann.
 size_row() {
   local q="[].[name" c out
   for c in CpuArchitectureType HyperVGenerations TrustedLaunchDisabled PremiumIO MaxResourceVolumeMB DiskControllerTypes; do
@@ -332,31 +339,31 @@ size_row() {
   printf '%s\n' "$out" | awk -F'\t' -v w="$1" 'tolower($1) == tolower(w) { print; exit }' | words
 }
 
-# Sets SIZE to the size's own spelling, and SIZE_ARCH, SIZE_GENS, SIZE_NO_TL, SIZE_PREMIUM, SIZE_TEMP
-# and SIZE_CONTROLLERS to what it has (see size_row).
+# Setzt SIZE auf die eigene Schreibweise der Größe und SIZE_ARCH, SIZE_GENS, SIZE_NO_TL, SIZE_PREMIUM,
+# SIZE_TEMP und SIZE_CONTROLLERS auf das, was sie hat (siehe size_row).
 size_info() {
   local want="$1" row
-  [[ "$want" =~ ^[A-Za-z0-9_]+$ ]] || die "not a VM size: $want (e.g. $DEFAULT_SIZE)"
-  say "Checking that $want is available in $LOCATION"
-  row=$(size_row "$want") || die "couldn't list the VM sizes in $LOCATION (above)"
-  [[ -n "$row" ]] || die "$want isn't available to your subscription in $LOCATION. Check the region's name
-   (az account list-locations -o table), or pick another --size or --location. The sizes there:
+  [[ "$want" =~ ^[A-Za-z0-9_]+$ ]] || die "keine VM-Größe: $want (z. B. $DEFAULT_SIZE)"
+  say "Prüfe, ob $want in $LOCATION verfügbar ist"
+  row=$(size_row "$want") || die "konnte die VM-Größen in $LOCATION nicht auflisten (siehe oben)"
+  [[ -n "$row" ]] || die "$want ist für dein Abonnement in $LOCATION nicht verfügbar. Prüf den Namen der Region
+   (az account list-locations -o table) oder wähl eine andere --size oder --location. Die Größen dort:
    az vm list-skus -l $LOCATION --resource-type virtualMachines --size Standard_D4 -o table"
   read -r SIZE SIZE_ARCH SIZE_GENS SIZE_NO_TL SIZE_PREMIUM SIZE_TEMP SIZE_CONTROLLERS <<<"$row"
 }
 
-# Whether a size has a local temp disk: Azure only resizes between sizes that both do or both don't.
+# Ob eine Größe eine lokale Temp-Platte hat: Azure ändert die Größe nur zwischen Größen, die beide eine haben oder beide keine.
 temp_disk() { [[ "$1" != "-" && "$1" != "0" ]]; }
 
-# Whether the size in SIZE takes a disk controller (SCSI or NVMe). Sizes that don't say take SCSI.
+# Ob die Größe in SIZE einen Platten-Controller (SCSI oder NVMe) nimmt. Größen, die nichts sagen, nehmen SCSI.
 size_takes() {
   if [[ "$SIZE_CONTROLLERS" == "-" ]]; then [[ "$1" == "SCSI" ]]; else [[ ",$SIZE_CONTROLLERS," == *",$1,"* ]]; fi
 }
 
-# Deallocate -> change size -> start. The disk, the address and everything on the VM stay. The
-# changes Azure is known to refuse are caught before anything stops, and if Azure can't start it as
-# the new size (no room for that size in the region just then), it goes back to the old one. A
-# paused office stays paused, as the new size: then RESIZED_PAUSED is 1.
+# Deallocate -> Größe ändern -> starten. Platte, Adresse und alles auf der VM bleiben. Die Änderungen,
+# die Azure bekanntermaßen ablehnt, werden vor dem Anhalten abgefangen, und wenn Azure sie nicht als
+# neue Größe starten kann (gerade kein Platz für diese Größe in der Region), geht es auf die alte
+# zurück. Ein pausiertes Office bleibt pausiert, in der neuen Größe: dann ist RESIZED_PAUSED 1.
 resize_vm() {
   local have was paused=0 image security disk controller h_arch h_temp had_temp=0 has_temp=0
   RESIZED_PAUSED=0
@@ -364,7 +371,7 @@ resize_vm() {
   was=$(settled_power)
   if [[ "$was" == "deallocated" || "$was" == "stopped" ]]; then paused=1; fi
   if [[ "$(lower "$have")" == "$(lower "$1")" ]]; then
-    ok "Already a $have"
+    ok "Schon eine $have"
     RESIZED_PAUSED=$paused
     return
   fi
@@ -376,65 +383,65 @@ resize_vm() {
     *arm64*) h_arch=Arm64 ;;
     *) h_arch=x64 ;;
   esac
-  [[ "$SIZE_ARCH" == "$h_arch" ]] || die "can't switch CPU architecture ($have is $h_arch, $SIZE is $SIZE_ARCH) — use destroy + up instead"
+  [[ "$SIZE_ARCH" == "$h_arch" ]] || die "die CPU-Architektur lässt sich nicht wechseln ($have ist $h_arch, $SIZE ist $SIZE_ARCH) — nimm stattdessen destroy + up"
   if [[ "$image" == *gen1* ]]; then
-    [[ "$SIZE_GENS" == *V1* ]] || die "$SIZE can't run this VM's Gen1 image — use destroy + up instead"
+    [[ "$SIZE_GENS" == *V1* ]] || die "$SIZE kann das Gen1-Image dieser VM nicht ausführen — nimm stattdessen destroy + up"
   else
-    [[ "$SIZE_GENS" == *V2* ]] || die "$SIZE can't run this VM's Gen2 image — use destroy + up instead"
+    [[ "$SIZE_GENS" == *V2* ]] || die "$SIZE kann das Gen2-Image dieser VM nicht ausführen — nimm stattdessen destroy + up"
   fi
   [[ "$security" == "TrustedLaunch" && "$SIZE_NO_TL" == "True" ]] &&
-    die "$SIZE doesn't support Trusted Launch, which this VM uses — pick another size, or destroy + up"
+    die "$SIZE unterstützt kein Trusted Launch, das diese VM benutzt — wähl eine andere Größe oder destroy + up"
   [[ "$disk" == Premium* && "$SIZE_PREMIUM" != "True" ]] &&
-    die "$SIZE can't take this VM's Premium SSD — pick a size with an s after the number, like $DEFAULT_SIZE"
+    die "$SIZE kann die Premium SSD dieser VM nicht aufnehmen — wähl eine Größe mit einem s nach der Zahl, wie $DEFAULT_SIZE"
   [[ "$controller" == "-" ]] && controller="SCSI"
-  size_takes "$controller" || die "$SIZE doesn't take this VM's $controller disk controller — pick another size, or destroy + up"
+  size_takes "$controller" || die "$SIZE nimmt den Platten-Controller $controller dieser VM nicht — wähl eine andere Größe oder destroy + up"
   h_temp=$(size_row "$have" | awk '{ print $6 }') || h_temp=""
   if [[ -n "$h_temp" ]]; then
     temp_disk "$h_temp" && had_temp=1
     temp_disk "$SIZE_TEMP" && has_temp=1
     [[ $had_temp -eq $has_temp ]] ||
-      die "Azure only resizes between sizes that both have a local temp disk or both don't, and only one of $have and $SIZE has one — pick another size, or destroy + up"
+      die "Azure ändert die Größe nur zwischen Größen, die beide eine lokale Temp-Platte haben oder beide keine, und nur eine von $have und $SIZE hat eine — wähl eine andere Größe oder destroy + up"
   fi
   if [[ $paused -eq 1 ]]; then
-    say "Resizing the paused $VM from $have to $SIZE. It stays paused."
+    say "Ändere die pausierte $VM von $have auf $SIZE. Sie bleibt pausiert."
   else
-    say "Resizing $VM from $have to $SIZE. The office goes offline for a few minutes;"
-    echo "   running workers stop and come back asleep (press R at their desk to resume)."
+    say "Ändere $VM von $have auf $SIZE. Das Office ist ein paar Minuten offline;"
+    echo "   laufende Arbeiter stoppen und kommen schlafend zurück (R an ihrem Schreibtisch setzt sie fort)."
   fi
   confirm
   if [[ "$was" != "deallocated" ]]; then
-    say "Stopping"
+    say "Halte an"
     azc vm deallocate -g "$RG" -n "$VM" -o none
   fi
   if ! azc vm resize -g "$RG" -n "$VM" --size "$SIZE" -o none; then
-    warn "Azure wouldn't make it a $SIZE (above)"
-    [[ $paused -eq 1 ]] && die "the office is still a $have, and still paused"
-    say "Starting it again as a $have"
+    warn "Azure wollte keine $SIZE daraus machen (siehe oben)"
+    [[ $paused -eq 1 ]] && die "das Office ist noch eine $have und noch pausiert"
+    say "Starte es wieder als $have"
     azc vm start -g "$RG" -n "$VM" -o none || true
-    die "the office is still a $have"
+    die "das Office ist noch eine $have"
   fi
   if [[ $paused -eq 1 ]]; then
     RESIZED_PAUSED=1
-    ok "Now a $SIZE, and still paused"
+    ok "Jetzt eine $SIZE, und noch pausiert"
     return
   fi
-  say "Starting as $SIZE"
+  say "Starte als $SIZE"
   if ! azc vm start -g "$RG" -n "$VM" -o none; then
-    warn "Azure couldn't start it as a $SIZE (above; often there's no room for that size in the region just then)"
-    say "Going back to $have"
+    warn "Azure konnte es nicht als $SIZE starten (siehe oben; oft ist gerade kein Platz für diese Größe in der Region)"
+    say "Gehe zurück auf $have"
     azc vm deallocate -g "$RG" -n "$VM" -o none || true
     if azc vm resize -g "$RG" -n "$VM" --size "$have" -o none && azc vm start -g "$RG" -n "$VM" -o none; then
-      die "the office is back up as a $have. Try $SIZE again later, or another size"
+      die "das Office läuft wieder als $have. Versuch $SIZE später noch einmal, oder eine andere Größe"
     fi
-    die "…and that failed too (above). Try again with: deploy/azure.sh resize $have$NAME_FLAG"
+    die "…und auch das ist gescheitert (siehe oben). Versuch es erneut mit: deploy/azure.sh resize $have$NAME_FLAG"
   fi
-  ok "Now a $SIZE"
+  ok "Jetzt eine $SIZE"
 }
 
-# Commands that SSH in need the key `up` made. Checked first, since a failed ssh can be silenced.
+# Befehle, die per SSH hineingehen, brauchen den Schlüssel, den `up` angelegt hat. Zuerst geprüft, da ein gescheitertes ssh stumm sein kann.
 require_key() {
-  [[ -f "$KEY_FILE" ]] || die "the SSH key for office \"$NAME\" isn't on this computer ($KEY_FILE).
-   Let this computer in with: deploy/azure.sh connect$NAME_FLAG (or copy that folder over from the one that made the office)"
+  [[ -f "$KEY_FILE" ]] || die "der SSH-Schlüssel für das Office \"$NAME\" liegt nicht auf diesem Computer ($KEY_FILE).
+   Lass diesen Computer herein mit: deploy/azure.sh connect$NAME_FLAG (oder kopier den Ordner von dem Computer, der das Office angelegt hat)"
 }
 
 require_vm() {
@@ -442,10 +449,10 @@ require_vm() {
   require_group
   require_vm_exists
   case "$(vm_power)" in
-    stopped | stopping | deallocated | deallocating) die "the office is paused — start it with: deploy/azure.sh resume$NAME_FLAG" ;;
+    stopped | stopping | deallocated | deallocating) die "das Office ist pausiert — starte es mit: deploy/azure.sh resume$NAME_FLAG" ;;
   esac
   IP=$(public_ip)
-  [[ -n "$IP" ]] || die "the office's VM has no public IP ($PIP) — run: deploy/azure.sh up$NAME_FLAG"
+  [[ -n "$IP" ]] || die "die VM des Office hat keine öffentliche IP ($PIP) — führ aus: deploy/azure.sh up$NAME_FLAG"
 }
 
 SSH_OPTS=(-i "$KEY_FILE" -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile="$KNOWN_HOSTS"
@@ -453,39 +460,39 @@ SSH_OPTS=(-i "$KEY_FILE" -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-n
 
 remote() {
   require_key
-  # shellcheck disable=SC2029 # the command is meant to expand here, then run there
+  # shellcheck disable=SC2029 # der Befehl soll hier expandiert und dort ausgeführt werden
   ssh "${SSH_OPTS[@]}" "$SSH_USER@$IP" "$@"
 }
 
-# The addresses allowed to reach SSH, one per line (none when the rule isn't there). Azure keeps a
-# single one in sourceAddressPrefix and several in sourceAddressPrefixes. Any other error stops the
-# script: taken for an empty list, it would make the next change drop everyone else's address.
+# Die Adressen, die SSH erreichen dürfen, eine pro Zeile (keine, wenn die Regel nicht da ist). Azure
+# hält eine einzelne in sourceAddressPrefix und mehrere in sourceAddressPrefixes. Jeder andere Fehler
+# stoppt das Skript: Für eine leere Liste gehalten, ließe er die nächste Änderung die Adressen aller anderen verwerfen.
 allowed_cidrs() {
   local out
   out=$(azc network nsg show -g "$RG" -n "$NSG" -o tsv \
     --query "securityRules[?name=='$SSH_RULE'] | [0].[sourceAddressPrefix, sourceAddressPrefixes][]") ||
-    die "couldn't read the firewall rules of $NSG (above)"
+    die "konnte die Firewall-Regeln von $NSG nicht lesen (siehe oben)"
   printf '%s\n' "$out" | sed '/^$/d;/^None$/d'
 }
 
-# Makes the NSG's one inbound rule SSH (22) from exactly these addresses. Only SSH is ever opened;
-# the office itself is reached through the tunnel. With no addresses, SSH is closed to everyone.
+# Macht die eine eingehende Regel der NSG zu SSH (22) von genau diesen Adressen. Es wird nur SSH
+# geöffnet; das Office selbst erreichst du über den Tunnel. Ohne Adressen ist SSH für alle geschlossen.
 set_ssh_sources() {
   if [[ $# -eq 0 ]]; then
     azc network nsg rule delete -g "$RG" --nsg-name "$NSG" -n "$SSH_RULE" -o none
   else
-    # create is a PUT: it writes the whole rule whether or not it's there yet.
+    # create ist ein PUT: Es schreibt die ganze Regel, ob sie schon da ist oder nicht.
     azc network nsg rule create -g "$RG" --nsg-name "$NSG" -n "$SSH_RULE" --priority 1000 \
       --direction Inbound --access Allow --protocol Tcp --source-address-prefixes "$@" --source-port-ranges '*' \
       --destination-address-prefixes '*' --destination-port-ranges 22 \
-      --description "Agent Office: SSH from allowed IPs only" -o none
+      --description "OpenAgenticOffice: SSH nur von erlaubten IPs" -o none
   fi
 }
 
-# Is this CIDR in the list (one per line)? 203.0.113.7 and 203.0.113.7/32 are the same.
+# Ist dieses CIDR in der Liste (eines pro Zeile)? 203.0.113.7 und 203.0.113.7/32 sind dasselbe.
 has_cidr() { printf '%s\n' "$1" | awk -v c="${2%/32}" '{ sub(/\/32$/, "") } $0 == c { found = 1 } END { exit !found }'; }
 
-# Adds the given CIDRs to (with - first: takes them off) the addresses that may SSH in.
+# Fügt die angegebenen CIDRs zu den Adressen hinzu, die per SSH hinein dürfen (mit - zuerst: nimmt sie weg).
 change_ssh_sources() {
   local remove=0 have want c list=()
   [[ "${1:-}" == "-" ]] && { remove=1; shift; }
@@ -509,12 +516,12 @@ office_get() { remote "curl -fs --max-time 4 http://127.0.0.1:$OFFICE_PORT$1"; }
 
 ip_int() {
   local IFS=.
-  # shellcheck disable=SC2086 # split on the dots
+  # shellcheck disable=SC2086 # an den Punkten aufteilen
   set -- $1
   echo $((($1 << 24) | ($2 << 16) | ($3 << 8) | $4))
 }
 
-# Whether IPv4 address $1 is in one of the CIDRs on stdin.
+# Ob die IPv4-Adresse $1 in einem der CIDRs auf stdin liegt.
 ip_allowed() {
   local ip c n bits mask
   ip=$(ip_int "$1")
@@ -529,25 +536,25 @@ ip_allowed() {
   return 1
 }
 
-# SSH that won't connect: stop and say so when this computer's IP isn't one the firewall lets in.
+# SSH, das sich nicht verbindet: stoppen und es sagen, wenn die IP dieses Computers keine ist, die die Firewall hereinlässt.
 ssh_blocked_hint() {
   local my list
   my=$(my_ip 2>/dev/null) || return 0
   [[ "$my" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]] || return 0
   list=$(allowed_cidrs 2>/dev/null) || return 0
   printf '%s\n' "$list" | ip_allowed "$my" && return 0
-  die "SSH only answers the IPs you allowed, and this computer's ($my) isn't one of them. Let it in with: deploy/azure.sh allow me$NAME_FLAG"
+  die "SSH antwortet nur den IPs, die du erlaubt hast, und die dieses Computers ($my) gehört nicht dazu. Lass ihn herein mit: deploy/azure.sh allow me$NAME_FLAG"
 }
 
-# Waits for SSH on a VM that's (re)starting.
+# Wartet auf SSH bei einer VM, die (neu) startet.
 wait_for_ssh() {
   local i
-  say "Waiting for SSH"
+  say "Warte auf SSH"
   for ((i = 0; i < 60; i++)); do
     remote true 2>/dev/null && return 0
     sleep 5
   done
-  remote true || die "SSH never came up on $IP"
+  remote true || die "SSH kam auf $IP nie hoch"
 }
 
 wait_healthy() {
@@ -556,8 +563,8 @@ wait_healthy() {
     rc=0
     remote "for i in \$(seq 90); do curl -fs --max-time 4 http://127.0.0.1:$OFFICE_PORT/api/health >/dev/null && exit 0; sleep 2; done; exit 1" \
       2>/dev/null || rc=$?
-    [[ $rc -eq 255 ]] || return "$rc" # 255: ssh itself failed, the VM is still booting…
-    [[ $i -eq 0 ]] && ssh_blocked_hint # …or this computer's IP isn't allowed in
+    [[ $rc -eq 255 ]] || return "$rc" # 255: ssh selbst ist gescheitert, die VM bootet noch…
+    [[ $i -eq 0 ]] && ssh_blocked_hint # …oder die IP dieses Computers ist nicht erlaubt
     sleep 5
   done
   return 1
@@ -568,85 +575,85 @@ port_busy() { (exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null || (exec 3<>"/dev/tc
 pick_port() {
   local p
   if [[ $LOCAL_PORT_SET -eq 1 ]]; then
-    port_busy "$LOCAL_PORT" && die "localhost:$LOCAL_PORT is already in use"
+    port_busy "$LOCAL_PORT" && die "localhost:$LOCAL_PORT ist schon belegt"
     echo "$LOCAL_PORT"
     return
   fi
   for ((p = LOCAL_PORT; p < LOCAL_PORT + 50; p++)); do
     port_busy "$p" || { echo "$p"; return; }
   done
-  die "no free local port from $LOCAL_PORT up (pick one with --port)"
+  die "kein freier lokaler Port ab $LOCAL_PORT (wähl einen mit --port)"
 }
 
-# Forward localhost:<port> to the office on the VM, open the browser, and hold until Ctrl-C.
+# localhost:<port> zum Office auf der VM weiterleiten, den Browser öffnen und bis Strg-C halten.
 tunnel() {
   local path="$1" port pid i up=0
   port=$(pick_port) || exit 1
   ssh "${SSH_OPTS[@]}" -N -o ExitOnForwardFailure=yes -L "$port:127.0.0.1:$OFFICE_PORT" "$SSH_USER@$IP" &
   pid=$!
-  trap 'kill "$pid" 2>/dev/null; echo; ok "Tunnel closed"; exit 0' INT TERM
+  trap 'kill "$pid" 2>/dev/null; echo; ok "Tunnel geschlossen"; exit 0' INT TERM
   for ((i = 0; i < 40; i++)); do
-    kill -0 "$pid" 2>/dev/null || die "couldn't open the SSH tunnel to $IP"
+    kill -0 "$pid" 2>/dev/null || die "konnte den SSH-Tunnel zu $IP nicht öffnen"
     curl -fs --max-time 2 "http://localhost:$port/api/health" >/dev/null 2>&1 && { up=1; break; }
     sleep 0.5
   done
   if [[ $up -ne 1 ]]; then
     kill "$pid" 2>/dev/null
-    die "the tunnel opened but the office didn't answer through it — check: deploy/azure.sh logs$NAME_FLAG"
+    die "der Tunnel ist offen, aber das Office antwortet nicht darüber — prüf: deploy/azure.sh logs$NAME_FLAG"
   fi
-  ok "Your office: http://localhost:$port$path"
-  echo "   (tunneled over SSH to $IP — keep this running while you use it; Ctrl-C closes it)"
+  ok "Dein Office: http://localhost:$port$path"
+  echo "   (per SSH nach $IP getunnelt — lass das laufen, solange du es benutzt; Strg-C schließt es)"
   open_url "http://localhost:$port$path"
   wait "$pid" || true
   trap - INT TERM
-  warn "The tunnel dropped — reopen it with: deploy/azure.sh open$NAME_FLAG"
+  warn "Der Tunnel ist abgebrochen — öffne ihn neu mit: deploy/azure.sh open$NAME_FLAG"
 }
 
-# A worker's server from the 🌐 Services board: localhost:<port> tunnels to the office, which
-# relays it by that port (see src/server/relay.ts), so the local port must match the service's.
+# Der Server eines Arbeiters von der 🌐 Dienste-Tafel: localhost:<port> tunnelt zum Office, das ihn
+# über diesen Port weiterreicht (siehe das Relay im Server), also muss der lokale Port zu dem des Dienstes passen.
 service_tunnel() {
   local port="$1" pid i up=0
-  port_busy "$port" && die "localhost:$port is already in use on this computer — stop whatever runs there first"
+  port_busy "$port" && die "localhost:$port ist auf diesem Computer schon belegt — beende zuerst, was dort läuft"
   ssh "${SSH_OPTS[@]}" -N -o ExitOnForwardFailure=yes -L "$port:127.0.0.1:$OFFICE_PORT" "$SSH_USER@$IP" &
   pid=$!
-  trap 'kill "$pid" 2>/dev/null; echo; ok "Tunnel closed"; exit 0' INT TERM
+  trap 'kill "$pid" 2>/dev/null; echo; ok "Tunnel geschlossen"; exit 0' INT TERM
   for ((i = 0; i < 40; i++)); do
-    kill -0 "$pid" 2>/dev/null || die "couldn't open the SSH tunnel to $IP"
+    kill -0 "$pid" 2>/dev/null || die "konnte den SSH-Tunnel zu $IP nicht öffnen"
     port_busy "$port" && { up=1; break; }
     sleep 0.5
   done
-  [[ $up -eq 1 ]] || { kill "$pid" 2>/dev/null; die "the tunnel didn't come up"; }
-  ok "The worker's server: http://localhost:$port"
-  echo "   (through the office on $IP — sign in with the office password if it asks; Ctrl-C closes it)"
+  [[ $up -eq 1 ]] || { kill "$pid" 2>/dev/null; die "der Tunnel kam nicht hoch"; }
+  ok "Der Server des Arbeiters: http://localhost:$port"
+  echo "   (über das Office auf $IP — melde dich mit dem Office-Passwort an, falls gefragt; Strg-C schließt es)"
   open_url "http://localhost:$port"
   wait "$pid" || true
   trap - INT TERM
-  warn "The tunnel dropped — reopen it with: deploy/azure.sh service $port$NAME_FLAG"
+  warn "Der Tunnel ist abgebrochen — öffne ihn neu mit: deploy/azure.sh service $port$NAME_FLAG"
 }
 
 open_office() {
   local claimable path="/"
-  claimable=$(office_get /api/claim 2>/dev/null || true)
+  claimable=$(office_get /api/beanspruchen 2>/dev/null || true)
   if [[ "$claimable" == *'"claimable":true'* && -f "$CLAIM_FILE" ]]; then
-    path="/claim?t=$(cat "$CLAIM_FILE")"
-    say "Opening the one-time password page — write the password down, it is never shown again"
+    path="/beanspruchen?t=$(cat "$CLAIM_FILE")"
+    say "Öffne die einmalige Passwort-Seite — schreib das Passwort auf, es wird nie wieder angezeigt"
   fi
   tunnel "$path"
 }
 
-valid_member() { [[ "$1" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,38}$ ]] || die "names are letters, numbers, dots, dashes and underscores: $1"; }
+valid_member() { [[ "$1" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,38}$ ]] || die "Namen bestehen aus Buchstaben, Ziffern, Punkten, Bindestrichen und Unterstrichen: $1"; }
 
-# Teammates' keys are managed on the VM by agent-office-team (installed by provision.sh).
+# Die Schlüssel der Teammitglieder verwaltet auf der VM open-agentic-office-team (von provision.sh installiert).
 require_team() {
-  remote "test -x /usr/local/bin/agent-office-team" 2>/dev/null || die "this office predates team access — run: deploy/azure.sh up$NAME_FLAG"
+  remote "test -x /usr/local/bin/open-agentic-office-team" 2>/dev/null || die "dieses Office ist älter als der Team-Zugang — führ aus: deploy/azure.sh up$NAME_FLAG"
 }
 
-team_members() { remote "agent-office-team list"; } # "<name> <number of keys>" per line
+team_members() { remote "open-agentic-office-team list"; } # "<name> <Anzahl Schlüssel>" pro Zeile
 
-# --- commands --------------------------------------------------------------------------------------
+# --- Befehle ---------------------------------------------------------------------------------------
 
 github_https() {
-  # git@github.com:owner/repo(.git) | https://github.com/owner/repo(.git) | owner/repo -> https URL
+  # git@github.com:owner/repo(.git) | https://github.com/owner/repo(.git) | owner/repo -> https-URL
   local v="$1"
   v="${v%.git}"
   v="${v#git@github.com:}"
@@ -660,14 +667,14 @@ cmd_up() {
   preflight
   need ssh-keygen
 
-  # What to install. The office starts with no project (never the checkout this script is in):
-  # everyone picks theirs in its elevator, unless --project names a first one.
+  # Was installiert wird. Das Office startet ohne Projekt (nie mit dem Checkout, in dem dieses Skript
+  # liegt): alle wählen ihres im Aufzug, außer --project nennt ein erstes.
   if [[ -z "$APP_REPO" ]]; then
-    APP_REPO=$(github_https "$(git -C "$SCRIPT_DIR/.." remote get-url origin 2>/dev/null || true)" || echo "https://github.com/AgentSystemLabs/agent-office")
+    APP_REPO=$(github_https "$(git -C "$SCRIPT_DIR/.." remote get-url origin 2>/dev/null || true)" || echo "https://github.com/Luna-OS/OpenAgenticOffice")
   fi
   local project_repo=""
   if [[ -n "$PROJECT" ]]; then
-    project_repo=$(github_https "$PROJECT") || die "--project must be a GitHub repo (owner/name or URL), got: $PROJECT"
+    project_repo=$(github_https "$PROJECT") || die "--project muss ein GitHub-Repo sein (owner/name oder URL), bekommen: $PROJECT"
   fi
 
   local gh_token="$GH_TOKEN_ARG"
@@ -677,22 +684,22 @@ cmd_up() {
   [[ $NO_GH_TOKEN -eq 1 ]] && gh_token=""
 
   local my a c
-  my=$(my_ip) || die "couldn't detect your public IP"
+  my=$(my_ip) || die "konnte deine öffentliche IP nicht ermitteln"
   local cidrs=("$my/32")
   for a in "${EXTRA_ALLOW[@]+"${EXTRA_ALLOW[@]}"}"; do
     c=$(to_cidr "$a")
     cidrs+=("$c")
   done
 
-  # Where: a new office goes in --location; an existing one stays in its resource group's region.
+  # Wo: Ein neues Office kommt nach --location; ein bestehendes bleibt in der Region seiner Ressourcengruppe.
   load_group
   local new_group=0
   if [[ -z "$LOCATION" ]]; then
     new_group=1
     LOCATION=$(normalize_location "${LOCATION_ARG:-$(default_location)}")
-    [[ "$LOCATION" =~ ^[a-z0-9]+$ ]] || die "not an Azure region: $LOCATION (see: az account list-locations -o table)"
+    [[ "$LOCATION" =~ ^[a-z0-9]+$ ]] || die "keine Azure-Region: $LOCATION (siehe: az account list-locations -o table)"
   elif [[ -n "$LOCATION_ARG" && "$(normalize_location "$LOCATION_ARG")" != "$LOCATION" ]]; then
-    die "office \"$NAME\" is in $LOCATION. To move it, destroy it first (or pick another --name)"
+    die "das Office \"$NAME\" liegt in $LOCATION. Um es zu verschieben, lösch es zuerst (oder wähl einen anderen --name)"
   fi
 
   VM_ID=""
@@ -700,36 +707,36 @@ cmd_up() {
   local have_size="" resize=0 machine
   if [[ -z "$VM_ID" ]]; then
     size_info "$SIZE"
-    # The az CLI turns Trusted Launch on for Azure's Gen2 Ubuntu images (Arm ones included), so a
-    # size without it needs the Gen1 image, and the Ampere Arm sizes (Bpsv2) have none.
+    # Die az CLI schaltet Trusted Launch für Azures Gen2-Ubuntu-Images ein (auch Arm), also braucht
+    # eine Größe ohne es das Gen1-Image, und die Ampere-Arm-Größen (Bpsv2) haben keins.
     if [[ "$SIZE_NO_TL" == "True" && "$SIZE_GENS" != *V1* ]]; then
-      [[ "$SIZE_ARCH" == "Arm64" ]] && die "$SIZE is an Arm size without Trusted Launch. For Arm, pick a Cobalt size like Standard_D4ps_v6"
-      die "$SIZE supports neither Trusted Launch nor Gen1 images — pick another size, like the default $DEFAULT_SIZE"
+      [[ "$SIZE_ARCH" == "Arm64" ]] && die "$SIZE ist eine Arm-Größe ohne Trusted Launch. Für Arm wähl eine Cobalt-Größe wie Standard_D4ps_v6"
+      die "$SIZE unterstützt weder Trusted Launch noch Gen1-Images — wähl eine andere Größe, etwa den Standard $DEFAULT_SIZE"
     fi
-    machine="$SIZE, ${DISK_GB} GiB disk, Ubuntu 24.04"
+    machine="$SIZE, ${DISK_GB} GiB Platte, Ubuntu 24.04"
   else
     have_size=$(vm_size)
-    machine="the existing VM ($have_size)"
+    machine="die vorhandene VM ($have_size)"
     if [[ $SIZE_SET -eq 1 && "$(lower "$have_size")" != "$(lower "$SIZE")" ]]; then
       resize=1
-      machine="the existing VM, resized from $have_size to $SIZE"
+      machine="die vorhandene VM, von $have_size auf $SIZE geändert"
     fi
   fi
 
-  say "Agent Office \"$NAME\" in $LOCATION (subscription $SUB_NAME)"
-  echo "   machine:  $machine"
-  echo "   app:      $APP_REPO @ $APP_REF"
-  echo "   projects: ${project_repo:+$project_repo, then }pick them in the office's elevator (cloned into ~/workspace)"
-  echo "   access:   SSH tunnel only (the office is never exposed); SSH from ${cidrs[*]}"
+  say "OpenAgenticOffice \"$NAME\" in $LOCATION (Abonnement $SUB_NAME)"
+  echo "   Maschine: $machine"
+  echo "   App:      $APP_REPO @ $APP_REF"
+  echo "   Projekte: ${project_repo:+$project_repo, dann }im Aufzug des Office wählen (geklont nach ~/workspace)"
+  echo "   Zugang:   nur SSH-Tunnel (das Office ist nie offen); SSH von ${cidrs[*]}"
   if [[ -n "$gh_token" ]]; then
-    echo "   github:   your GitHub token goes on the VM (private clones, issue/PR boards, pushes)"
+    echo "   GitHub:   dein GitHub-Token kommt auf die VM (private Klone, Issue-/PR-Tafeln, Pushes)"
   else
-    echo "   github:   no token — private repos and the boards won't work"
+    echo "   GitHub:   kein Token — private Repos und die Tafeln funktionieren nicht"
   fi
   if [[ -n "$CLAUDE_TOKEN" || -n "$ANTHROPIC_KEY" ]]; then
-    echo "   claude:   signed in with the token you provided"
+    echo "   Claude:   mit dem übergebenen Token angemeldet"
   else
-    echo "   claude:   not signed in — log in from the first worker's terminal (or pass --claude-token)"
+    echo "   Claude:   nicht angemeldet — melde dich im Terminal des ersten Arbeiters an (oder gib --claude-token an)"
   fi
 
   mkdir -p "$STATE_DIR"
@@ -741,38 +748,38 @@ cmd_up() {
     new_key=1
   fi
 
-  # One resource group holds everything, tagged so destroy knows it's the office's to delete.
+  # Eine Ressourcengruppe hält alles, mit einem Tag versehen, damit destroy weiß, dass sie dem Office gehört.
   if [[ $new_group -eq 1 ]]; then
-    azc group create -n "$RG" -l "$LOCATION" --tags "agent-office=$NAME" -o none
-    ok "Resource group $RG"
+    azc group create -n "$RG" -l "$LOCATION" --tags "open-agentic-office=$NAME" -o none
+    ok "Ressourcengruppe $RG"
   fi
 
-  # Network security group: only the allowed IPs can reach 22 (ssh). Nothing else is open.
+  # Netzwerksicherheitsgruppe: nur die erlaubten IPs erreichen Port 22 (ssh). Sonst ist nichts offen.
   local nsg_id pip_id
   nsg_id=$(find_resource nsg "$NSG")
   if [[ -z "$nsg_id" ]]; then
-    azc network nsg create -g "$RG" -n "$NSG" -l "$LOCATION" --tags "agent-office=$NAME" -o none
-    ok "Network security group $NSG"
+    azc network nsg create -g "$RG" -n "$NSG" -l "$LOCATION" --tags "open-agentic-office=$NAME" -o none
+    ok "Netzwerksicherheitsgruppe $NSG"
   fi
   change_ssh_sources "${cidrs[@]}"
-  ok "SSH allowed from ${cidrs[*]}"
+  ok "SSH erlaubt von ${cidrs[*]}"
 
-  # A fixed address, so the office's address survives pauses and resizes.
+  # Eine feste Adresse, damit die Adresse des Office Pausen und Größenänderungen übersteht.
   pip_id=$(find_resource public-ip "$PIP")
   if [[ -z "$pip_id" ]]; then
-    # Azure drops a connection that's quiet for --idle-timeout minutes (4 by default), and a
-    # teammate's tunnel doesn't send keepalives.
+    # Azure trennt eine Verbindung, die --idle-timeout Minuten (standardmäßig 4) still ist, und der
+    # Tunnel eines Teammitglieds sendet keine Keepalives.
     azc network public-ip create -g "$RG" -n "$PIP" -l "$LOCATION" --sku Standard --allocation-method Static --version IPv4 \
-      --idle-timeout 30 --tags "agent-office=$NAME" -o none
+      --idle-timeout 30 --tags "open-agentic-office=$NAME" -o none
   fi
   IP=$(public_ip)
-  [[ -n "$IP" ]] || die "the public IP $PIP has no address"
-  ok "Static IP $IP"
+  [[ -n "$IP" ]] || die "die öffentliche IP $PIP hat keine Adresse"
+  ok "Statische IP $IP"
 
-  # The VM.
+  # Die VM.
   if [[ -z "$VM_ID" ]]; then
-    # Ubuntu 24.04. The az CLI turns Trusted Launch (secure boot + vTPM) on for Gen2 x64 images by
-    # itself. Sizes without it (or without Gen2) take the Gen1 image, and Arm sizes the Arm one.
+    # Ubuntu 24.04. Die az CLI schaltet Trusted Launch (Secure Boot + vTPM) für Gen2-x64-Images von
+    # selbst ein. Größen ohne es (oder ohne Gen2) nehmen das Gen1-Image und Arm-Größen das Arm-Image.
     local image="Canonical:ubuntu-24_04-lts:server:latest" disk_sku="Premium_LRS"
     if [[ "$SIZE_ARCH" == "Arm64" ]]; then
       image="Canonical:ubuntu-24_04-lts:server-arm64:latest"
@@ -780,64 +787,64 @@ cmd_up() {
       image="Canonical:ubuntu-24_04-lts:server-gen1:latest"
     fi
     [[ "$SIZE_PREMIUM" == "True" ]] || disk_sku="StandardSSD_LRS"
-    say "Creating the VM ($SIZE) — a minute or two"
+    say "Lege die VM an ($SIZE) — ein bis zwei Minuten"
     azc vm create -g "$RG" -n "$VM" -l "$LOCATION" --image "$image" --size "$SIZE" \
       --admin-username "$SSH_USER" --authentication-type ssh --ssh-key-values "$KEY_FILE.pub" \
       --vnet-name "$VNET" --subnet default --nsg "$NSG" --nsg-rule NONE --public-ip-address "$PIP" \
-      --os-disk-size-gb "$DISK_GB" --storage-sku "$disk_sku" --tags "agent-office=$NAME" -o none ||
-      die "couldn't create the VM (Azure's reason is above). If it's a quota, ask for more vCPUs for that
-   size's family (Azure portal → Quotas → Compute), or run up again with another --size. Another region
-   (--location) needs a fresh start: deploy/azure.sh destroy$NAME_FLAG first"
+      --os-disk-size-gb "$DISK_GB" --storage-sku "$disk_sku" --tags "open-agentic-office=$NAME" -o none ||
+      die "konnte die VM nicht anlegen (Azures Begründung steht oben). Bei einem Kontingent frag mehr vCPUs
+   für die Familie dieser Größe an (Azure-Portal → Kontingente → Compute), oder führ up mit einer anderen --size erneut aus.
+   Eine andere Region (--location) braucht einen frischen Start: vorher deploy/azure.sh destroy$NAME_FLAG"
   elif [[ $resize -eq 1 ]]; then
     resize_vm "$SIZE"
     if [[ $RESIZED_PAUSED -eq 1 ]]; then start_vm; fi
   elif [[ "$(settled_power)" != "running" ]]; then
     start_vm
   else
-    say "Reusing $VM ($have_size)"
+    say "Verwende $VM weiter ($have_size)"
   fi
-  ok "VM $VM is running at $IP"
+  ok "Die VM $VM läuft auf $IP"
 
-  # An office made on another computer (or whose key was lost): give this computer's key to it too.
+  # Ein Office, das auf einem anderen Computer angelegt wurde (oder dessen Schlüssel verloren ging): den Schlüssel dieses Computers auch darauf legen.
   if [[ $new_key -eq 1 && -n "$VM_ID" ]]; then add_key; fi
   wait_for_ssh
 
   [[ -f "$CLAIM_FILE" ]] || (umask 077 && random_token >"$CLAIM_FILE")
 
-  say "Provisioning (Node, git, gh, Claude Code, agent-office) — a few minutes on first run"
+  say "Richte ein (git, gh, Claude Code, open-agentic-office) — beim ersten Mal ein paar Minuten"
   local git_name git_email
   git_name=$(git config user.name 2>/dev/null || true)
   git_email=$(git config user.email 2>/dev/null || true)
   {
     printf 'export APP_REPO=%q APP_REF=%q PROJECT_REPO=%q\n' "$APP_REPO" "$APP_REF" "$project_repo"
     printf 'export CLAIM_TOKEN=%q PUBLIC_HOST=%q GH_TOKEN=%q CLAUDE_CODE_OAUTH_TOKEN=%q ANTHROPIC_API_KEY=%q\n' "$(cat "$CLAIM_FILE")" "$IP" "$gh_token" "$CLAUDE_TOKEN" "$ANTHROPIC_KEY"
-    # How the office names this script in the commands it suggests (with --name for a second office).
+    # Wie das Office dieses Skript in den Befehlen nennt, die es vorschlägt (mit --name für ein zweites Office).
     printf 'export GIT_NAME=%q GIT_EMAIL=%q DEPLOY_SCRIPT=%q\n' "$git_name" "$git_email" "deploy/azure.sh$NAME_FLAG"
     cat "$SCRIPT_DIR/provision.sh"
-  } | remote 'bash -s' || die "provisioning failed (re-run \"deploy/azure.sh up$NAME_FLAG\" to retry; it picks up where it left off)"
+  } | remote 'bash -s' || die "die Einrichtung ist gescheitert (führ \"deploy/azure.sh up$NAME_FLAG\" erneut aus; es macht dort weiter, wo es aufgehört hat)"
 
-  say "Waiting for the office to answer"
-  wait_healthy || die "the office didn't come up — check: deploy/azure.sh logs$NAME_FLAG"
-  ok "Your office is running on $IP (reachable only through SSH)"
+  say "Warte, bis das Office antwortet"
+  wait_healthy || die "das Office kam nicht hoch — prüf: deploy/azure.sh logs$NAME_FLAG"
+  ok "Dein Office läuft auf $IP (nur über SSH erreichbar)"
   echo
-  echo "   Open it later:     deploy/azure.sh open$NAME_FLAG"
-  echo "   Add a teammate:    the 👥 Invite button in the office, or deploy/azure.sh invite <their-github-username>$NAME_FLAG"
-  echo "   Pause / resume:    deploy/azure.sh pause$NAME_FLAG   /   deploy/azure.sh resume$NAME_FLAG"
-  echo "   Tear it down:      deploy/azure.sh destroy$NAME_FLAG"
+  echo "   Später öffnen:        deploy/azure.sh open$NAME_FLAG"
+  echo "   Teammitglied:         der Knopf 👥 Team einladen im Office oder deploy/azure.sh invite <github-name>$NAME_FLAG"
+  echo "   Pausieren/Fortsetzen: deploy/azure.sh pause$NAME_FLAG   /   deploy/azure.sh resume$NAME_FLAG"
+  echo "   Abbauen:              deploy/azure.sh destroy$NAME_FLAG"
   echo
   [[ $NO_OPEN -eq 1 ]] && return
   open_office
 }
 
-# Puts this computer's public key on the VM (through Azure's VM agent, so no SSH needed).
+# Legt den öffentlichen Schlüssel dieses Computers auf die VM (über den VM-Agenten von Azure, also ohne SSH).
 add_key() {
-  say "Adding this computer's SSH key to the VM"
+  say "Lege den SSH-Schlüssel dieses Computers auf die VM"
   azc vm user update -g "$RG" -n "$VM" --username "$SSH_USER" --ssh-key-value "$KEY_FILE.pub" -o none ||
-    die "couldn't add the SSH key ($KEY_FILE.pub) to the VM (above)"
+    die "konnte den SSH-Schlüssel ($KEY_FILE.pub) nicht auf die VM legen (siehe oben)"
 }
 
-# An office made on another computer: this one gets a key on the VM and its IP in the firewall.
-# Unlike up, it doesn't provision, so the office keeps its GitHub and Claude sign-ins.
+# Ein Office, das auf einem anderen Computer angelegt wurde: dieser bekommt einen Schlüssel auf der VM und seine IP in der Firewall.
+# Anders als up richtet es nichts ein, sodass das Office seine GitHub- und Claude-Anmeldungen behält.
 cmd_connect() {
   preflight
   need ssh-keygen
@@ -847,34 +854,34 @@ cmd_connect() {
   chmod 700 "$STATE_DIR"
   echo "$SUB_ID" >"$SUB_FILE"
   local my
-  my=$(my_ip) || die "couldn't detect your public IP"
+  my=$(my_ip) || die "konnte deine öffentliche IP nicht ermitteln"
   change_ssh_sources "$my/32"
-  ok "SSH allowed from $my/32"
-  start_vm # the VM agent that adds the key only runs on a running VM
+  ok "SSH erlaubt von $my/32"
+  start_vm # der VM-Agent, der den Schlüssel einträgt, läuft nur auf einer laufenden VM
   IP=$(public_ip)
-  [[ -n "$IP" ]] || die "the office's VM has no public IP ($PIP) — run: deploy/azure.sh up$NAME_FLAG"
+  [[ -n "$IP" ]] || die "die VM des Office hat keine öffentliche IP ($PIP) — führ aus: deploy/azure.sh up$NAME_FLAG"
   if [[ -f "$KEY_FILE" ]] && remote true 2>/dev/null; then
-    ok "This computer could already SSH in"
+    ok "Dieser Computer konnte schon per SSH hinein"
   else
     [[ -f "$KEY_FILE" ]] || ssh-keygen -q -t rsa -b 4096 -N '' -C "$RESOURCE" -f "$KEY_FILE"
     add_key
     wait_for_ssh
   fi
-  ok "Connected to office \"$NAME\" at $IP — open it with: deploy/azure.sh open$NAME_FLAG"
+  ok "Verbunden mit dem Office \"$NAME\" auf $IP — öffne es mit: deploy/azure.sh open$NAME_FLAG"
 }
 
 cmd_open() {
   preflight
   require_vm
-  wait_healthy || die "the office isn't answering — check: deploy/azure.sh logs$NAME_FLAG"
+  wait_healthy || die "das Office antwortet nicht — prüf: deploy/azure.sh logs$NAME_FLAG"
   open_office
 }
 
 cmd_service() {
   preflight
   [[ ${#POSITIONAL[@]} -eq 1 && "${POSITIONAL[0]}" =~ ^[0-9]+$ && ${POSITIONAL[0]} -gt 0 && ${POSITIONAL[0]} -lt 65536 ]] ||
-    die "usage: deploy/azure.sh service <port>   (a port from the office's 🌐 Services board)"
-  [[ "${POSITIONAL[0]}" -ne $OFFICE_PORT ]] || die "$OFFICE_PORT is the office itself — use: deploy/azure.sh open"
+    die "Aufruf: deploy/azure.sh service <port>   (ein Port von der 🌐 Dienste-Tafel des Office)"
+  [[ "${POSITIONAL[0]}" -ne $OFFICE_PORT ]] || die "$OFFICE_PORT ist das Office selbst — nimm: deploy/azure.sh open"
   require_vm
   service_tunnel "${POSITIONAL[0]}"
 }
@@ -883,40 +890,40 @@ cmd_status() {
   preflight
   load_group
   if [[ -z "$LOCATION" ]]; then
-    echo "No office named \"$NAME\" in subscription $SUB_NAME."
+    echo "Kein Office namens \"$NAME\" im Abonnement $SUB_NAME."
     return
   fi
-  echo "office:    $NAME ($LOCATION, resource group $RG)"
+  echo "Office:    $NAME ($LOCATION, Ressourcengruppe $RG)"
   VM_ID=$(find_vm)
   if [[ -z "$VM_ID" ]]; then
-    echo "vm:        none yet (create it with: deploy/azure.sh up$NAME_FLAG)"
+    echo "VM:        noch keine (anlegen mit: deploy/azure.sh up$NAME_FLAG)"
     return
   fi
   local state
   state=$(vm_power)
   IP=$(public_ip)
-  echo "vm:        $VM $(vm_size) ${state:-unknown}"
-  echo "address:   ${IP:-none}  (open the office with: deploy/azure.sh open$NAME_FLAG)"
+  echo "VM:        $VM $(vm_size) ${state:-unbekannt}"
+  echo "Adresse:   ${IP:-keine}  (Office öffnen mit: deploy/azure.sh open$NAME_FLAG)"
   if [[ "$state" =~ ^(stopped|stopping)$ ]]; then
-    echo "office:    shut down, but Azure still bills a stopped VM (deploy/azure.sh pause$NAME_FLAG deallocates it; resume starts it)"
+    echo "Office:    heruntergefahren, aber Azure berechnet eine angehaltene VM weiter (deploy/azure.sh pause$NAME_FLAG gibt sie frei; resume startet sie)"
   elif [[ "$state" =~ ^(deallocated|deallocating)$ ]]; then
-    echo "office:    paused (start it with: deploy/azure.sh resume$NAME_FLAG)"
+    echo "Office:    pausiert (starte es mit: deploy/azure.sh resume$NAME_FLAG)"
   elif [[ -n "$IP" && -f "$KEY_FILE" ]] && office_get /api/health >/dev/null 2>&1; then
-    echo "office:    up"
+    echo "Office:    läuft"
     local team
-    team=$(team_members 2>/dev/null | awk '{printf "%s%s", sep, $1; sep=", "}') || team="(couldn't list it)"
-    echo "team:      ${team:-nobody invited yet}"
+    team=$(team_members 2>/dev/null | awk '{printf "%s%s", sep, $1; sep=", "}') || team="(konnte nicht aufgelistet werden)"
+    echo "Team:      ${team:-noch niemand eingeladen}"
   else
-    echo "office:    not answering"
+    echo "Office:    antwortet nicht"
   fi
   local from
-  from=$(allowed_cidrs 2>/dev/null | tr '\n' ' ') || from="(couldn't read the firewall)"
-  echo "ssh from:  ${from:-nobody}"
+  from=$(allowed_cidrs 2>/dev/null | tr '\n' ' ') || from="(konnte die Firewall nicht lesen)"
+  echo "SSH von:   ${from:-niemand}"
 }
 
 cmd_allow() {
   preflight
-  [[ ${#POSITIONAL[@]} -gt 0 ]] || die "usage: deploy/azure.sh allow <ip|cidr|me> [...]"
+  [[ ${#POSITIONAL[@]} -gt 0 ]] || die "Aufruf: deploy/azure.sh allow <ip|cidr|me> [...]"
   require_group
   local c cidrs=()
   for c in "${POSITIONAL[@]}"; do
@@ -924,12 +931,12 @@ cmd_allow() {
     cidrs+=("$c")
   done
   change_ssh_sources "${cidrs[@]}"
-  for c in "${cidrs[@]}"; do ok "Allowed $c"; done
+  for c in "${cidrs[@]}"; do ok "Erlaubt: $c"; done
 }
 
 cmd_revoke() {
   preflight
-  [[ ${#POSITIONAL[@]} -gt 0 ]] || die "usage: deploy/azure.sh revoke <ip|cidr|me> [...]"
+  [[ ${#POSITIONAL[@]} -gt 0 ]] || die "Aufruf: deploy/azure.sh revoke <ip|cidr|me> [...]"
   require_group
   local c cidrs=()
   for c in "${POSITIONAL[@]}"; do
@@ -937,31 +944,31 @@ cmd_revoke() {
     cidrs+=("$c")
   done
   change_ssh_sources - "${cidrs[@]}"
-  for c in "${cidrs[@]}"; do ok "Revoked $c"; done
-  [[ -n "$(allowed_cidrs)" ]] || warn "No IP may SSH in now, you included. Let yours back in with: deploy/azure.sh allow me$NAME_FLAG"
+  for c in "${cidrs[@]}"; do ok "Entzogen: $c"; done
+  [[ -n "$(allowed_cidrs)" ]] || warn "Jetzt darf keine IP mehr per SSH hinein, du eingeschlossen. Lass deine wieder herein mit: deploy/azure.sh allow me$NAME_FLAG"
 }
 
 cmd_invite() {
   preflight
   [[ ${#POSITIONAL[@]} -ge 1 && ${#POSITIONAL[@]} -le 2 ]] ||
-    die "usage: deploy/azure.sh invite <github-username>   or   deploy/azure.sh invite <name> <public-key-file>"
+    die "Aufruf: deploy/azure.sh invite <github-name>   oder   deploy/azure.sh invite <name> <public-key-datei>"
   local who="${POSITIONAL[0]}" src raw
   valid_member "$who"
   if [[ ${#POSITIONAL[@]} -eq 2 ]]; then
     src="${POSITIONAL[1]}"
-    [[ -f "$src" ]] || die "no such file: $src"
+    [[ -f "$src" ]] || die "keine solche Datei: $src"
     raw=$(cat "$src")
   else
     src="github.com/$who.keys"
-    raw=$(curl -fsS --max-time 10 "https://github.com/$who.keys") || die "couldn't fetch https://$src"
+    raw=$(curl -fsS --max-time 10 "https://github.com/$who.keys") || die "konnte https://$src nicht abrufen"
   fi
-  [[ -n "$raw" ]] || die "no SSH public keys found in $src"
+  [[ -n "$raw" ]] || die "keine öffentlichen SSH-Schlüssel in $src gefunden"
   require_vm
   require_team
   local n
-  # The VM keeps only valid keys and restricts each one to opening the tunnel.
-  n=$(printf '%s\n' "$raw" | remote "agent-office-team add $who") || die "couldn't add $who's keys from $src"
-  ok "$who is invited ($n key(s) from $src)"
+  # Die VM behält nur gültige Schlüssel und beschränkt jeden darauf, den Tunnel zu öffnen.
+  n=$(printf '%s\n' "$raw" | remote "open-agentic-office-team add $who") || die "konnte die Schlüssel von $who aus $src nicht hinzufügen"
+  ok "$who ist eingeladen ($n Schlüssel aus $src)"
 
   local a cidrs=() fp
   for a in "${EXTRA_ALLOW[@]+"${EXTRA_ALLOW[@]}"}"; do
@@ -970,36 +977,36 @@ cmd_invite() {
   done
   if [[ ${#cidrs[@]} -gt 0 ]]; then
     change_ssh_sources "${cidrs[@]}"
-    ok "SSH allowed from ${cidrs[*]}"
+    ok "SSH erlaubt von ${cidrs[*]}"
   fi
   fp=$(remote "ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub" | awk '{print $2}')
   echo
-  echo "   Send $who this:"
+  echo "   Schick $who das hier:"
   echo
   echo "     ssh -L 4600:localhost:$OFFICE_PORT $TEAM_USER@$IP"
   echo
-  echo "     Leave it running, open http://localhost:4600 and sign in with the office password."
-  echo "     The first time, ssh asks you to trust the server. Only say yes if it shows"
-  echo "     ED25519 key fingerprint $fp"
+  echo "     Lass es laufen, öffne http://localhost:4600 und melde dich mit dem Office-Passwort an."
+  echo "     Beim ersten Mal fragt ssh, ob du dem Server vertraust. Sag nur Ja, wenn er"
+  echo "     ED25519 key fingerprint $fp zeigt"
   echo
   if ! has_cidr "$(allowed_cidrs)" "0.0.0.0/0"; then
-    echo "   SSH only answers allowed IPs, so also run: deploy/azure.sh allow <their-ip>$NAME_FLAG"
-    echo "   (or \"allow anywhere\" — SSH only accepts your key and invited keys)"
+    echo "   SSH antwortet nur erlaubten IPs, also führ außerdem aus: deploy/azure.sh allow <ihre-ip>$NAME_FLAG"
+    echo "   (oder \"allow anywhere\" — SSH nimmt nur deinen Schlüssel und eingeladene Schlüssel an)"
   fi
 }
 
 cmd_uninvite() {
   preflight
-  [[ ${#POSITIONAL[@]} -eq 1 ]] || die "usage: deploy/azure.sh uninvite <name>"
+  [[ ${#POSITIONAL[@]} -eq 1 ]] || die "Aufruf: deploy/azure.sh uninvite <name>"
   local who="${POSITIONAL[0]}" out rc=0
   valid_member "$who"
   require_vm
   require_team
-  out=$(remote "agent-office-team remove $who" 2>&1) || rc=$?
-  [[ $rc -eq 66 ]] && die "$who isn't invited (see: deploy/azure.sh team$NAME_FLAG)"
-  [[ $rc -eq 0 ]] || die "couldn't remove the keys: $out"
-  ok "$who's keys are removed and open tunnels were dropped (other teammates just reconnect)"
-  echo "   They still know the office password. To change it: deploy/azure.sh reset-password$NAME_FLAG"
+  out=$(remote "open-agentic-office-team remove $who" 2>&1) || rc=$?
+  [[ $rc -eq 66 ]] && die "$who ist nicht eingeladen (siehe: deploy/azure.sh team$NAME_FLAG)"
+  [[ $rc -eq 0 ]] || die "konnte die Schlüssel nicht entfernen: $out"
+  ok "Die Schlüssel von $who sind entfernt und offene Tunnel gekappt (andere Teammitglieder verbinden sich einfach neu)"
+  echo "   Sie kennen das Office-Passwort noch. Zum Ändern: deploy/azure.sh reset-password$NAME_FLAG"
 }
 
 cmd_team() {
@@ -1009,10 +1016,10 @@ cmd_team() {
   local list
   list=$(team_members)
   if [[ -z "$list" ]]; then
-    echo "Nobody is invited yet. Add someone: deploy/azure.sh invite <github-username>$NAME_FLAG"
+    echo "Noch niemand ist eingeladen. Lade jemanden ein: deploy/azure.sh invite <github-name>$NAME_FLAG"
     return
   fi
-  echo "$list" | awk '{printf "%s  (%d key%s)\n", $1, $2, ($2 == 1 ? "" : "s")}'
+  echo "$list" | awk '{printf "%s  (%d Schlüssel)\n", $1, $2}'
 }
 
 cmd_ssh() {
@@ -1024,24 +1031,24 @@ cmd_ssh() {
 cmd_logs() {
   preflight
   require_vm
-  exec ssh "${SSH_OPTS[@]}" -t "$SSH_USER@$IP" 'sudo journalctl -u agent-office -n 100 -f'
+  exec ssh "${SSH_OPTS[@]}" -t "$SSH_USER@$IP" 'sudo journalctl -u open-agentic-office -n 100 -f'
 }
 
 cmd_resize() {
   preflight
-  [[ ${#POSITIONAL[@]} -eq 1 ]] || die "usage: deploy/azure.sh resize <vm-size>   (e.g. Standard_D8as_v5, Standard_B4s_v2)"
+  [[ ${#POSITIONAL[@]} -eq 1 ]] || die "Aufruf: deploy/azure.sh resize <vm-größe>   (z. B. Standard_D8as_v5, Standard_B4s_v2)"
   require_key
   require_group
   require_vm_exists
   resize_vm "${POSITIONAL[0]}"
   if [[ $RESIZED_PAUSED -eq 1 ]]; then
-    echo "   Start it with: deploy/azure.sh resume$NAME_FLAG"
+    echo "   Starte es mit: deploy/azure.sh resume$NAME_FLAG"
     return
   fi
   IP=$(public_ip)
-  say "Waiting for the office to answer"
-  wait_healthy || die "the office didn't come back — check: deploy/azure.sh logs$NAME_FLAG"
-  ok "Your office is back — open it with: deploy/azure.sh open$NAME_FLAG"
+  say "Warte, bis das Office antwortet"
+  wait_healthy || die "das Office kam nicht zurück — prüf: deploy/azure.sh logs$NAME_FLAG"
+  ok "Dein Office ist zurück — öffne es mit: deploy/azure.sh open$NAME_FLAG"
 }
 
 cmd_pause() {
@@ -1051,15 +1058,15 @@ cmd_pause() {
   local state
   state=$(settled_power)
   if [[ "$state" != "deallocated" ]]; then
-    say "Pausing office \"$NAME\" ($VM). Running workers stop and come back asleep"
-    echo "   when you resume (press R at their desk). Open tunnels, teammates' too, are dropped."
+    say "Pausiere Office \"$NAME\" ($VM). Laufende Arbeiter stoppen und kommen schlafend zurück,"
+    echo "   wenn du fortsetzt (R an ihrem Schreibtisch). Offene Tunnel, auch die von Teammitgliedern, werden gekappt."
     confirm
-    # Deallocate, not just stop: a stopped VM keeps its hardware, and Azure keeps billing for it.
-    say "Deallocating"
+    # Deallocate, nicht nur anhalten: Eine angehaltene VM behält ihre Hardware, und Azure rechnet sie weiter ab.
+    say "Gebe die VM frei (deallocate)"
     azc vm deallocate -g "$RG" -n "$VM" -o none
   fi
-  ok "Paused. The disk and the address stay (and are all that's billed until you resume)"
-  echo "   Start it again with: deploy/azure.sh resume$NAME_FLAG"
+  ok "Pausiert. Platte und Adresse bleiben (und nur sie kosten, bis du fortsetzt)"
+  echo "   Wieder starten mit: deploy/azure.sh resume$NAME_FLAG"
 }
 
 cmd_resume() {
@@ -1069,10 +1076,10 @@ cmd_resume() {
   require_vm_exists
   start_vm
   IP=$(public_ip)
-  [[ -n "$IP" ]] || die "the office's VM has no public IP ($PIP) — run: deploy/azure.sh up$NAME_FLAG"
-  say "Waiting for the office to answer"
-  wait_healthy || die "the office didn't come back — check: deploy/azure.sh logs$NAME_FLAG"
-  ok "Your office is back (workers pick up where they left off)"
+  [[ -n "$IP" ]] || die "die VM des Office hat keine öffentliche IP ($PIP) — führ aus: deploy/azure.sh up$NAME_FLAG"
+  say "Warte, bis das Office antwortet"
+  wait_healthy || die "das Office kam nicht zurück — prüf: deploy/azure.sh logs$NAME_FLAG"
+  ok "Dein Office ist zurück (die Arbeiter machen dort weiter, wo sie aufgehört haben)"
   [[ $NO_OPEN -eq 1 ]] && return
   open_office
 }
@@ -1080,38 +1087,34 @@ cmd_resume() {
 cmd_update() {
   preflight
   require_vm
-  say "Updating agent-office on $IP"
+  say "Aktualisiere open-agentic-office auf $IP"
   remote "set -e
-    ref=\$(git -C /opt/agent-office rev-parse --abbrev-ref HEAD)
-    git -C /opt/agent-office fetch --depth 1 origin \"\$ref\" -q
-    git -C /opt/agent-office reset --hard FETCH_HEAD -q
-    echo \"   at \$(git -C /opt/agent-office log -1 --format='%h %s')\"
-    cd /opt/agent-office && npm install --no-audit --no-fund --loglevel=error >/dev/null
-    sudo systemctl restart agent-office" || die "update failed"
-  wait_healthy || die "the office didn't come back — check: deploy/azure.sh logs$NAME_FLAG"
-  ok "Updated and restarted (workers carry on through it)"
+    open-agentic-office-update
+    sudo systemctl restart open-agentic-office" || die "die Aktualisierung ist gescheitert"
+  wait_healthy || die "das Office kam nicht zurück — prüf: deploy/azure.sh logs$NAME_FLAG"
+  ok "Aktualisiert und neu gestartet (die Arbeiter laufen dabei weiter)"
 }
 
 cmd_reset_password() {
   preflight
   require_vm
   (umask 077 && random_token >"$CLAIM_FILE")
-  say "Resetting the office password"
+  say "Setze das Office-Passwort zurück"
   remote "set -e
-    sudo sed -i 's/^AGENT_OFFICE_CLAIM_TOKEN=.*/AGENT_OFFICE_CLAIM_TOKEN=\"$(cat "$CLAIM_FILE")\"/' /etc/agent-office/env
-    sudo systemctl stop agent-office
-    node /opt/agent-office/bin/agent-office.js --home \"\$(cat /etc/agent-office/home)\" --reset-password >/dev/null
-    sudo systemctl start agent-office" || die "reset failed"
-  wait_healthy || die "the office didn't come back — check: deploy/azure.sh logs$NAME_FLAG"
-  ok "Everyone has been signed out"
+    sudo sed -i 's/^OFFICE_BEANSPRUCH_TOKEN=.*/OFFICE_BEANSPRUCH_TOKEN=\"$(cat "$CLAIM_FILE")\"/' /etc/open-agentic-office/env
+    sudo systemctl stop open-agentic-office
+    sudo -u \"\$(systemctl show -p User --value open-agentic-office)\" /opt/open-agentic-office/open-agentic-office --daten \"\$(cat /etc/open-agentic-office/home)\" --passwort-zuruecksetzen >/dev/null
+    sudo systemctl start open-agentic-office" || die "das Zurücksetzen ist gescheitert"
+  wait_healthy || die "das Office kam nicht zurück — prüf: deploy/azure.sh logs$NAME_FLAG"
+  ok "Alle sind abgemeldet"
   open_office
 }
 
-# Drops this computer's files for the office (SSH key, claim link), unless they're for an office of
-# the same name in another subscription.
+# Löscht die Dateien dieses Computers zum Office (SSH-Schlüssel, Beanspruchungs-Link), außer sie gehören
+# zu einem Office gleichen Namens in einem anderen Abonnement.
 forget_office() {
   if [[ -s "$SUB_FILE" && "$(cat "$SUB_FILE")" != "$SUB_ID" ]]; then
-    echo "(This computer's files for \"$NAME\", in $STATE_DIR, are for subscription $(cat "$SUB_FILE"), so they stay.)"
+    echo "(Die Dateien dieses Computers zu \"$NAME\" in $STATE_DIR gehören zum Abonnement $(cat "$SUB_FILE"), also bleiben sie.)"
     return
   fi
   rm -rf "$STATE_DIR"
@@ -1121,23 +1124,23 @@ cmd_down() {
   preflight
   load_group
   if [[ -z "$LOCATION" ]]; then
-    echo "Nothing to delete for \"$NAME\" in subscription $SUB_NAME."
+    echo "Für \"$NAME\" im Abonnement $SUB_NAME gibt es nichts zu löschen."
     forget_office
     return
   fi
-  say "This permanently deletes office \"$NAME\": the resource group $RG in $LOCATION (subscription $SUB_NAME)"
-  echo "   and everything in it:"
+  say "Das löscht das Office \"$NAME\" endgültig: die Ressourcengruppe $RG in $LOCATION (Abonnement $SUB_NAME)"
+  echo "   und alles darin:"
   azc resource list -g "$RG" -o tsv --query '[].[type, name]' | awk -F'\t' '{ printf "     %s  %s\n", $2, $1 }' || true
-  echo "   Anything on the VM that isn't pushed to GitHub is lost."
+  echo "   Alles auf der VM, das nicht auf GitHub gepusht ist, geht verloren."
   if [[ $YES -ne 1 ]]; then
     local answer
-    read -r -p "   Type the office name ($NAME) to confirm: " answer
-    [[ "$answer" == "$NAME" ]] || die "cancelled"
+    read -r -p "   Tippe zur Bestätigung den Office-Namen ($NAME): " answer
+    [[ "$answer" == "$NAME" ]] || die "abgebrochen"
   fi
-  say "Deleting $RG — this takes a few minutes"
-  azc group delete -n "$RG" --yes -o none || die "couldn't delete $RG (above) — run destroy again in a minute"
+  say "Lösche $RG — das dauert ein paar Minuten"
+  azc group delete -n "$RG" --yes -o none || die "konnte $RG nicht löschen (siehe oben) — führ destroy in einer Minute erneut aus"
   forget_office
-  ok "All gone"
+  ok "Alles weg"
 }
 
 case "$CMD" in
@@ -1160,5 +1163,5 @@ case "$CMD" in
   destroy | down) cmd_down ;;
   connect) cmd_connect ;;
   help | -h | --help) usage ;;
-  *) die "unknown command \"$CMD\" (see: deploy/azure.sh help)" ;;
+  *) die "unbekannter Befehl \"$CMD\" (siehe: deploy/azure.sh help)" ;;
 esac

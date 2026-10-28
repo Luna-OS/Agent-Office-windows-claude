@@ -1,55 +1,68 @@
-# Choosing an agent
+# Einen Agenten wählen
 
-Back to the [README](../README.md).
+Zurück zur [README](../README.md).
 
-Every new worker starts on the office's **Default worker**: a provider, model and effort an admin picks in ⚙️ Settings → **🤖 Workers** (the `--agent` with its own default model until someone does). The hire, ask, queue, issue and meeting windows show it on one line; click **✏️ Edit** there to pick **Claude Code**, **OpenCode**, **Codex**, **Grok**, **Muse** or **DeepSeek Harness**, a model and an effort for just that worker or task, and **↺ Use the default** to go back. Board agents and tasks the Queue agent adds, which nobody picks for, start on the default too. Existing workers keep their provider when prompted or resumed, and queued tasks keep their choice when retried or restored after a restart.
+Jeder neue Arbeiter startet auf dem **Standard-Arbeiter** des Office: ein Anbieter, Modell und Aufwand, die ein Admin in ⚙️ Einstellungen → **🤖 Arbeiter** wählt. Die Fenster zum Einstellen, Fragen, Einreihen, für Issues und Besprechungen zeigen ihn in einer Zeile; mit **✏️ Ändern** wählst du **Claude Code**, **Codex**, **OpenCode**, **Gemini**, **Grok**, **Pi**, **Muse**, **DeepSeek Harness** oder einen **eigenen Befehl**, dazu optional Modell und Aufwand, nur für diesen Arbeiter oder diese Aufgabe; **↺ Standard verwenden** geht zurück. Tafel-Agenten und Aufgaben, die der Warteschlangen-Agent anlegt, starten ebenfalls auf dem Standard. Bestehende Arbeiter behalten ihren Anbieter beim Fortsetzen, Aufgaben in der Warteschlange ihre Wahl bei Wiederholung und nach einem Neustart.
 
-For OpenCode, the optional **OpenCode model** field selects the initial model for a new worker or queue task. Suggestions come from `opencode models`; you can also enter a `provider/model` ID. Leave it empty to use your OpenCode settings (including configured CLI arguments). An explicit choice overrides configured model arguments for that launch and stays with a queued task when retried.
+Claude Code ist der Standard. Das Modell (`--model`) und der Aufwand (`--effort`) gelten nur für diesen Arbeiter und bleiben über ein Fortsetzen hinweg erhalten.
 
-**Pi** is available in the worker picker, queued tasks, meetings, and the office default. Install and sign in to the Pi coding-agent CLI on the machine running the office (`npm install -g @earendil-works/pi-coding-agent`, then `pi` and `/login`). The integration targets Pi 0.87.1 or later, using its `agent_settled` and UI prompt extension events. Choose Pi when hiring, or start the office with `--agent pi`. Windows npm `.cmd` launchers are supported.
+## Anbieter
 
-Pi keeps its own login, settings, packages, and extensions. The office adds a CLI-loaded extension to report session, working, tool, waiting-for-input, and completion events; it does not edit your Pi configuration. Each worker's sessions live under `.agent-office/pi-sessions/<worker-id>`, and **R** resumes that worker's session. The optional **Model** field accepts a model name or `provider/model`; **Thinking** offers low, medium, high, xhigh, and max. Leave either on Default to use Pi settings or configured `--agent-args` (including `--thinking off` or `minimal`). Cost and token metrics remain in Pi's terminal and are not included in the office's Claude budget.
+| Anbieter | Befehl | Hinweise |
+| --- | --- | --- |
+| Claude Code | `claude` | Status über Hooks; Hooks werden mit deinen eigenen Claude-Einstellungen zusammengeführt, nicht ersetzt |
+| Codex | `codex` | Behält die eigenen Sandbox- und Freigabe-Einstellungen; Hooks brauchen deine native Freigabe (`/hooks`) |
+| OpenCode | `opencode` | Ein generiertes Plugin meldet Sitzung, Freigaben und Fragen; Modellvorschläge aus `opencode models` |
+| Gemini | `gemini` | |
+| Grok | `grok` | Eigene Sitzungs- und Hook-Dateien pro Office, damit nichts in deinem `~/.grok` verändert wird |
+| Pi | `pi` | Eine per CLI geladene Erweiterung meldet die Ereignisse; deine Pi-Konfiguration bleibt unangetastet |
+| Muse | `muse` | Muse Code; Hooks wie bei Claude, eigene XDG-Ordner im Datenordner, die Anmeldung wird aus `~/.config/muse` übernommen |
+| DeepSeek Harness | `dsh` | Läuft über ACP, ohne echtes Terminal: Das Office zeichnet die Antworten ins Terminal. Tippen + Enter schickt einen Auftrag, Erlaubnisfragen beantwortest du per Nummer, Esc bricht ab. Profil über `OFFICE_DSH_PROFIL` (Standard `acp`) |
+| Eigener Befehl | beliebig | Läuft als reines Terminal; kein Status außer dem, was das Terminal selbst verrät |
 
-For Claude Code, the **Model** and **Effort** fields pick `--model` (Fable, Opus, Sonnet or Haiku) and `--effort` (low, medium, high, extra high or max) for that worker or queue task, overriding whatever `--agent-args` set office-wide. Leave either on **Default** to use the office's configured value. The choice stays with a worker across resumes and with a queued task when retried, and shows up next to the worker in the Workers panel and on its task card so you can tell at a glance who's on what — and the per-worker cost there reflects the actual model used.
+Jeder Agent muss auf dem Rechner, der das Office betreibt, installiert und angemeldet sein. Auf Servern, die mit `deploy/provision.sh` (oder dem AWS-Skript) eingerichtet wurden, ist nur Claude Code vorinstalliert; alle anderen installierst du selbst.
 
-In an open OpenCode terminal, **Models** opens the native model picker using the default `Ctrl+X M` shortcut. Select a model there to change the active worker without restarting it or losing a draft. If you customized that binding, use your configured shortcut or `/models` inside the terminal. Resuming a saved session lets OpenCode restore its current model instead of forcing the initial Office selection again.
+## Die Umgebung eines Arbeiters
 
-Claude Code remains the default. To default to OpenCode:
+Jeder Arbeiter bekommt diese Variablen (und `office-agenten` liegt in seinem `PATH`):
 
-```bash
-agent-office /path/to/project --agent opencode
-```
+| Variable | Bedeutung |
+| --- | --- |
+| `OFFICE_ARBEITER_ID`, `OFFICE_ARBEITER_NAME` | Wer er ist |
+| `OFFICE_ETAGE` | Auf welcher Etage er arbeitet |
+| `OFFICE_HOOK_URL` | `http://127.0.0.1:<port>`, der Hook-Server (nur Loopback) |
+| `OFFICE_HOOK_TOKEN` | Sein persönlicher Token für den Hook-Server |
 
-`--agent-args` applies only to the provider configured by `--agent`; choosing another provider uses its normal command and settings. OpenCode model flags therefore never reach Claude Code, and vice versa. Grok's `--model` / `--effort` and Muse's `--model` / `--reasoning-effort` for a worker likewise stay with that provider. An arbitrary `--agent` executable remains available as **Custom**.
+Arbeiter erben weder das Office-Passwort noch Variablen übergeordneter Agenten-Sitzungen. Arbeiter eines Kontos laufen auf den Anmeldungen dieses Kontos und sehen nie die Zugangsdaten der Maschine.
 
-OpenCode receives prompts through `--prompt` and resumes its saved session through `--session`. The office adds a local event plugin through `OPENCODE_CONFIG_CONTENT`, preserving existing inline JSON settings and plugin entries. Inline settings must be a JSON object; configuration files continue to use OpenCode's own loader. The office does not edit your OpenCode configuration files or bypass permission prompts. The bridge reports worker status to a loopback endpoint authenticated by a per-worker token. OpenCode, Codex, Grok, Muse and DeepSeek Harness must be installed separately on servers set up with `deploy/provision.sh` (or the AWS script), which installs Claude Code only.
+## Agent-zu-Agent-Kommunikation
 
-Grok uses its interactive CLI with `--no-alt-screen`, a per-office `GROK_HOME` for session and hook files (your grok.com login is still read from `~/.grok/auth.json`; 🔐 Your sign-ins is Claude and GitHub), and resumes through `grok --resume <session-id>`. Set it as the default with `--agent grok`. The office writes command hooks into that isolated home so a worker can report status without editing `~/.grok/hooks`. `--trust` skips Grok's folder-trust prompt for the project the desk is already in; native permission prompts still appear in the terminal. The **Model** and **Effort** fields pick `--model` and `--effort` for that worker or queue task. Leave either on **Default** to use your Grok settings. Token spend stays in the worker terminal; the office does not meter grok.com billing.
+Die Arbeiter im Office wissen voneinander. Dafür gibt es drei Dinge, alle über den Hook-Server (HTTP auf Loopback, mit dem Token des Arbeiters) und die kleine Rust-CLI `office-agenten`:
 
-Muse uses its interactive CLI with `--trust-workspace`, a per-office XDG tree under the floor's `.agent-office/muse-home` (your login is linked from `~/.config/muse/auth.json`; 🔐 Your sign-ins is Claude and GitHub), and resumes through `muse resume <session-id>`. Set it as the default with `--agent muse`. The office writes command hooks into that isolated home so a worker can report status without editing `~/.config/muse`. `--trust-workspace` skips Muse's folder-trust prompt for the project the desk is already in; native permission prompts still appear in the terminal. The **Model** and **Effort** fields pick `--model` and `--reasoning-effort` for that worker or queue task. Leave either blank / on **Default** to use your Muse settings. A follow-up prompt on resume is pasted into the TUI after SessionStart, because `muse resume` does not take a prompt on argv. Token spend stays in the worker terminal; the office does not meter Muse billing.
+- einen **Nachrichten-Bus** pro Etage, direkt an einen Arbeiter oder an alle,
+- einen **Status-Feed**: wer arbeitet woran, an welchen Dateien,
+- das gemeinsame **Aufgabenboard** der Etage.
 
-DeepSeek Harness has no interactive terminal, so the office drives it over its **ACP profile** (`dsh --profile acp`, newline-delimited JSON-RPC on stdio) instead of a PTY. The laptop still shows a terminal, but it is the transcript the office renders from ACP: committed messages, thoughts, tool calls and their outcomes, and what is in the context window. Type a line and press **Enter** to send it as one prompt; **Esc** or **Ctrl+C** cancels the turn. There are no slash-commands (`/compact` and friends are not on the ACP surface), and the terminal does not resize the agent. Status comes from the ACP session itself: `session/prompt` in flight is *working*, an outstanding `session/request_permission` is *needs input*, and a settled turn is *done*, with no hooks to install or trust.
+| Befehl | Wirkung |
+| --- | --- |
+| `office-agenten wer` | Status-Feed der Etage: wer sitzt wo, woran arbeitet er |
+| `office-agenten senden <name\|alle> <text>` | Eine Nachricht an einen Arbeiter oder an alle schicken |
+| `office-agenten posteingang` | Ungelesene Nachrichten abholen |
+| `office-agenten status <text>` | Den eigenen Stand melden |
+| `office-agenten aufgaben` | Aufgaben der Etage auflisten |
+| `office-agenten aufgabe-neu <titel> [notiz]` | Eine Aufgabe anlegen |
+| `office-agenten aufgabe-neu --auto <titel> <auftrag>` | Eine Aufgabe samt Auftrag anlegen, die die Warteschlange selbst an einen frischen Arbeiter vergibt (so arbeitet der Aufgaben-Agent) |
+| `office-agenten aufgabe-weg <id>` | Eine wartende Aufgabe wieder von der Warteschlange nehmen |
+| `office-agenten aufgabe <id> <offen\|in_arbeit\|erledigt\|blockiert> [notiz]` | Den Stand einer Aufgabe setzen |
+| `office-agenten verlauf` | Die letzten Nachrichten, die dich betreffen |
+| `office-agenten anlegen [--provider <id>] <auftrag>` | Einen weiteren Arbeiter mit einem Auftrag holen |
 
-The **Model** field names a model from its catalog: type the model id (`deepseek-v4-pro`) and the office matches it against the options the session advertises, then applies it with `session/set_config_option`. The **Effort** field works the same way, on DSH's own ladder (`low`, `high`, `max`): the office's *Medium* and *High* both land on `high`, and *Extra high* and *Max* on `max`. Leave either empty for the profile's default. A saved choice the harness no longer offers is reported in the terminal and the profile default is used instead.
+Menschen sehen den Bus, den Feed und das Board im Office. Der Hook-Server hört nur auf `127.0.0.1`; sein Port steht im Datenordner in `hook-port` (Überschreiben mit `OFFICE_HOOK_PORT`). Ein Arbeiter kann sich nicht selbst nach Hause schicken.
 
-The transcript is styled after the harness's own chat, in its colors (its `--dsw-alias-*` dark-theme tokens) and its wording:
+## Worktrees und PRs
 
-- **Reasoning** opens a `✻ Think` block, ruled down the left in the harness's tertiary text color, and closes with a blank line before the answer. It is never italic, matching the chat.
-- **Markdown is rendered**, not printed raw: headings, bold, italic, inline code (on the harness's code background), bullets, quotes, links and fenced code blocks all come out formatted.
-- **A tool call is one row**: its icon, the harness's own title for that tool (`Bash`, `Read`, `Search`, `Edit`, `Write`, `Code`, `Fetch`…), a dot, and the argument it summarizes by (the command, the path, the query), in the chat's secondary/tertiary colors. A finished call is left collapsed the way the chat leaves it, so there is no tick and no second line; a call that **failed** gets a `└` line in the error color with the reason and up to eight lines of its output.
-- **Each turn ends with the chat's process row**: `Worked · 3 tool calls`, or `Stopped` when you cancelled, or `Failed`.
-- **An approval** is the harness's approval card in text: `▲ Waiting for approval` plus `Tool <name> requests privileged execution`, the numbered choices (reject in the error color, allow in the warning's), and the same keys the chat binds: **Enter** allows once, **Esc** rejects, or a number picks any listed choice. Enter only ever means *allow once*: a request that offers only *always* needs its number typed, and a blank line in something you paste is not an Enter. The card shows the full command being approved. The turn genuinely blocks until it is answered, and rejecting does not end the turn.
+Beim Einstellen mit Aufgabe kannst du *eigener Git-Worktree* ankreuzen: Der Arbeiter bekommt `<projekt>/.office/worktrees/<name>-<id>` auf dem Branch `office/<name>-<id>`, sodass parallele Arbeiter nie denselben Checkout teilen. **O** am Schreibtisch pusht den Branch und öffnet per `gh` einen Pull Request, dessen Text aus der Aufgabe entsteht. Beim Nachhausschicken wählst du, ob Worktree und Branch bleiben oder gelöscht werden; vorher warnt das Office vor nicht committeten oder nicht gepushten Arbeiten. Arbeiter werden in `<datenordner>/etagen/<etage>/workers.json` gespeichert und überleben Neustarts.
 
-Anything the harness sends that this surface has no place for (plans, modes, commands) is skipped rather than printed, and escape sequences in model or tool text are stripped so nothing it says can redraw the terminal.
+## Die Prompts des Office
 
-Set it as the default with `--agent dsh`, and choose the profile with `--dsh-profile <name>` (default `acp`, also `AGENT_OFFICE_DSH_PROFILE`). `--agent-args` is passed through ahead of the profile flags when DSH is the configured agent. DSH rewrites its own profile file on every boot, so the user running the office needs write access to `$DSH_HOME` (`~/.dsh`); a read-only home fails the launch before any ACP frame is exchanged. The office writes a per-floor patch (`<project>/.agent-office/dsh-patch.yml`) that points DSH's session persistence at `<project>/.agent-office/dsh-sessions`, so **R** resumes exactly the session that worker started instead of whatever is in your `~/.dsh`. A new hire always starts a session of its own; it never picks up another desk's. Resuming a session restores its log without replaying the old turns. Its ACP session is a child of the office process, so unlike the other providers a DeepSeek Harness worker stops with the office and comes back *offline*, resumable with **R**. Driven over ACP as verified against `dsh 0.1.7-rc.2`; see [dsh-acp-integration.md](dsh-acp-integration.md) for the design.
-
-Codex uses its interactive CLI with `--no-alt-screen`, preserves native sandbox and approval settings, and resumes through `codex resume <session-id>`. Set it as the default with `--agent codex`; use `/model` inside its terminal to choose a model. The office supplies command hooks through per-process config overrides, without editing your Codex configuration. On first use, open the terminal, complete any login/setup, and review the generated Office commands in `/hooks`. Hooks need your native trust approval before session/status tracking works; the office never bypasses that review. Workers that do not report startup are marked as needing input. Codex tasks use local summaries and do not launch Claude for task naming. Its token metrics come from the root rollout identified by the trusted hook, under `CODEX_HOME/sessions` or `CODEX_HOME/archived_sessions` (default `~/.codex`). The reader checks the session identity, bounds file reads, and sends only normalized counters to the browser. Snapshots update after hooks and on a 10-second poll, survive restarts, and reset for a new session. Cache and reasoning are counted once. Child-session usage is excluded; USD cost and API-call counts are shown as unavailable. The rollout format is version-dependent (verified against 0.154.0); missing or unsupported records remain unavailable instead of being shown as zero. Reads inspect at most a 1 MiB header and the latest 4 MiB of a rollout; if no newer counter is found in that tail, the last known snapshot remains visible.
-
-OpenCode metrics come from assistant-message token/cost records exposed by its plugin SDK. Updated messages replace prior values so streaming updates do not add the same call twice; existing root and child sessions are loaded on resume. History that is still loading or unavailable is labeled as partial. These snapshots update usage only, so a report cannot dismiss a permission request. The daily budget and historical ledger remain Claude-only.
-
-DeepSeek Harness metrics come from ACP `usage_update`: tokens in context and the window's size, shown per worker and for the current desks, plus a session cost only when the harness reports one. The daily budget and historical ledger remain Claude-only.
-
-## The office's prompts
-
-Everything the office tells a worker by itself can be rewritten in ⚙️ Settings → **🤖 Workers** → **📝 Edit the prompts…**: what **🤖 Hand to a worker**, **🔍 Review**, **Fix up & merge**, **Fix conflicts & merge** and **✍️ Ask a worker** send from the boards, what a meeting about an issue or a review panel starts with, the note the queue adds to a worktree task, the three board agents' briefs, every part the meeting room hands out, and the instructions for the model that writes the signs over workers' heads. Each one lists its `{{placeholders}}` (the issue number, the PR's branch, the file a meeting waits for…), which the office fills in when it sends it, and warns when one the office counts on is missing. **↺ Default** puts the office's own wording back. Admins edit them; they're the same on every floor and kept in `.agent-office/prompts.json` with the Default worker.
+Alles, was das Office einem Arbeiter von sich aus sagt, lässt sich in ⚙️ Einstellungen → **🤖 Arbeiter** → **📝 Prompts bearbeiten…** umschreiben: was **🤖 An Arbeiter übergeben**, **🔍 Prüfen**, **Korrigieren & mergen**, **Konflikte lösen & mergen** und **✍️ Arbeiter fragen** von den Tafeln senden, womit eine Besprechung startet, die Notiz, die die Warteschlange an eine Worktree-Aufgabe hängt, die Anweisungen der drei Tafel-Agenten und die Teile der Besprechung. Jeder Prompt listet seine `{{Platzhalter}}` (Issue-Nummer, Branch des PR, Datei, auf die eine Besprechung wartet …) und warnt, wenn einer fehlt, auf den das Office sich verlässt. **↺ Standard** stellt den Originaltext wieder her. Admins bearbeiten sie; sie gelten für alle Etagen.

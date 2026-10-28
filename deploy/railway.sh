@@ -1,20 +1,21 @@
 #!/usr/bin/env bash
-# Deploy your own Agent Office to Railway with one command, using the Railway CLI.
+# Dein eigenes OpenAgenticOffice mit einem Befehl auf Railway bereitstellen, mit der Railway CLI.
 #
-#   deploy/railway.sh up        create the project, build and start the office, open it
-#   deploy/railway.sh open      tunnel to the office and open it in your browser
-#   deploy/railway.sh destroy   delete the project, its volume and everything on it (asks first)
+#   deploy/railway.sh up        Projekt anlegen, das Office bauen und starten, im Browser öffnen
+#   deploy/railway.sh open      Tunnel zum Office aufbauen und im Browser öffnen
+#   deploy/railway.sh destroy   Projekt, Volume und alles darauf löschen (fragt vorher)
 #
-# The office is never on the internet: it listens on 127.0.0.1 in its container, and everyone
-# reaches it through an SSH tunnel to the container's sshd, behind Railway's TCP proxy. What it
-# keeps (accounts, floors, projects, sign-ins, teammates' keys, the SSH host key) is on a volume at
-# /data, so restarts and redeploys lose none of it. The image is deploy/container/Dockerfile, built
-# from this checkout. Run `deploy/railway.sh help` for all commands and options.
+# Das Office ist nie im Internet: Es hört im Container auf 127.0.0.1, und alle erreichen es über einen
+# SSH-Tunnel zum sshd des Containers, hinter Railways TCP-Proxy. Was es aufbewahrt (Konten, Etagen,
+# Projekte, Anmeldungen, Schlüssel der Teammitglieder, der SSH-Hostschlüssel) liegt auf einem Volume
+# unter /data, sodass Neustarts und erneute Deployments nichts davon verlieren. Das Image ist
+# deploy/container/Dockerfile, gebaut aus diesem Checkout. `deploy/railway.sh help` zeigt alle
+# Befehle und Optionen.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-NAME="agent-office"
+NAME="open-agentic-office"
 WORKSPACE=""
 GH_TOKEN_ARG=""
 NO_GH_TOKEN=0
@@ -24,57 +25,60 @@ YES=0
 NO_OPEN=0
 SERVICE_NAME="office"
 DOCKERFILE="deploy/container/Dockerfile"
-SSH_USER="agentoffice" # your key's shell in the container: the user that runs the office
-TEAM_USER="office"     # teammates' keys log in as this user, which can only tunnel to the office
-OFFICE_PORT=4600       # where the office listens in the container (127.0.0.1 only)
+SSH_USER="agentoffice" # die Shell deines Schlüssels im Container: der Benutzer, der das Office betreibt
+TEAM_USER="office"     # Schlüssel der Teammitglieder melden sich als dieser Benutzer an, der nur zum Office tunneln darf
+OFFICE_PORT=4600       # wo das Office im Container lauscht (nur 127.0.0.1)
 LOCAL_PORT=4600
 LOCAL_PORT_SET=0
 
 usage() {
   cat <<'EOF'
-Agent Office on Railway — one command up, one command down.
+OpenAgenticOffice auf Railway — ein Befehl hoch, ein Befehl runter.
 
-Usage: deploy/railway.sh <command> [options]
+Aufruf: deploy/railway.sh <Befehl> [Optionen]
 
-The office is never on the internet. It listens on 127.0.0.1 in its container, and everyone reaches
-it through an SSH tunnel on http://localhost:4600, to the container's sshd behind Railway's TCP proxy.
-Accounts, floors, projects, sign-ins and teammates' keys live on a volume, so they survive restarts
-and redeploys.
+Das Office ist nie im Internet. Es hört im Container auf 127.0.0.1, und alle erreichen es über einen
+SSH-Tunnel auf http://localhost:4600, zum sshd des Containers hinter Railways TCP-Proxy.
+Konten, Etagen, Projekte, Anmeldungen und Schlüssel der Teammitglieder liegen auf einem Volume und
+überstehen Neustarts und erneute Deployments.
 
-Commands
-  up                 Create (or reuse) the Railway project, build this checkout and start the office,
-                     then open it in your browser. The first page shows the office password ONCE.
-  open               Tunnel to your office and open it in the browser (Ctrl-C closes the tunnel)
-  update             Build this checkout again and redeploy it (running workers stop, and come back
-                     where they left off)
-  restart            Restart the office's container without rebuilding it
-  destroy            Delete the Railway project: the office, its volume and everything on it (asks
-                     you to type the office name first). `down` does the same.
+Voraussetzungen: Railway CLI 5 oder neuer (angemeldet), ssh, curl, jq.
 
-  service <port>     Open a worker's web server from the office's 🌐 Services board on
-                     http://localhost:<port> (through the office; Ctrl-C closes the tunnel)
-  invite <gh-user>   Let a teammate tunnel in with the SSH keys on their GitHub account, and
-                     print the one command to send them. Or: invite <name> <public-key-file>
-  uninvite <name>    Remove a teammate's keys and drop open tunnels
-  team               List who is invited
-  status             Show the project, the deployment, the SSH address and whether the office is up
-  ssh                A shell in the container, as the user that runs the office
-  logs               Follow the office's logs
-  reset-password     Forget the password and show a new one once in your browser
+Befehle
+  up                 Das Railway-Projekt anlegen (oder wiederverwenden), diesen Checkout bauen und das
+                     Office starten, dann im Browser öffnen. Die erste Seite zeigt das Office-Passwort
+                     EINMAL.
+  open               Tunnel zu deinem Office aufbauen und im Browser öffnen (Strg-C schließt den Tunnel)
+  update             Diesen Checkout neu bauen und erneut bereitstellen (laufende Arbeiter stoppen und
+                     machen danach dort weiter, wo sie waren)
+  restart            Den Container des Office neu starten, ohne neu zu bauen
+  destroy            Das Railway-Projekt löschen: das Office, sein Volume und alles darauf (du musst
+                     vorher den Office-Namen eintippen). `down` tut dasselbe.
 
-Options
-  --name <name>             Office name (default: agent-office). Several offices = several projects
-  --workspace <name|id>     Railway workspace for a new project (needed if you're in more than one)
-  --port <n>                Local port for the tunnel (default: 4600, or the next free one)
-  --github-token <token>    GitHub token for private repos + the issue/PR boards
-                            (default: your local `gh auth token`)
-  --no-github-token         Don't put any GitHub token in the office
-  --claude-token <token>    Claude subscription token from `claude setup-token`
-                            (default: $CLAUDE_CODE_OAUTH_TOKEN). Without one, log in from the
-                            first worker's terminal in the office.
-  --anthropic-api-key <key> Use an Anthropic API key instead
-  --no-open                 Don't open the browser (up: don't open the tunnel either)
-  -y, --yes                 Don't ask for confirmation
+  service <port>     Den Webserver eines Arbeiters von der 🌐 Dienste-Tafel des Office auf
+                     http://localhost:<port> öffnen (durch das Office; Strg-C schließt den Tunnel)
+  invite <gh-user>   Ein Teammitglied mit den SSH-Schlüsseln seines GitHub-Kontos hereinlassen und den
+                     einen Befehl ausgeben, den du ihm schickst. Oder: invite <name> <öffentlicher-Schlüssel-Datei>
+  uninvite <name>    Die Schlüssel eines Teammitglieds entfernen und offene Tunnel trennen
+  team               Auflisten, wer eingeladen ist
+  status             Projekt, Deployment, SSH-Adresse zeigen und ob das Office läuft
+  ssh                Eine Shell im Container, als der Benutzer, der das Office betreibt
+  logs               Die Logs des Office verfolgen
+  reset-password     Das Passwort vergessen und ein neues einmal im Browser anzeigen
+
+Optionen
+  --name <name>             Name des Office (Standard: open-agentic-office). Mehrere Offices = mehrere Projekte
+  --workspace <name|id>     Railway-Workspace für ein neues Projekt (nötig, wenn du in mehreren bist)
+  --port <n>                Lokaler Port für den Tunnel (Standard: 4600, sonst der nächste freie)
+  --github-token <token>    GitHub-Token für private Repos + die Issue-/PR-Tafeln
+                            (Standard: dein lokales `gh auth token`)
+  --no-github-token         Kein GitHub-Token ins Office legen
+  --claude-token <token>    Claude-Abo-Token von `claude setup-token`
+                            (Standard: $CLAUDE_CODE_OAUTH_TOKEN). Ohne einen meldest du dich im
+                            Terminal des ersten Arbeiters im Office an.
+  --anthropic-api-key <key> Stattdessen einen Anthropic-API-Schlüssel verwenden
+  --no-open                 Den Browser nicht öffnen (up: auch den Tunnel nicht öffnen)
+  -y, --yes                 Nicht um Bestätigung bitten
 EOF
 }
 
@@ -86,14 +90,14 @@ die() {
   exit 1
 }
 
-# The first word that isn't an option is the command; options can go before or after it (the office
-# suggests `deploy/railway.sh --name <name> service <port>`).
+# Das erste Wort, das keine Option ist, ist der Befehl; Optionen dürfen davor oder danach stehen (das
+# Office schlägt `deploy/railway.sh --name <name> service <port>` vor).
 CMD=""
 POSITIONAL=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --name | --workspace | --port | --github-token | --claude-token | --anthropic-api-key)
-      [[ $# -ge 2 ]] || die "$1 needs a value (see: deploy/railway.sh help)" ;;
+      [[ $# -ge 2 ]] || die "$1 braucht einen Wert (siehe: deploy/railway.sh help)" ;;
   esac
   case "$1" in
     --name) NAME="$2"; shift 2 ;;
@@ -106,7 +110,7 @@ while [[ $# -gt 0 ]]; do
     --no-open) NO_OPEN=1; shift ;;
     -y | --yes) YES=1; shift ;;
     -h | --help) usage; exit 0 ;;
-    -*) die "unknown option $1 (see: deploy/railway.sh help)" ;;
+    -*) die "unbekannte Option $1 (siehe: deploy/railway.sh help)" ;;
     *)
       if [[ -z "$CMD" ]]; then CMD="$1"; else POSITIONAL+=("$1"); fi
       shift
@@ -115,39 +119,38 @@ while [[ $# -gt 0 ]]; do
 done
 CMD="${CMD:-help}"
 
-[[ "$NAME" =~ ^[a-zA-Z0-9-]+$ ]] || die "--name may only contain letters, numbers and dashes"
-[[ "$LOCAL_PORT" =~ ^[0-9]+$ && $LOCAL_PORT -gt 0 && $LOCAL_PORT -lt 65536 ]] || die "--port must be a port number"
-STATE_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/agent-office/railway/$NAME"
+[[ "$NAME" =~ ^[a-zA-Z0-9-]+$ ]] || die "--name darf nur Buchstaben, Ziffern und Bindestriche enthalten"
+[[ "$LOCAL_PORT" =~ ^[0-9]+$ && $LOCAL_PORT -gt 0 && $LOCAL_PORT -lt 65536 ]] || die "--port muss eine Portnummer sein"
+STATE_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/open-agentic-office/railway/$NAME"
 NAME_FLAG=""
-[[ "$NAME" != "agent-office" ]] && NAME_FLAG=" --name $NAME"
+[[ "$NAME" != "open-agentic-office" ]] && NAME_FLAG=" --name $NAME"
 KEY_FILE="$STATE_DIR/id_ed25519"
 KNOWN_HOSTS="$STATE_DIR/known_hosts"
 CLAIM_FILE="$STATE_DIR/claim-token"
 IDS_FILE="$STATE_DIR/railway.env" # PROJECT_ID ENVIRONMENT_ID SERVICE_ID SSH_HOST SSH_PORT
 PROJECT_ID="" ENVIRONMENT_ID="" SERVICE_ID="" SSH_HOST="" SSH_PORT=""
 
-need() { command -v "$1" >/dev/null 2>&1 || die "$1 is required (${2:-install it first})"; }
+need() { command -v "$1" >/dev/null 2>&1 || die "$1 wird gebraucht (${2:-installiere es zuerst})"; }
 
-# Evaluates a JavaScript expression over the JSON on stdin (as j) and prints the result: json 'j.id'
+# Wertet einen jq-Ausdruck über das JSON auf stdin aus und gibt das Ergebnis aus (Strings roh, Objekte
+# kompakt, nichts bei null): json '.id'. Weitere Argumente gehen an jq: json '.id == $x' --arg x "$wert"
 json() {
-  node -e 'let s = "";
-    process.stdin.on("data", (d) => (s += d)).on("end", () => {
-      const v = new Function("j", `return (${process.argv[1]})`)(JSON.parse(s));
-      if (v !== undefined && v !== null) console.log(typeof v === "object" ? JSON.stringify(v) : String(v));
-    });' "$1"
+  local filter="$1"
+  shift
+  jq -rc "$@" "($filter) | select(. != null)"
 }
 
-# The Railway CLI, run in the state directory (`railway init` links it to the office's project).
+# Die Railway CLI, im Zustandsordner ausgeführt (`railway init` verknüpft ihn mit dem Projekt des Office).
 rw() { (cd "$STATE_DIR" && railway "$@"); }
 svc() { echo -s "$SERVICE_ID" -e "$ENVIRONMENT_ID"; }
 
 preflight() {
   need railway "https://docs.railway.com/cli"
-  railway tcp-proxy --help >/dev/null 2>&1 || die "this Railway CLI has no tcp-proxy command — upgrade it: railway upgrade (or brew upgrade railway)"
+  railway tcp-proxy --help >/dev/null 2>&1 || die "diese Railway CLI kennt den Befehl tcp-proxy nicht — aktualisiere sie: railway upgrade (oder brew upgrade railway)"
   need ssh
   need curl
-  need node "https://nodejs.org"
-  railway whoami >/dev/null 2>&1 || die "the Railway CLI isn't logged in (run: railway login)"
+  need jq "https://jqlang.github.io/jq/"
+  railway whoami >/dev/null 2>&1 || die "die Railway CLI ist nicht angemeldet (führe aus: railway login)"
 }
 
 load_ids() {
@@ -163,7 +166,7 @@ save_ids() {
 
 require_office() {
   load_ids
-  [[ -n "$SERVICE_ID" && -n "$SSH_HOST" ]] || die "no office named \"$NAME\" on Railway — run: deploy/railway.sh up$NAME_FLAG"
+  [[ -n "$SERVICE_ID" && -n "$SSH_HOST" ]] || die "es gibt kein Office namens \"$NAME\" auf Railway — führe aus: deploy/railway.sh up$NAME_FLAG"
 }
 
 random_token() { od -An -N24 -tx1 /dev/urandom | tr -d ' \n'; }
@@ -180,113 +183,114 @@ open_url() {
 
 # --- Railway ---------------------------------------------------------------------------------------
 
-# Whether $PROJECT_ID is still on Railway (a deleted one stays listed for a while, with deletedAt).
-# Only a listing that worked can say it's gone: when Railway can't be asked (network, login, 2FA),
-# this dies, so nothing gets made again or forgotten over a project that's still running.
+# Ob $PROJECT_ID noch auf Railway existiert (ein gelöschtes bleibt eine Weile gelistet, mit deletedAt).
+# Nur eine Liste, die funktioniert hat, kann sagen, dass es weg ist: Kann Railway nicht gefragt werden
+# (Netzwerk, Anmeldung, 2FA), bricht das hier ab, damit nichts neu angelegt oder vergessen wird, während
+# das Projekt noch läuft.
 project_exists() {
   local list found
   list=$(railway list --json </dev/null) ||
-    die "couldn't list your Railway projects, so can't tell whether \"$NAME\" ($PROJECT_ID) is still there — check: railway whoami"
-  found=$(json "Array.isArray(j) ? j.some((p) => p.id === '$PROJECT_ID' && !p.deletedAt) : 'unreadable'" <<<"$list" 2>/dev/null) || found=""
+    die "die Railway-Projekte konnten nicht aufgelistet werden, also ist unklar, ob \"$NAME\" ($PROJECT_ID) noch existiert — prüfe: railway whoami"
+  found=$(json 'if type == "array" then any(.[]; .id == $id and ((.deletedAt // "") == "")) else "unreadable" end' --arg id "$PROJECT_ID" <<<"$list" 2>/dev/null) || found=""
   [[ "$found" == true || "$found" == false ]] ||
-    die "couldn't read Railway's list of projects (railway list --json), so can't tell whether \"$NAME\" ($PROJECT_ID) is still there"
+    die "Railways Projektliste (railway list --json) war nicht lesbar, also ist unklar, ob \"$NAME\" ($PROJECT_ID) noch existiert"
   [[ "$found" == true ]]
 }
 
-# The project, its environment and the office's service: made once, then remembered in $IDS_FILE.
-# Each ID is saved as soon as it exists, so a later step failing never makes the next `up` create
-# a second project (or `destroy` miss the first).
+# Das Projekt, seine Umgebung und der Dienst des Office: einmal angelegt, dann in $IDS_FILE gemerkt.
+# Jede ID wird gespeichert, sobald es sie gibt, damit ein späterer fehlgeschlagener Schritt nie dazu
+# führt, dass das nächste `up` ein zweites Projekt anlegt (oder `destroy` das erste verfehlt).
 ensure_project() {
   load_ids
   if [[ -n "$PROJECT_ID" ]] && ! project_exists; then
-    warn "the Railway project for \"$NAME\" is gone; making a new one"
+    warn "das Railway-Projekt für \"$NAME\" ist weg; lege ein neues an"
     PROJECT_ID="" ENVIRONMENT_ID="" SERVICE_ID="" SSH_HOST="" SSH_PORT=""
   fi
   if [[ -z "$PROJECT_ID" ]]; then
     if [[ -z "$WORKSPACE" ]]; then
       local spaces
-      spaces=$(railway whoami --json | json 'j.workspaces.map((w) => w.name).join("\n")')
-      [[ $(wc -l <<<"$spaces") -eq 1 ]] || die "you're in several Railway workspaces; pick one with --workspace:
+      spaces=$(railway whoami --json | json '.workspaces | map(.name) | join("\n")')
+      [[ $(wc -l <<<"$spaces") -eq 1 ]] || die "du bist in mehreren Railway-Workspaces; wähle einen mit --workspace:
 $(sed 's/^/   /' <<<"$spaces")"
       WORKSPACE="$spaces"
     fi
-    PROJECT_ID=$(rw init --name "$NAME" --workspace "$WORKSPACE" --json </dev/null 2>/dev/null | json 'j.id') || PROJECT_ID=""
+    PROJECT_ID=$(rw init --name "$NAME" --workspace "$WORKSPACE" --json </dev/null 2>/dev/null | json '.id') || PROJECT_ID=""
     [[ -n "$PROJECT_ID" ]] ||
-      die "couldn't create the Railway project (try: railway init --name $NAME)"
+      die "das Railway-Projekt konnte nicht angelegt werden (versuche: railway init --name $NAME)"
     save_ids
-    ok "Railway project $NAME"
+    ok "Railway-Projekt $NAME"
   fi
   if [[ -z "$ENVIRONMENT_ID" ]]; then
-    ENVIRONMENT_ID=$(rw status --json | json 'j.environments.edges[0].node.id') || ENVIRONMENT_ID=""
-    [[ -n "$ENVIRONMENT_ID" ]] || die "couldn't find the Railway project's environment (run this again to retry)"
+    ENVIRONMENT_ID=$(rw status --json | json '.environments.edges[0].node.id') || ENVIRONMENT_ID=""
+    [[ -n "$ENVIRONMENT_ID" ]] || die "die Umgebung des Railway-Projekts wurde nicht gefunden (führe das hier erneut aus)"
     save_ids
   fi
   if [[ -z "$SERVICE_ID" ]]; then
-    SERVICE_ID=$(rw add --service "$SERVICE_NAME" --json </dev/null 2>/dev/null | json 'j.id') || SERVICE_ID=""
-    [[ -n "$SERVICE_ID" ]] || die "couldn't add the office's service (run this again to retry)"
+    SERVICE_ID=$(rw add --service "$SERVICE_NAME" --json </dev/null 2>/dev/null | json '.id') || SERVICE_ID=""
+    [[ -n "$SERVICE_ID" ]] || die "der Dienst des Office konnte nicht hinzugefügt werden (führe das hier erneut aus)"
     save_ids
-    ok "Service $SERVICE_NAME"
+    ok "Dienst $SERVICE_NAME"
   fi
-  # Linked, so plain `railway` commands run in the state directory act on the office's service.
+  # Verknüpft, damit einfache `railway`-Befehle im Zustandsordner auf den Dienst des Office wirken.
   rw link --project "$PROJECT_ID" --environment "$ENVIRONMENT_ID" --service "$SERVICE_ID" --json </dev/null >/dev/null 2>&1 || true
 }
 
-# Everything the office keeps goes on this volume (see deploy/container/start.sh).
+# Alles, was das Office aufbewahrt, liegt auf diesem Volume (siehe deploy/container/start.sh).
 ensure_volume() {
   local have
-  have=$(rw volume $(svc) list --json | json "j.volumes.filter((v) => v.serviceName === '$SERVICE_NAME' && v.mountPath === '/data').length")
+  have=$(rw volume $(svc) list --json | json '[.volumes[] | select(.serviceName == $s and .mountPath == "/data")] | length' --arg s "$SERVICE_NAME")
   if [[ "${have:-0}" -eq 0 ]]; then
-    rw volume $(svc) add --mount-path /data --json </dev/null >/dev/null || die "couldn't add the volume"
-    ok "Volume on /data"
+    rw volume $(svc) add --mount-path /data --json </dev/null >/dev/null || die "das Volume konnte nicht hinzugefügt werden"
+    ok "Volume auf /data"
   fi
 }
 
-# Railway's TCP proxy in front of the container's sshd: the only way in.
+# Railways TCP-Proxy vor dem sshd des Containers: der einzige Weg hinein.
 ensure_tcp_proxy() {
   local out="" i
   for ((i = 0; i < 12; i++)); do
-    out=$(rw tcp-proxy list $(svc) --json </dev/null 2>/dev/null | json 'j.proxies.find((p) => p.applicationPort === 22)') || out=""
+    out=$(rw tcp-proxy list $(svc) --json </dev/null 2>/dev/null | json '.proxies | map(select(.applicationPort == 22)) | .[0]') || out=""
     [[ -n "$out" ]] && break
-    # Railway can turn it down for a moment right after the volume is added: try again.
+    # Railway kann ihn direkt nach dem Hinzufügen des Volumes kurz ablehnen: noch einmal versuchen.
     rw tcp-proxy create $(svc) --port 22 --json </dev/null >/dev/null 2>"$STATE_DIR/tcp-proxy.log" || sleep 5
   done
-  [[ -n "$out" ]] || die "couldn't add the TCP proxy: $(tail -n 3 "$STATE_DIR/tcp-proxy.log")"
-  SSH_HOST=$(json 'j.domain' <<<"$out")
-  SSH_PORT=$(json 'j.proxyPort' <<<"$out")
-  [[ -n "$SSH_HOST" && -n "$SSH_PORT" ]] || die "the TCP proxy has no address yet"
+  [[ -n "$out" ]] || die "der TCP-Proxy konnte nicht hinzugefügt werden: $(tail -n 3 "$STATE_DIR/tcp-proxy.log")"
+  SSH_HOST=$(json '.domain' <<<"$out")
+  SSH_PORT=$(json '.proxyPort' <<<"$out")
+  [[ -n "$SSH_HOST" && -n "$SSH_PORT" ]] || die "der TCP-Proxy hat noch keine Adresse"
   save_ids
-  ok "SSH at $SSH_HOST:$SSH_PORT"
+  ok "SSH unter $SSH_HOST:$SSH_PORT"
 }
 
-# The latest deployment's status: BUILDING, DEPLOYING, SUCCESS, FAILED, CRASHED, REMOVED… With a
-# deployment ID, WAITING until that one is the latest.
+# Der Status des neuesten Deployments: BUILDING, DEPLOYING, SUCCESS, FAILED, CRASHED, REMOVED… Mit einer
+# Deployment-ID WAITING, bis genau dieses das neueste ist.
 deploy_status() {
-  rw service status $(svc) --json </dev/null 2>/dev/null | json "'${1:-}' && j.deploymentId !== '${1:-}' ? 'WAITING' : j.status" || true
+  rw service status $(svc) --json </dev/null 2>/dev/null | json 'if $id != "" and .deploymentId != $id then "WAITING" else .status end' --arg id "${1:-}" || true
 }
 
-# Builds this checkout with deploy/container/Dockerfile and deploys it.
+# Baut diesen Checkout mit deploy/container/Dockerfile und stellt ihn bereit.
 deploy() {
   local log="$STATE_DIR/build.log" what
-  what=$(git -C "$REPO_DIR" log -1 --format='%h %s' 2>/dev/null || echo 'not a git checkout')
-  [[ -z "$(git -C "$REPO_DIR" status --porcelain 2>/dev/null)" ]] || what+=", with your uncommitted changes"
-  say "Building and deploying this checkout ($what) — a few minutes"
+  what=$(git -C "$REPO_DIR" log -1 --format='%h %s' 2>/dev/null || echo 'kein Git-Checkout')
+  [[ -z "$(git -C "$REPO_DIR" status --porcelain 2>/dev/null)" ]] || what+=", mit deinen nicht committeten Änderungen"
+  say "Baue und stelle diesen Checkout bereit ($what) — ein paar Minuten"
   if ! rw up "$REPO_DIR" --path-as-root $(svc) --ci </dev/null >"$log" 2>&1; then
     tail -n 40 "$log" >&2
-    die "the build failed (the whole log: $log)"
+    die "der Build ist fehlgeschlagen (das ganze Log: $log)"
   fi
-  ok "Built"
+  ok "Gebaut"
   local i st="" id
-  # This upload's deployment (from its link in the log), so the one before it doesn't count.
+  # Das Deployment dieses Uploads (aus seinem Link im Log), damit das davor nicht zählt.
   id=$(sed -n 's/.*[?&]id=\([0-9a-f-]*\).*/\1/p' "$log" | head -n 1)
   for ((i = 0; i < 120; i++)); do
     st=$(deploy_status "$id")
     case "$st" in
-      SUCCESS) ok "Deployed"; return ;;
-      FAILED | CRASHED | REMOVED) die "the deployment $(tr '[:upper:]' '[:lower:]' <<<"$st") — check: deploy/railway.sh logs$NAME_FLAG" ;;
+      SUCCESS) ok "Bereitgestellt"; return ;;
+      FAILED | CRASHED | REMOVED) die "das Deployment ist $(tr '[:upper:]' '[:lower:]' <<<"$st") — prüfe: deploy/railway.sh logs$NAME_FLAG" ;;
     esac
     sleep 5
   done
-  die "the deployment is still ${st:-starting} after 10 minutes — check: deploy/railway.sh logs$NAME_FLAG"
+  die "das Deployment ist nach 10 Minuten noch ${st:-am Starten} — prüfe: deploy/railway.sh logs$NAME_FLAG"
 }
 
 # --- SSH -------------------------------------------------------------------------------------------
@@ -297,7 +301,7 @@ ssh_opts() {
 }
 
 remote() {
-  [[ -f "$KEY_FILE" ]] || die "the SSH key for this office isn't on this machine ($KEY_FILE)"
+  [[ -f "$KEY_FILE" ]] || die "der SSH-Schlüssel dieses Office liegt nicht auf diesem Rechner ($KEY_FILE)"
   # shellcheck disable=SC2046
   ssh $(ssh_opts) "$SSH_USER@$SSH_HOST" "$@"
 }
@@ -310,16 +314,16 @@ wait_healthy() {
     rc=0
     remote "for i in \$(seq 60); do curl -fs --max-time 4 http://127.0.0.1:$OFFICE_PORT/api/health >/dev/null && exit 0; sleep 2; done; exit 1" \
       2>/dev/null || rc=$?
-    [[ $rc -eq 255 ]] || return "$rc" # 255: ssh itself failed, the container is still starting
+    [[ $rc -eq 255 ]] || return "$rc" # 255: ssh selbst ist fehlgeschlagen, der Container startet noch
     sleep 5
   done
   return 1
 }
 
-# When the container's first process started: it changes when Railway replaces the container.
+# Wann der erste Prozess des Containers gestartet ist: ändert sich, wenn Railway den Container ersetzt.
 started() { remote 'stat -c %Y /proc/1' 2>/dev/null || true; }
 
-# After a restart or redeploy: waits for the new container, then for the office in it.
+# Nach einem Neustart oder erneuten Deployment: wartet auf den neuen Container, dann auf das Office darin.
 wait_replaced() {
   local was="$1" i now
   for ((i = 0; i < 60; i++)); do
@@ -335,84 +339,84 @@ port_busy() { (exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null || (exec 3<>"/dev/tc
 pick_port() {
   local p
   if [[ $LOCAL_PORT_SET -eq 1 ]]; then
-    port_busy "$LOCAL_PORT" && die "localhost:$LOCAL_PORT is already in use"
+    port_busy "$LOCAL_PORT" && die "localhost:$LOCAL_PORT ist schon belegt"
     echo "$LOCAL_PORT"
     return
   fi
   for ((p = LOCAL_PORT; p < LOCAL_PORT + 50; p++)); do
     port_busy "$p" || { echo "$p"; return; }
   done
-  die "no free local port from $LOCAL_PORT up (pick one with --port)"
+  die "ab $LOCAL_PORT ist kein lokaler Port frei (wähle einen mit --port)"
 }
 
-# Forward localhost:<port> to the office in the container, open the browser, and hold until Ctrl-C.
+# localhost:<port> zum Office im Container weiterleiten, den Browser öffnen und bis Strg-C halten.
 tunnel() {
   local path="$1" port pid i up=0
   port=$(pick_port) || exit 1
   # shellcheck disable=SC2046
   ssh $(ssh_opts) -N -o ExitOnForwardFailure=yes -L "$port:127.0.0.1:$OFFICE_PORT" "$SSH_USER@$SSH_HOST" &
   pid=$!
-  trap 'kill "$pid" 2>/dev/null; echo; ok "Tunnel closed"; exit 0' INT TERM
+  trap 'kill "$pid" 2>/dev/null; echo; ok "Tunnel geschlossen"; exit 0' INT TERM
   for ((i = 0; i < 40; i++)); do
-    kill -0 "$pid" 2>/dev/null || die "couldn't open the SSH tunnel to $SSH_HOST:$SSH_PORT"
+    kill -0 "$pid" 2>/dev/null || die "der SSH-Tunnel zu $SSH_HOST:$SSH_PORT konnte nicht geöffnet werden"
     curl -fs --max-time 2 "http://localhost:$port/api/health" >/dev/null 2>&1 && { up=1; break; }
     sleep 0.5
   done
   if [[ $up -ne 1 ]]; then
     kill "$pid" 2>/dev/null
-    die "the tunnel opened but the office didn't answer through it — check: deploy/railway.sh logs$NAME_FLAG"
+    die "der Tunnel ist offen, aber das Office antwortet nicht darüber — prüfe: deploy/railway.sh logs$NAME_FLAG"
   fi
-  ok "Your office: http://localhost:$port$path"
-  echo "   (tunneled over SSH to $SSH_HOST:$SSH_PORT — keep this running while you use it; Ctrl-C closes it)"
+  ok "Dein Office: http://localhost:$port$path"
+  echo "   (per SSH nach $SSH_HOST:$SSH_PORT getunnelt — lass das laufen, solange du es benutzt; Strg-C schließt es)"
   open_url "http://localhost:$port$path"
   wait "$pid" || true
   trap - INT TERM
-  warn "The tunnel dropped — reopen it with: deploy/railway.sh open$NAME_FLAG"
+  warn "Der Tunnel ist abgebrochen — öffne ihn wieder mit: deploy/railway.sh open$NAME_FLAG"
 }
 
-# A worker's server from the 🌐 Services board: localhost:<port> tunnels to the office, which
-# relays it by that port (see src/server/relay.ts), so the local port must match the service's.
+# Der Server eines Arbeiters von der 🌐 Dienste-Tafel: localhost:<port> tunnelt zum Office, das ihn
+# über diesen Port weiterreicht, also muss der lokale Port dem des Dienstes entsprechen.
 service_tunnel() {
   local port="$1" pid i up=0
-  port_busy "$port" && die "localhost:$port is already in use on this computer — stop whatever runs there first"
+  port_busy "$port" && die "localhost:$port ist auf diesem Computer schon belegt — beende zuerst, was dort läuft"
   # shellcheck disable=SC2046
   ssh $(ssh_opts) -N -o ExitOnForwardFailure=yes -L "$port:127.0.0.1:$OFFICE_PORT" "$SSH_USER@$SSH_HOST" &
   pid=$!
-  trap 'kill "$pid" 2>/dev/null; echo; ok "Tunnel closed"; exit 0' INT TERM
+  trap 'kill "$pid" 2>/dev/null; echo; ok "Tunnel geschlossen"; exit 0' INT TERM
   for ((i = 0; i < 40; i++)); do
-    kill -0 "$pid" 2>/dev/null || die "couldn't open the SSH tunnel to $SSH_HOST:$SSH_PORT"
+    kill -0 "$pid" 2>/dev/null || die "der SSH-Tunnel zu $SSH_HOST:$SSH_PORT konnte nicht geöffnet werden"
     port_busy "$port" && { up=1; break; }
     sleep 0.5
   done
-  [[ $up -eq 1 ]] || { kill "$pid" 2>/dev/null; die "the tunnel didn't come up"; }
-  ok "The worker's server: http://localhost:$port"
-  echo "   (through the office — sign in with the office password if it asks; Ctrl-C closes it)"
+  [[ $up -eq 1 ]] || { kill "$pid" 2>/dev/null; die "der Tunnel ist nicht hochgekommen"; }
+  ok "Der Server des Arbeiters: http://localhost:$port"
+  echo "   (durch das Office — melde dich mit dem Office-Passwort an, falls es fragt; Strg-C schließt es)"
   open_url "http://localhost:$port"
   wait "$pid" || true
   trap - INT TERM
-  warn "The tunnel dropped — reopen it with: deploy/railway.sh service $port$NAME_FLAG"
+  warn "Der Tunnel ist abgebrochen — öffne ihn wieder mit: deploy/railway.sh service $port$NAME_FLAG"
 }
 
 open_office() {
   local claimable path="/"
-  claimable=$(office_get /api/claim 2>/dev/null || true)
+  claimable=$(office_get /api/beanspruchen 2>/dev/null || true)
   if [[ "$claimable" == *'"claimable":true'* && -f "$CLAIM_FILE" ]]; then
-    path="/claim?t=$(cat "$CLAIM_FILE")"
-    say "Opening the one-time password page — write the password down, it is never shown again"
+    path="/beanspruchen?t=$(cat "$CLAIM_FILE")"
+    say "Öffne die Einmal-Passwort-Seite — schreib das Passwort auf, es wird nie wieder angezeigt"
   fi
   tunnel "$path"
 }
 
-valid_member() { [[ "$1" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,38}$ ]] || die "names are letters, numbers, dots, dashes and underscores: $1"; }
+valid_member() { [[ "$1" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,38}$ ]] || die "Namen bestehen aus Buchstaben, Ziffern, Punkten, Bindestrichen und Unterstrichen: $1"; }
 
-team_members() { remote "agent-office-team list"; } # "<name> <number of keys>" per line
+team_members() { remote "open-agentic-office-team list"; } # "<name> <Anzahl Schlüssel>" pro Zeile
 
-# --- commands --------------------------------------------------------------------------------------
+# --- Befehle ---------------------------------------------------------------------------------------
 
 cmd_up() {
   preflight
   need ssh-keygen
-  [[ -f "$REPO_DIR/$DOCKERFILE" ]] || die "run this from a clone of agent-office ($DOCKERFILE is missing)"
+  [[ -f "$REPO_DIR/$DOCKERFILE" ]] || die "führe das in einem Klon von open-agentic-office aus ($DOCKERFILE fehlt)"
 
   local gh_token="$GH_TOKEN_ARG"
   if [[ -z "$gh_token" && $NO_GH_TOKEN -eq 0 ]] && command -v gh >/dev/null 2>&1; then
@@ -420,51 +424,51 @@ cmd_up() {
   fi
   [[ $NO_GH_TOKEN -eq 1 ]] && gh_token=""
 
-  say "Agent Office \"$NAME\" on Railway ($(railway whoami --json 2>/dev/null | json 'j.name || j.email' || true))"
-  echo "   app:      this checkout, built with $DOCKERFILE"
-  echo "   data:     a volume on /data: accounts, floors, projects (~/workspace), sign-ins, team keys"
-  echo "   access:   SSH tunnel only (the office is never exposed), through Railway's TCP proxy"
+  say "OpenAgenticOffice \"$NAME\" auf Railway ($(railway whoami --json 2>/dev/null | json 'if (.name // "") != "" then .name else .email end' || true))"
+  echo "   App:      dieser Checkout, gebaut mit $DOCKERFILE"
+  echo "   Daten:    ein Volume auf /data: Konten, Etagen, Projekte (~/workspace), Anmeldungen, Team-Schlüssel"
+  echo "   Zugang:   nur per SSH-Tunnel (das Office ist nie offen), über Railways TCP-Proxy"
   if [[ -n "$gh_token" ]]; then
-    echo "   github:   your GitHub token goes in the office (private clones, issue/PR boards, pushes)"
+    echo "   GitHub:   dein GitHub-Token kommt ins Office (private Klone, Issue-/PR-Tafeln, Pushes)"
   else
-    echo "   github:   no token — private repos and the boards won't work until gh is signed in"
+    echo "   GitHub:   kein Token — private Repos und die Tafeln gehen erst, wenn gh angemeldet ist"
   fi
   if [[ -n "$CLAUDE_TOKEN" || -n "$ANTHROPIC_KEY" ]]; then
-    echo "   claude:   signed in with the token you provided"
+    echo "   Claude:   mit dem angegebenen Token angemeldet"
   else
-    echo "   claude:   not signed in — log in from the first worker's terminal (or pass --claude-token)"
+    echo "   Claude:   nicht angemeldet — melde dich im Terminal des ersten Arbeiters an (oder gib --claude-token an)"
   fi
 
   mkdir -p "$STATE_DIR"
   chmod 700 "$STATE_DIR"
-  [[ -f "$KEY_FILE" ]] || ssh-keygen -q -t ed25519 -N '' -C "agent-office-$NAME" -f "$KEY_FILE"
+  [[ -f "$KEY_FILE" ]] || ssh-keygen -q -t ed25519 -N '' -C "open-agentic-office-$NAME" -f "$KEY_FILE"
   [[ -f "$CLAIM_FILE" ]] || (umask 077 && random_token >"$CLAIM_FILE")
 
   ensure_project
   ensure_volume
   ensure_tcp_proxy
 
-  # Your key gets a shell in the container; the claim link shows the generated password once; the
-  # office's panels suggest this script's commands. (The container finds its SSH address in the
-  # variables Railway sets for the TCP proxy.)
+  # Dein Schlüssel bekommt eine Shell im Container; der Beanspruchen-Link zeigt das erzeugte Passwort
+  # einmal; die Panels des Office schlagen die Befehle dieses Skripts vor. (Der Container findet seine
+  # SSH-Adresse in den Variablen, die Railway für den TCP-Proxy setzt.)
   rw variable set $(svc) --skip-deploys "RAILWAY_DOCKERFILE_PATH=$DOCKERFILE" \
-    "AGENT_OFFICE_ADMIN_KEYS=$(cat "$KEY_FILE.pub")" "AGENT_OFFICE_CLAIM_TOKEN=$(cat "$CLAIM_FILE")" \
-    "AGENT_OFFICE_DEPLOY_SCRIPT=deploy/railway.sh$NAME_FLAG" </dev/null >/dev/null || die "couldn't set the service's variables"
+    "OAO_ADMIN_KEYS=$(cat "$KEY_FILE.pub")" "OFFICE_BEANSPRUCH_TOKEN=$(cat "$CLAIM_FILE")" \
+    "OFFICE_DEPLOY_BEFEHL=deploy/railway.sh$NAME_FLAG" </dev/null >/dev/null || die "die Variablen des Dienstes konnten nicht gesetzt werden"
   [[ -z "$CLAUDE_TOKEN" ]] || printf '%s' "$CLAUDE_TOKEN" | rw variable set $(svc) --skip-deploys --stdin CLAUDE_CODE_OAUTH_TOKEN >/dev/null
   [[ -z "$ANTHROPIC_KEY" ]] || printf '%s' "$ANTHROPIC_KEY" | rw variable set $(svc) --skip-deploys --stdin ANTHROPIC_API_KEY >/dev/null
-  # Railway's default only restarts a crashed office a few times.
+  # Railways Standard startet ein abgestürztes Office nur ein paar Mal neu.
   rw environment edit -e "$ENVIRONMENT_ID" --service-config "$SERVICE_ID" deploy.restartPolicyType ALWAYS --json </dev/null >/dev/null 2>&1 ||
-    warn "couldn't set the restart policy to ALWAYS"
+    warn "die Neustart-Richtlinie konnte nicht auf ALWAYS gesetzt werden"
 
   deploy
-  say "Waiting for the office to answer over SSH"
-  wait_healthy || die "the office didn't come up — check: deploy/railway.sh logs$NAME_FLAG"
+  say "Warte, dass das Office über SSH antwortet"
+  wait_healthy || die "das Office ist nicht hochgekommen — prüfe: deploy/railway.sh logs$NAME_FLAG"
 
   if [[ -n "$gh_token" ]]; then
-    say "Signing the GitHub CLI in"
-    # Kept in gh's own config on the volume, so gh, git, the boards and the workers all use it.
+    say "Melde die GitHub CLI an"
+    # In der eigenen gh-Konfiguration auf dem Volume abgelegt, damit gh, git, die Tafeln und die Arbeiter es alle nutzen.
     printf '%s' "$gh_token" | remote 'gh auth login --hostname github.com --git-protocol https --with-token &&
-      gh auth setup-git --hostname github.com && gh api user --jq "\"    as \" + .login"' || warn "couldn't sign the GitHub CLI in"
+      gh auth setup-git --hostname github.com && gh api user --jq "\"    als \" + .login"' || warn "die GitHub CLI konnte nicht angemeldet werden"
   fi
   local git_name git_email
   git_name=$(git config user.name 2>/dev/null || true)
@@ -472,12 +476,12 @@ cmd_up() {
   [[ -z "$git_name" ]] || remote "git config --global user.name $(printf '%q' "$git_name")"
   [[ -z "$git_email" ]] || remote "git config --global user.email $(printf '%q' "$git_email")"
 
-  ok "Your office is running on Railway (reachable only through SSH)"
+  ok "Dein Office läuft auf Railway (nur über SSH erreichbar)"
   echo
-  echo "   Open it later:     deploy/railway.sh open$NAME_FLAG"
-  echo "   Add a teammate:    the 👥 Invite button in the office, or deploy/railway.sh invite <their-github-username>$NAME_FLAG"
-  echo "   Update it:         deploy/railway.sh update$NAME_FLAG"
-  echo "   Tear it down:      deploy/railway.sh destroy$NAME_FLAG"
+  echo "   Später öffnen:        deploy/railway.sh open$NAME_FLAG"
+  echo "   Teammitglied holen:   der 👥-Einladen-Knopf im Office, oder deploy/railway.sh invite <github-benutzername>$NAME_FLAG"
+  echo "   Aktualisieren:        deploy/railway.sh update$NAME_FLAG"
+  echo "   Abbauen:              deploy/railway.sh destroy$NAME_FLAG"
   echo
   [[ $NO_OPEN -eq 1 ]] && return
   open_office
@@ -486,7 +490,7 @@ cmd_up() {
 cmd_open() {
   preflight
   require_office
-  wait_healthy || die "the office isn't answering — check: deploy/railway.sh logs$NAME_FLAG"
+  wait_healthy || die "das Office antwortet nicht — prüfe: deploy/railway.sh logs$NAME_FLAG"
   open_office
 }
 
@@ -494,8 +498,8 @@ cmd_update() {
   preflight
   require_office
   deploy
-  wait_healthy || die "the office didn't come back — check: deploy/railway.sh logs$NAME_FLAG"
-  ok "Updated (workers that were running come back where they left off)"
+  wait_healthy || die "das Office ist nicht zurückgekommen — prüfe: deploy/railway.sh logs$NAME_FLAG"
+  ok "Aktualisiert (Arbeiter, die liefen, machen dort weiter, wo sie waren)"
 }
 
 cmd_restart() {
@@ -503,17 +507,17 @@ cmd_restart() {
   require_office
   local was
   was=$(started)
-  rw restart $(svc) --yes --json </dev/null >/dev/null || die "couldn't restart the office"
-  say "Restarting"
-  wait_replaced "$was" || die "the office didn't come back — check: deploy/railway.sh logs$NAME_FLAG"
-  ok "Restarted"
+  rw restart $(svc) --yes --json </dev/null >/dev/null || die "das Office konnte nicht neu gestartet werden"
+  say "Starte neu"
+  wait_replaced "$was" || die "das Office ist nicht zurückgekommen — prüfe: deploy/railway.sh logs$NAME_FLAG"
+  ok "Neu gestartet"
 }
 
 cmd_service() {
   preflight
   [[ ${#POSITIONAL[@]} -eq 1 && "${POSITIONAL[0]}" =~ ^[0-9]+$ && ${POSITIONAL[0]} -gt 0 && ${POSITIONAL[0]} -lt 65536 ]] ||
-    die "usage: deploy/railway.sh service <port>   (a port from the office's 🌐 Services board)"
-  [[ "${POSITIONAL[0]}" -ne $OFFICE_PORT ]] || die "$OFFICE_PORT is the office itself — use: deploy/railway.sh open"
+    die "Aufruf: deploy/railway.sh service <port>   (ein Port von der 🌐 Dienste-Tafel des Office)"
+  [[ "${POSITIONAL[0]}" -ne $OFFICE_PORT ]] || die "$OFFICE_PORT ist das Office selbst — nimm: deploy/railway.sh open"
   require_office
   service_tunnel "${POSITIONAL[0]}"
 }
@@ -522,67 +526,68 @@ cmd_status() {
   preflight
   load_ids
   if [[ -z "$PROJECT_ID" ]]; then
-    echo "No office named \"$NAME\" on Railway."
+    echo "Es gibt kein Office namens \"$NAME\" auf Railway."
     return
   fi
-  echo "office:     $NAME (Railway project $PROJECT_ID)"
-  echo "deployment: $(deploy_status)"
-  echo "ssh:        ${SSH_HOST:-none}:${SSH_PORT}  (open the office with: deploy/railway.sh open$NAME_FLAG)"
+  echo "Office:      $NAME (Railway-Projekt $PROJECT_ID)"
+  echo "Deployment:  $(deploy_status)"
+  echo "SSH:         ${SSH_HOST:-keins}:${SSH_PORT}  (Office öffnen mit: deploy/railway.sh open$NAME_FLAG)"
   if [[ -n "$SSH_HOST" && -f "$KEY_FILE" ]] && office_get /api/health >/dev/null 2>&1; then
-    echo "volume:     $(remote "df -h /data | awk 'NR == 2 {print \$6 \", \" \$3 \" used of \" \$2}'")"
-    echo "office:     up"
+    echo "Volume:      $(remote "df -h /data | awk 'NR == 2 {print \$6 \", \" \$3 \" von \" \$2 \" belegt\"}'")"
+    echo "Office:      läuft"
     local team
     team=$(team_members 2>/dev/null | awk '{printf "%s%s", sep, $1; sep=", "}')
-    echo "team:       ${team:-nobody invited yet}"
+    echo "Team:        ${team:-noch niemand eingeladen}"
   else
-    echo "volume:     $(rw volume $(svc) list --json | json "j.volumes.filter((v) => v.serviceName === '$SERVICE_NAME').map((v) => v.mountPath + ', ' + Math.round(v.sizeMB / 1000) + ' GB').join('; ') || 'none'")"
-    echo "office:     not answering"
+    echo "Volume:      $(rw volume $(svc) list --json | json '[.volumes[] | select(.serviceName == $s) | .mountPath + ", " + ((.sizeMB / 1000) | round | tostring) + " GB"] | join("; ") | if . == "" then "keins" else . end' --arg s "$SERVICE_NAME")"
+    echo "Office:      antwortet nicht"
   fi
 }
 
 cmd_invite() {
   preflight
   [[ ${#POSITIONAL[@]} -ge 1 && ${#POSITIONAL[@]} -le 2 ]] ||
-    die "usage: deploy/railway.sh invite <github-username>   or   deploy/railway.sh invite <name> <public-key-file>"
+    die "Aufruf: deploy/railway.sh invite <github-benutzername>   oder   deploy/railway.sh invite <name> <öffentlicher-Schlüssel-Datei>"
   local who="${POSITIONAL[0]}" src raw
   valid_member "$who"
   if [[ ${#POSITIONAL[@]} -eq 2 ]]; then
     src="${POSITIONAL[1]}"
-    [[ -f "$src" ]] || die "no such file: $src"
+    [[ -f "$src" ]] || die "keine solche Datei: $src"
     raw=$(cat "$src")
   else
     src="github.com/$who.keys"
-    raw=$(curl -fsS --max-time 10 "https://github.com/$who.keys") || die "couldn't fetch https://$src"
+    raw=$(curl -fsS --max-time 10 "https://github.com/$who.keys") || die "https://$src konnte nicht geladen werden"
   fi
-  [[ -n "$raw" ]] || die "no SSH public keys found in $src"
+  [[ -n "$raw" ]] || die "keine öffentlichen SSH-Schlüssel in $src gefunden"
   require_office
   local n fp
-  # The container keeps only valid keys and restricts each one to opening the tunnel.
-  n=$(printf '%s\n' "$raw" | remote "agent-office-team add $who") || die "couldn't add $who's keys from $src"
-  ok "$who is invited ($n key(s) from $src)"
-  fp=$(remote "agent-office-team fingerprint")
+  # Der Container behält nur gültige Schlüssel und beschränkt jeden darauf, den Tunnel zu öffnen.
+  n=$(printf '%s\n' "$raw" | remote "open-agentic-office-team add $who") || die "die Schlüssel von $who aus $src konnten nicht hinzugefügt werden"
+  ok "$who ist eingeladen ($n Schlüssel aus $src)"
+  fp=$(remote "open-agentic-office-team fingerprint")
   echo
-  echo "   Send $who this:"
+  echo "   Schick $who das hier:"
   echo
   echo "     ssh -L 4600:localhost:$OFFICE_PORT ssh://$TEAM_USER@$SSH_HOST:$SSH_PORT"
   echo
-  echo "     Leave it running, open http://localhost:4600 and sign in with the office password."
-  echo "     The first time, ssh asks you to trust the server. Only say yes if it shows"
+  echo "     Lass es laufen, öffne http://localhost:4600 und melde dich mit dem Office-Passwort an."
+  echo "     Beim ersten Mal fragt ssh, ob du dem Server vertraust. Sag nur ja, wenn es"
   echo "     ED25519 key fingerprint $fp"
+  echo "     anzeigt."
   echo
 }
 
 cmd_uninvite() {
   preflight
-  [[ ${#POSITIONAL[@]} -eq 1 ]] || die "usage: deploy/railway.sh uninvite <name>"
+  [[ ${#POSITIONAL[@]} -eq 1 ]] || die "Aufruf: deploy/railway.sh uninvite <name>"
   local who="${POSITIONAL[0]}" out rc=0
   valid_member "$who"
   require_office
-  out=$(remote "agent-office-team remove $who" 2>&1) || rc=$?
-  [[ $rc -eq 66 ]] && die "$who isn't invited (see: deploy/railway.sh team$NAME_FLAG)"
-  [[ $rc -eq 0 ]] || die "couldn't remove the keys: $out"
-  ok "$who's keys are removed and open tunnels were dropped (other teammates just reconnect)"
-  echo "   They still know the office password. To change it: deploy/railway.sh reset-password$NAME_FLAG"
+  out=$(remote "open-agentic-office-team remove $who" 2>&1) || rc=$?
+  [[ $rc -eq 66 ]] && die "$who ist nicht eingeladen (siehe: deploy/railway.sh team$NAME_FLAG)"
+  [[ $rc -eq 0 ]] || die "die Schlüssel konnten nicht entfernt werden: $out"
+  ok "Die Schlüssel von $who sind entfernt und offene Tunnel getrennt (andere Teammitglieder verbinden sich einfach neu)"
+  echo "   Es kennt weiterhin das Office-Passwort. Zum Ändern: deploy/railway.sh reset-password$NAME_FLAG"
 }
 
 cmd_team() {
@@ -591,10 +596,10 @@ cmd_team() {
   local list
   list=$(team_members)
   if [[ -z "$list" ]]; then
-    echo "Nobody is invited yet. Add someone: deploy/railway.sh invite <github-username>$NAME_FLAG"
+    echo "Noch niemand ist eingeladen. Hol jemanden: deploy/railway.sh invite <github-benutzername>$NAME_FLAG"
     return
   fi
-  echo "$list" | awk '{printf "%s  (%d key%s)\n", $1, $2, ($2 == 1 ? "" : "s")}'
+  echo "$list" | awk '{printf "%s  (%d Schlüssel)\n", $1, $2}'
 }
 
 cmd_ssh() {
@@ -614,15 +619,15 @@ cmd_reset_password() {
   preflight
   require_office
   (umask 077 && random_token >"$CLAIM_FILE")
-  say "Resetting the office password"
-  rw variable set $(svc) --skip-deploys "AGENT_OFFICE_CLAIM_TOKEN=$(cat "$CLAIM_FILE")" >/dev/null || die "couldn't set the new claim token"
+  say "Setze das Office-Passwort zurück"
+  rw variable set $(svc) --skip-deploys "OFFICE_BEANSPRUCH_TOKEN=$(cat "$CLAIM_FILE")" >/dev/null || die "das neue Beanspruchen-Token konnte nicht gesetzt werden"
   local was
   was=$(started)
-  remote "node /opt/agent-office/bin/agent-office.js --reset-password >/dev/null" || die "reset failed"
-  # A redeploy, so the office starts with the new claim token (and makes the new password).
-  rw redeploy $(svc) --yes --json </dev/null >/dev/null || die "couldn't redeploy the office"
-  wait_replaced "$was" || die "the office didn't come back — check: deploy/railway.sh logs$NAME_FLAG"
-  ok "Everyone has been signed out"
+  remote "/opt/open-agentic-office/open-agentic-office --daten ~/open-agentic-office --passwort-zuruecksetzen >/dev/null" || die "das Zurücksetzen ist fehlgeschlagen"
+  # Ein erneutes Deployment, damit das Office mit dem neuen Beanspruchen-Token startet (und das neue Passwort erzeugt).
+  rw redeploy $(svc) --yes --json </dev/null >/dev/null || die "das Office konnte nicht erneut bereitgestellt werden"
+  wait_replaced "$was" || die "das Office ist nicht zurückgekommen — prüfe: deploy/railway.sh logs$NAME_FLAG"
+  ok "Alle wurden abgemeldet"
   open_office
 }
 
@@ -630,28 +635,29 @@ cmd_down() {
   preflight
   load_ids
   if [[ -z "$PROJECT_ID" ]]; then
-    echo "Nothing to delete for \"$NAME\"."
+    echo "Für \"$NAME\" gibt es nichts zu löschen."
     rm -rf "$STATE_DIR"
     return
   fi
-  # The state directory (this office's SSH key, claim token and IDs) goes only once the project has:
-  # project_exists dies when Railway can't say, and a failed delete stops here.
+  # Der Zustandsordner (SSH-Schlüssel, Beanspruchen-Token und IDs dieses Office) verschwindet erst, wenn
+  # das Projekt weg ist: project_exists bricht ab, wenn Railway es nicht sagen kann, und ein
+  # fehlgeschlagenes Löschen hält hier an.
   if project_exists; then
-    say "This permanently deletes office \"$NAME\": Railway project $PROJECT_ID, its volume and everything on it."
-    echo "   Anything in the office that isn't pushed to GitHub is lost."
+    say "Das löscht Office \"$NAME\" endgültig: Railway-Projekt $PROJECT_ID, sein Volume und alles darauf."
+    echo "   Alles im Office, was nicht nach GitHub gepusht ist, geht verloren."
     if [[ $YES -ne 1 ]]; then
-      read -r -p "   Type the office name ($NAME) to confirm: " answer
-      [[ "$answer" == "$NAME" ]] || die "cancelled"
+      read -r -p "   Tippe zur Bestätigung den Office-Namen ($NAME) ein: " answer
+      [[ "$answer" == "$NAME" ]] || die "abgebrochen"
     fi
     railway delete --project "$PROJECT_ID" --yes </dev/null >/dev/null ||
-      die "couldn't delete the project (with 2FA on, run: railway delete --project $PROJECT_ID, then this again)"
-    ok "Railway project deleted (the service, its volume and the TCP proxy go with it)"
+      die "das Projekt konnte nicht gelöscht werden (mit 2FA führe aus: railway delete --project $PROJECT_ID, dann das hier erneut)"
+    ok "Railway-Projekt gelöscht (der Dienst, sein Volume und der TCP-Proxy gehen mit)"
   else
-    ok "Railway project $PROJECT_ID is already deleted"
+    ok "Das Railway-Projekt $PROJECT_ID ist schon gelöscht"
   fi
-  rw unlink --yes </dev/null >/dev/null 2>&1 || true # forget the state directory's link in the CLI's config
+  rw unlink --yes </dev/null >/dev/null 2>&1 || true # die Verknüpfung des Zustandsordners in der Konfiguration der CLI vergessen
   rm -rf "$STATE_DIR"
-  ok "All gone"
+  ok "Alles weg"
 }
 
 case "$CMD" in
@@ -669,5 +675,5 @@ case "$CMD" in
   reset-password) cmd_reset_password ;;
   destroy | down) cmd_down ;;
   help | -h | --help) usage ;;
-  *) die "unknown command \"$CMD\" (see: deploy/railway.sh help)" ;;
+  *) die "unbekannter Befehl \"$CMD\" (siehe: deploy/railway.sh help)" ;;
 esac

@@ -1,0 +1,6 @@
+[package]
+name = "pruefungen"
+description = "Projektweite Prüfungen (Dateigrößen-Wächter, nur Rust, deutsche Texte)."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
