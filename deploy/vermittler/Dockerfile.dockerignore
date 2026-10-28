@@ -1,0 +1,6 @@
+# Für den Vermittler reichen der Rust-Workspace und seine Crates.
+*
+!Cargo.toml
+!Cargo.lock
+!crates/
+crates/*/target

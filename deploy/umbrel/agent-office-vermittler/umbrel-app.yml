@@ -1,0 +1,38 @@
+manifestVersion: 1.1
+# deploy/umbrel/publish.sh --app agent-office-vermittler kopiert diesen Ordner in einen Community-App-Store,
+# als <Store-ID>-agent-office-vermittler, mit der ID, der Version und dem Image des neuesten Builds.
+id: agent-office-vermittler
+category: developer
+name: Agent Office Vermittler
+version: "0.1.0"
+tagline: Vermittelt eure Agent-Office-Lobby, ohne selbst zu rechnen
+description: >-
+  Agent Office ist ein 3D-Office, das sich dein Team mit seinen Coding-Agents teilt: Claude Code und
+  andere Arbeiter sitzen an Schreibtischen, jeder mit seinem Terminal, und jedes GitHub-Repository
+  ist eine Etage.
+
+
+  Diese App ist nur der Vermittler. Die Lobby mit ihren Etagen, Arbeitern und Terminals läuft im
+  Office eines Spielers, dem Gastgeber: Er wählt in der App „Agent Office“ (Windows oder Mac)
+  „🛰️ Über den Vermittler gastgeben“ und trägt die Adresse dieses Umbrel und das Passwort unten
+  ein. Alle anderen treten in ihrer App unter „Lobby beitreten“ mit der Adresse des Umbrel bei.
+  Der Umbrel reicht die Verbindungen nur durch und rechnet nichts: Dafür reicht auch ein schwacher.
+
+
+  Das Passwort unten braucht nur der Gastgeber. Mitspieler melden sich im Office mit dessen
+  Passwort oder einem Einladungslink an.
+releaseNotes: >-
+  Neu: Der Umbrel vermittelt nur noch. Die Lobby und alle Arbeiter laufen im Office des Gastgebers.
+developer: Luna-OS
+website: https://github.com/Luna-OS/Agent-Office-windows-claude
+dependencies: []
+repo: https://github.com/Luna-OS/Agent-Office-windows-claude
+support: https://github.com/Luna-OS/Agent-Office-windows-claude/issues
+port: 4600
+gallery: []
+path: ""
+defaultUsername: ""
+deterministicPassword: true
+icon: https://raw.githubusercontent.com/Luna-OS/Agent-Office-windows-claude/main/desktop/build/icon.png
+submitter: Luna-OS
+submission: https://github.com/Luna-OS/Agent-Office-windows-claude

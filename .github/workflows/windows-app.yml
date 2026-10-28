@@ -1,22 +1,24 @@
 name: Windows app
 
-# Baut die Windows-App (desktop/, siehe docs/windows-app.md) auf einem Windows-Runner: die Desktop-Hülle
-# (Rust, tao + wry), den Server, die Agenten-CLI, den Browser-Client (dist/), die GitHub CLI und die
-# Claude-Code-Verknüpfung, gepackt mit NSIS zu OpenAgenticOffice-Setup-<version>.exe.
+# Builds the Agent Office Windows installer (desktop/, see docs/windows-app.md) on a Windows runner:
+# the office itself, its production dependencies with their Windows native modules, a node.exe, and
+# the Electron app around them, packed by electron-builder into Agent-Office-Setup-<version>.exe.
 #
-# Jeder Lauf lädt den Installer als Workflow-Artefakt hoch. Auf main ruft ihn der Release-Workflow
-# (release.yml) auf und legt ihn mit den Disk-Images der Mac-App und den Server-Archiven in dasselbe
-# Release (v0.1.<Commits auf main>), damit die Installer im neuesten Release oben stehen.
+# Every run uploads the installer as a workflow artifact. On main the release workflow (release.yml)
+# calls this one and puts the installer into the same release as the Mac disk images
+# (v0.1.<commits on main>, marked "Latest").
 
 on:
   workflow_call:
   pull_request:
     paths:
-      - 'crates/**'
+      - 'src/**'
+      - 'bin/**'
       - 'desktop/**'
-      - 'Cargo.toml'
-      - 'Cargo.lock'
-      - 'rust-toolchain.toml'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig*.json'
+      - 'vite.config.ts'
       - '.github/workflows/windows-app.yml'
   workflow_dispatch:
 
@@ -34,67 +36,65 @@ jobs:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
-          fetch-depth: 0 # die Version zählt die Commits auf main
+          fetch-depth: 0 # the version counts the commits on main
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-node@v7
         with:
-          targets: wasm32-unknown-unknown
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            desktop/package-lock.json
 
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: |
-            .
-            desktop
+      - name: Build the office
+        run: npm ci # its prepare script builds the client and the server
 
-      - uses: taiki-e/install-action@v2
-        with:
-          tool: trunk
-
-      - name: Browser-Client bauen
-        working-directory: crates/client
-        run: trunk build --release
-
-      - name: Server und Agenten-CLI bauen
-        run: cargo build --release --locked -p server -p agenten
-
-      - name: Desktop-Hülle bauen
-        run: cargo build --release --locked --manifest-path desktop/Cargo.toml
+      - name: Install the app's build tools
+        working-directory: desktop
+        run: npm ci
 
       - name: Version
         id: version
+        working-directory: desktop
         run: |
-          basis="$(grep -m1 '^version' desktop/Cargo.toml | sed -E 's/version *= *"([0-9]+\.[0-9]+).*/\1/')"
-          echo "version=$basis.$(git rev-list --count HEAD)" >> "$GITHUB_OUTPUT"
+          version="$(node -p 'require("./package.json").version.split(".").slice(0, 2).join(".")').$(git rev-list --count HEAD)"
+          npm version "$version" --no-git-tag-version --allow-same-version
+          echo "version=$version" >> "$GITHUB_OUTPUT"
 
-      - name: Ordner zusammenstellen
+      - name: Stage the office, node.exe and gh.exe
+        working-directory: desktop
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
-          s=desktop/staging
-          mkdir -p "$s/werkzeuge"
-          cp desktop/target/release/open-agentic-office-desktop.exe "$s/"
-          cp target/release/open-agentic-office.exe "$s/"
-          for b in office-agenten office-pty-wirt; do cp "target/release/$b.exe" "$s/" 2>/dev/null || echo "Hinweis: $b nicht gebaut"; done
-          cp -R dist "$s/dist"
-          cp -R desktop/claude desktop/tools "$s/"
-          cp "$(which gh)" "$s/werkzeuge/gh.exe"
+          npm run stage
+          ./staging/gh/gh.exe --version
 
-      # Die aktuellen Windows-Runner bringen NSIS nicht mehr mit.
-      - name: NSIS installieren
+      - name: Start the staged office once
+        working-directory: desktop/staging
         run: |
-          if ! command -v makensis > /dev/null; then
-            choco install nsis -y --no-progress
-            echo 'C:\Program Files (x86)\NSIS' >> "$GITHUB_PATH"
-          fi
+          home="$RUNNER_TEMP/office-home"
+          mkdir -p "$home"
+          ./node/node.exe office/bin/agent-office.js --home "$home" --host 127.0.0.1 --port 4700 --password ci --no-open > "$RUNNER_TEMP/office.log" 2>&1 &
+          office=$!
+          for _ in $(seq 60); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:4700/login.html || true)
+            [ "$code" = 200 ] && break
+            sleep 1
+          done
+          cat "$RUNNER_TEMP/office.log"
+          kill "$office" || true
+          [ "$code" = 200 ] || { echo "the staged office didn't answer (last status: $code)"; exit 1; }
 
-      - name: Installer packen
-        run: |
-          mkdir -p desktop/release
-          makensis //DVERSION=${{ steps.version.outputs.version }} //DQUELLE=desktop\\staging desktop/build/installer.nsi
+      - name: Build the installer
+        working-directory: desktop
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: npx electron-builder --win nsis --x64 --publish never
 
       - uses: actions/upload-artifact@v4
         with:
-          name: OpenAgenticOffice-Setup
-          path: desktop/release/OpenAgenticOffice-Setup-*.exe
+          name: Agent-Office-Setup
+          path: desktop/release/*.exe
           if-no-files-found: error
-
