@@ -1,7 +1,7 @@
 @echo off
 rem Claude Code with your Claude subscription (Pro / Max / Team / Enterprise) instead of an API key.
 rem
-rem Installed by the OpenAgenticOffice Windows app as the shortcut "Claude Code (ohne API-Key)".
+rem Installed by the Agent Office Windows app as the shortcut "Claude Code (ohne API-Key)".
 rem A set ANTHROPIC_API_KEY (or ANTHROPIC_AUTH_TOKEN) takes precedence over the subscription login
 rem in Claude Code and is billed per token, so it is removed here, for this window only. Nothing
 rem else on the computer changes. Any arguments are passed on to claude, e.g.

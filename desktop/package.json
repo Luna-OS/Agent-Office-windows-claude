@@ -1,0 +1,107 @@
+{
+  "name": "agent-office-desktop",
+  "productName": "Agent Office",
+  "version": "0.1.0",
+  "description": "Agent Office's connector for Windows and macOS: joins a lobby on your Umbrel or a server (or starts the office on this computer), signs each player in with their own Claude and GitHub, and opens the office in the browser.",
+  "main": "main.cjs",
+  "private": true,
+  "license": "MIT",
+  "author": "Agent Office",
+  "scripts": {
+    "icons": "node scripts/make-icons.mjs",
+    "stage": "node scripts/stage.mjs",
+    "start": "electron .",
+    "dist": "npm run stage && electron-builder --win nsis --x64 --publish never",
+    "dist:mac": "STAGE_ARCH=arm64 node scripts/stage.mjs && STAGE_ARCH=x64 node scripts/stage.mjs && electron-builder --mac dmg --arm64 --x64 --publish never",
+    "dist:dir": "npm run stage && electron-builder --dir --publish never"
+  },
+  "devDependencies": {
+    "electron": "^44.5.1",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "com.agentoffice.desktop",
+    "productName": "Agent Office",
+    "copyright": "Copyright © 2026 AgentSystemLabs and contributors (MIT)",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.cjs",
+      "controller.cjs",
+      "connector.cjs",
+      "passthrough.cjs",
+      "local-signins.cjs",
+      "preload.cjs",
+      "lobby.cjs",
+      "platform.cjs",
+      "hosting.cjs",
+      "ui/**",
+      "package.json"
+    ],
+    "afterPack": "scripts/after-pack.cjs",
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico",
+      "executableName": "AgentOffice"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png",
+      "category": "public.app-category.developer-tools",
+      "identity": "-",
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false
+    },
+    "dmg": {
+      "artifactName": "Agent-Office-${version}-mac-${arch}.${ext}",
+      "title": "Agent Office ${version}",
+      "contents": [
+        {
+          "x": 150,
+          "y": 190,
+          "type": "file"
+        },
+        {
+          "x": 420,
+          "y": 190,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ]
+    },
+    "linux": {
+      "target": [
+        "dir"
+      ],
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": "always",
+      "createStartMenuShortcut": true,
+      "shortcutName": "Agent Office",
+      "include": "build/installer.nsh",
+      "artifactName": "Agent-Office-Setup-${version}.${ext}",
+      "deleteAppDataOnUninstall": false
+    }
+  }
+}

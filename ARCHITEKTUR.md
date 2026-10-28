@@ -1,4 +1,13 @@
-# OpenAgenticOffice – Architektur des Rust-Neubaus
+# OpenAgenticOffice – Architektur
+
+> **Neue Richtung.** Der Client ist wieder TypeScript wie vor der Umstellung: `src/client` (das 3D-Office mit three.js),
+> `src/server` als lokales Office jedes Spielers (startet seine Arbeiter mit seinem eigenen Claude und GitHub, auf seinem
+> PC) und `desktop/` (die Electron-App). In Rust bleibt der Server, und der wird zum **Vermittler**: eine App ohne
+> Oberfläche (Umbrel, Docker oder ein PC), mit der sich die lokalen Offices verbinden. Sie reicht Positionen, Chat,
+> Sprach-Signale, Repos, Board, Arbeiter-Stände und Konten zwischen den Spielern weiter und merkt sich den gemeinsamen
+> Stand. Die Crates unten sind der Rust-Neubau des ganzen Office. Sie bleiben als Grundlage, bis der Vermittler sie ablöst.
+
+## Der Rust-Neubau (bisher)
 
 OpenAgenticOffice baut das bisherige Agent-Office (TypeScript, three.js, Node) von Grund auf neu, und zwar **nur in Rust**.
 Die Referenz ist der alte Stand: `C:\Users\Luna\Documents\code\Agent-Office-windows-claude` (nur lesen, nie dort schreiben),

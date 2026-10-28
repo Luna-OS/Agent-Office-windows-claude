@@ -2,7 +2,7 @@
 
 Zurück zur [README](../README.md) · [Online-Lobby](online-lobby.md)
 
-Die Umbrel-App „OpenAgenticOffice“ ist das Office als [Online-Lobby](online-lobby.md) auf einem
+Die Umbrel-App „Agent Office“ ist das Office als [Online-Lobby](online-lobby.md) auf einem
 [Umbrel](https://umbrel.com): Die Worker laufen dort, alle Spieler treten mit dem
 [Connector](connector.md) für Windows oder macOS oder im Browser bei, jeder mit dem eigenen Claude und
 GitHub. Diese Seite beschreibt, woraus die App besteht, wie sie in einen
@@ -10,24 +10,24 @@ Community App Store (wie deinen nrzStore) kommt und wie du sie aktualisierst.
 
 ## Woraus sie besteht
 
-- **Das Image** `ghcr.io/luna-os/open-agentic-office`: derselbe Rust-Container wie für Railway, Fly.io und
+- **Das Image** `ghcr.io/luna-os/agent-office`: derselbe Container wie für Railway, Fly.io und
   Dokploy ([`deploy/container/Dockerfile`](../deploy/container/Dockerfile)), für **amd64** (Umbrel
   Home, PCs) und **arm64** (Raspberry Pi). Der Workflow
   [`.github/workflows/umbrel-image.yml`](../.github/workflows/umbrel-image.yml) baut es bei jedem
   Push auf `main` auf je einem Runner der passenden Architektur und veröffentlicht es als
   `0.1.<Commits auf main>` und `latest`. Pull Requests bauen es nur und starten es einmal so, wie
   Umbrel es startet.
-- **Die App-Dateien** in [`deploy/umbrel/open-agentic-office/`](../deploy/umbrel/open-agentic-office):
+- **Die App-Dateien** in [`deploy/umbrel/agent-office/`](../deploy/umbrel/agent-office):
   - `umbrel-app.yml`: Name, Beschreibung, Port **4600**, Icon, und `deterministicPassword: true`,
     damit Umbrel ein festes Passwort erzeugt und auf der Seite der App zeigt.
   - `docker-compose.yml`: Umbrels `app_proxy` vor dem Office (mit `PROXY_AUTH_ADD: "false"`: das
     Office meldet die Leute selbst an, mit seinem Passwort oder ihren Konten, damit Mitspieler nicht
     das Umbrel-Passwort brauchen) und der Container mit
-    - `OAO_SSHD=off`: kein SSH-Server (die Tunnel der anderen Deployments braucht es hier nicht),
-    - `OAO_HOST=0.0.0.0`: der Proxy erreicht das Office im Container,
-    - `OAO_TRUST_PROXY=1`: das Office liest die Adresse der Spieler aus den
+    - `AGENT_OFFICE_SSHD=off`: kein SSH-Server (die Tunnel der anderen Deployments braucht es hier nicht),
+    - `AGENT_OFFICE_HOST=0.0.0.0`: der Proxy erreicht das Office im Container,
+    - `AGENT_OFFICE_TRUST_PROXY=1`: das Office liest die Adresse der Spieler aus den
       `X-Forwarded-*`-Headern des Proxys,
-    - `OFFICE_PASSWORT=${APP_PASSWORD}`: Umbrels Passwort ist das Office-Passwort,
+    - `AGENT_OFFICE_PASSWORD=${APP_PASSWORD}`: Umbrels Passwort ist das Office-Passwort,
     - `${APP_DATA_DIR}/data` als `/data`: alles, was das Office sich merkt.
 
 ## In den Store legen: `deploy/umbrel/publish.sh`
@@ -45,20 +45,20 @@ Es
 1. liest die Store-ID aus `nrzStore/umbrel-app-store.yml` (gibt es die Datei noch nicht, legt
    `--store-id <id>` sie an),
 2. findet das neueste `x.y.z`-Image auf ghcr.io und seinen Digest,
-3. schreibt `nrzStore/<id>-open-agentic-office/` mit dieser ID, dem Image (per Digest festgenagelt) und
+3. schreibt `nrzStore/<id>-agent-office/` mit dieser ID, dem Image (per Digest festgenagelt) und
    seiner Version als App-Version, und
-4. mit `--pr`: committet auf einen neuen Branch `open-agentic-office-<version>`, pusht ihn und zeigt den
-   Link, der den Pull Request öffnet (`<store>/compare/<branch>...open-agentic-office-<version>`, so bei
+4. mit `--pr`: committet auf einen neuen Branch `agent-office-<version>`, pusht ihn und zeigt den
+   Link, der den Pull Request öffnet (`<store>/compare/<branch>...agent-office-<version>`, so bei
    Gitea wie bei GitHub). Mit `--push` stattdessen direkt auf den aktuellen Branch.
 
 Weitere Optionen: `--tag 0.1.42` (eine bestimmte Version), `--port 4601` (falls 4600 auf deinem
 Umbrel schon belegt ist), `--image` (ein anderes Image). `deploy/umbrel/publish.sh --help` listet sie.
 
 Auf dem Umbrel fügst du den Store einmal hinzu: **App Store → ⋯ → Community App Stores**, Adresse
-des Stores eintragen. Danach steht **OpenAgenticOffice** darin.
+des Stores eintragen. Danach steht **Agent Office** darin.
 
 > Das Paket auf ghcr.io muss **öffentlich** sein, damit der Umbrel es ohne Anmeldung laden kann. Ist
-> es nach dem ersten Workflow-Lauf privat: auf GitHub unter *Packages → open-agentic-office → Package
+> es nach dem ersten Workflow-Lauf privat: auf GitHub unter *Packages → agent-office → Package
 > settings → Change visibility* auf *Public* stellen.
 
 ## Aktualisieren
@@ -77,8 +77,8 @@ Anmeldungen bleiben im Daten-Ordner der App erhalten.
 
 Wie bei den anderen Container-Deployments (siehe [`deploy/container/start.sh`](../deploy/container/start.sh)):
 
-- `data/home/open-agentic-office/`: das Office (Passwort, Konten, Etagen, Chat, die Anmeldungen jedes Kontos
-  in `homes/<konto>/`)
+- `data/home/agent-office/`: das Office (Passwort, Konten, Etagen, Chat, die Anmeldungen jedes Kontos
+  in `.agent-office/homes/<konto>/`)
 - `data/home/workspace/`: die geklonten Projekte
 - `data/home/.local`, `.claude`, `.claude.json`: Claude Code und die Claude-Anmeldung des Office
 - `data/home/.config/gh`, `.gitconfig`: die GitHub-Anmeldung des Office
@@ -87,8 +87,8 @@ Wie bei den anderen Container-Deployments (siehe [`deploy/container/start.sh`](.
 
 ```bash
 docker run -d -p 4600:4600 -v "$PWD/office-data:/data" \
-  -e OAO_SSHD=off -e OAO_HOST=0.0.0.0 -e OAO_TRUST_PROXY=1 \
-  -e OFFICE_PASSWORT=geheim ghcr.io/luna-os/open-agentic-office:latest
+  -e AGENT_OFFICE_SSHD=off -e AGENT_OFFICE_HOST=0.0.0.0 -e AGENT_OFFICE_TRUST_PROXY=1 \
+  -e AGENT_OFFICE_PASSWORD=geheim ghcr.io/luna-os/agent-office:latest
 ```
 
 Dann `http://localhost:4600` öffnen oder im Connector unter **Lobby beitreten** `localhost:4600` eintragen.

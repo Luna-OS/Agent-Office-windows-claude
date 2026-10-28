@@ -1,0 +1,42 @@
+manifestVersion: 1.1
+# deploy/umbrel/publish.sh copies this folder into a community app store as <store id>-agent-office,
+# and sets the id, the version and the image to the store's and the newest build's.
+id: agent-office
+category: developer
+name: Agent Office
+version: "0.1.0"
+tagline: An online lobby for your team and its coding agents, in 3D
+description: >-
+  Agent Office is a 3D office your team shares with its coding agents. Claude Code, Codex,
+  OpenCode and other workers sit at desks, each with its live terminal on the laptop in front of
+  it, and anyone in the office can watch it or type into it. Every GitHub repository is a floor
+  of the building.
+
+
+  On your Umbrel, the office is an online lobby: the workers run here, not on the computers of the
+  people playing, and everyone joins from the Agent Office app for Windows or macOS, or from a
+  browser. Talk over voice, chat, share your screen on the lounge TV and draw on the whiteboard
+  together.
+
+
+  Each player can run their workers on their own Claude plan, or, once an admin shares it, on the
+  host's: the office machine's own Claude sign-in.
+
+
+  The password is shown below. Open the office, sign in with it, then make everyone an account of
+  their own in ☰ → 🔑 Accounts.
+releaseNotes: >-
+  Hosted lobby for the Agent Office desktop apps: the office and its workers run on the Umbrel.
+developer: AgentSystemLabs, Luna-OS
+website: https://github.com/Luna-OS/Agent-Office-windows-claude
+dependencies: []
+repo: https://github.com/Luna-OS/Agent-Office-windows-claude
+support: https://github.com/Luna-OS/Agent-Office-windows-claude/issues
+port: 4600
+gallery: []
+path: ""
+defaultUsername: ""
+deterministicPassword: true
+icon: https://raw.githubusercontent.com/Luna-OS/Agent-Office-windows-claude/main/desktop/build/icon.png
+submitter: Luna-OS
+submission: https://github.com/Luna-OS/Agent-Office-windows-claude

@@ -1,38 +1,37 @@
 name: Release
 
-# Jede Änderung auf main wird gebaut und als GitHub-Release veröffentlicht; install.sh und install.ps1
-# installieren die neueste. Die Version ist Major.Minor aus der Cargo.toml des Workspaces plus die Zahl
-# der Commits auf main (v0.1.68, v0.1.69, …). Für ein neues Minor die Version in Cargo.toml erhöhen.
+# Every change to the app that lands on main is built, tested and published as one GitHub release
+# (v0.1.<commits on main>, marked "Latest"): the Windows installer (windows-app.yml), the Mac disk
+# images (mac-app.yml) and the npm tarball install.sh / install.ps1 install. The version is
+# package.json's major.minor plus the number of commits on main; bump package.json for a new minor.
 #
-# Pull Requests bauen dasselbe und starten den fertigen Server als Probe, veröffentlichen aber nichts.
-# Jedes Archiv enthält: open-agentic-office (Server), office-agenten (CLI), office-pty-wirt (Terminal-Wirt) und dist/ (Browser-Client).
-#
-# Auf main kommen ins selbe Release auch die Installer der Desktop-App: OpenAgenticOffice-Setup-<version>.exe
-# (windows-app.yml) und OpenAgenticOffice-<version>-mac-{arm64,x64}.dmg (mac-app.yml). So steht im neuesten
-# Release oben, was man zum Installieren braucht; die Archive sind für install.sh und install.ps1.
+# Pull requests get the same build, tests and a real install of the packed release through
+# install.sh, but publish nothing (the app workflows run on their own there).
 
 on:
   push:
     branches: [main]
     paths:
-      - 'crates/**'
+      - 'src/**'
+      - 'bin/**'
       - 'desktop/**'
-      - 'Cargo.toml'
-      - 'Cargo.lock'
-      - 'rust-toolchain.toml'
-      - 'install.sh'
-      - 'install.ps1'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig*.json'
+      - 'vite.config.ts'
       - '.github/workflows/release.yml'
       - '.github/workflows/windows-app.yml'
       - '.github/workflows/mac-app.yml'
   pull_request:
     paths:
-      - 'crates/**'
-      - 'Cargo.toml'
-      - 'Cargo.lock'
-      - 'rust-toolchain.toml'
+      - 'src/**'
+      - 'bin/**'
+      - 'tests/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig*.json'
+      - 'vite.config.ts'
       - 'install.sh'
-      - 'install.ps1'
       - '.github/workflows/release.yml'
   workflow_dispatch:
 
@@ -44,94 +43,70 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  bauen:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - { name: linux-x64, runner: ubuntu-latest, ziel: x86_64-unknown-linux-gnu, endung: tar.gz }
-          - { name: linux-arm64, runner: ubuntu-24.04-arm, ziel: aarch64-unknown-linux-gnu, endung: tar.gz }
-          - { name: macos-arm64, runner: macos-latest, ziel: aarch64-apple-darwin, endung: tar.gz }
-          - { name: macos-x64, runner: macos-latest, ziel: x86_64-apple-darwin, endung: tar.gz }
-          - { name: windows-x64, runner: windows-latest, ziel: x86_64-pc-windows-msvc, endung: zip }
-    runs-on: ${{ matrix.runner }}
-    defaults:
-      run:
-        shell: bash
+  release:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.pack.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
-          fetch-depth: 0 # die Version zählt die Commits auf main
+          fetch-depth: 0 # the version counts the commits on main
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-node@v7
         with:
-          targets: wasm32-unknown-unknown,${{ matrix.ziel }}
+          node-version: 22
+          cache: npm
 
-      - uses: Swatinem/rust-cache@v2
-        with:
-          key: ${{ matrix.name }}
+      - name: Install and build
+        run: npm ci # its prepare script builds the client and the server
 
-      - uses: taiki-e/install-action@v2
-        with:
-          tool: trunk
+      - run: npm run typecheck
 
-      - name: Browser-Client bauen (dist/)
-        working-directory: crates/client
-        run: trunk build --release
+      - run: npm test
 
-      - name: Server und Agenten-CLI bauen
-        run: cargo build --release --locked -p server -p agenten --target ${{ matrix.ziel }}
-
-      - name: Archiv packen
-        id: packen
+      - name: Pack the release
+        id: pack
         run: |
-          basis="$(grep -m1 '^version' Cargo.toml | sed -E 's/version *= *"([0-9]+\.[0-9]+).*/\1/')"
-          version="$basis.$(git rev-list --count HEAD)"
-          exe=""; [ "${{ matrix.runner }}" = windows-latest ] && exe=".exe"
-          ordner="paket/open-agentic-office"
-          mkdir -p "$ordner"
-          cp "target/${{ matrix.ziel }}/release/open-agentic-office$exe" "$ordner/"
-          for b in office-agenten office-pty-wirt; do cp "target/${{ matrix.ziel }}/release/$b$exe" "$ordner/" 2>/dev/null || echo "Hinweis: $b nicht gebaut"; done
-          cp -R dist "$ordner/dist"
-          archiv="open-agentic-office-${{ matrix.name }}.${{ matrix.endung }}"
-          if [ "${{ matrix.endung }}" = zip ]; then
-            (cd paket && 7z a -tzip "../$archiv" open-agentic-office > /dev/null)
-          else
-            tar -czf "$archiv" -C paket open-agentic-office
-          fi
-          echo "$version" > version.txt
-          echo "archiv=$archiv" >> "$GITHUB_OUTPUT"
+          version="$(node -p 'require("./package.json").version.split(".").slice(0, 2).join(".")').$(git rev-list --count HEAD)"
+          npm version "$version" --no-git-tag-version --allow-same-version
+          # It's built already, and installs don't have the build tools.
+          npm pkg delete scripts.prepare
+          # Installs get exactly the dependency versions tested here.
+          cp package-lock.json npm-shrinkwrap.json
+          npm pkg set 'files[]=npm-shrinkwrap.json'
+          npm pack --ignore-scripts
+          mv "agent-office-$version.tgz" agent-office.tgz
+          tar -tzf agent-office.tgz | grep -qx 'package/npm-shrinkwrap.json'
+          echo "version=$version" >> "$GITHUB_OUTPUT"
 
-      - name: Probe - den gepackten Server starten
-        # Das Intel-Mac-Archiv wird auf einem Apple-Silicon-Runner gebaut und nicht gestartet.
-        if: matrix.name != 'macos-x64'
+      - name: Install it with install.sh and start it
+        env:
+          AGENT_OFFICE_TARBALL: ${{ github.workspace }}/agent-office.tgz
+          AGENT_OFFICE_INSTALL_DIR: ${{ runner.temp }}/install
+          AGENT_OFFICE_BIN_DIR: ${{ runner.temp }}/bin
+          AGENT_OFFICE_HOME: ${{ runner.temp }}/office
+          AGENT_OFFICE_INSTALL_ONLY: '1'
         run: |
-          exe=""; [ "${{ matrix.runner }}" = windows-latest ] && exe=".exe"
-          "paket/open-agentic-office/open-agentic-office$exe" --host 127.0.0.1 --port 4700 --no-open --daten "$RUNNER_TEMP/office" > office.log 2>&1 &
+          bash install.sh
+          cd "$RUNNER_TEMP"
+          "$RUNNER_TEMP/bin/agent-office" --host 127.0.0.1 --port 4700 --password ci > office.log 2>&1 &
           office=$!
-          code=000
           for _ in $(seq 60); do
-            code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:4700/ || true)
-            [ "$code" != 000 ] && break
+            code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:4700/login.html || true)
+            [ "$code" = 200 ] && break
             sleep 1
           done
           cat office.log
-          kill "$office" || true
-          [ "$code" != 000 ] || { echo "Der Server hat nicht geantwortet"; exit 1; }
+          [ "$code" = 200 ] || { echo "the installed office didn't answer (last status: $code)"; exit 1; }
+          grep -qx "v${{ steps.pack.outputs.version }}" install/current
+          kill -INT "$office"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.name }}
-          path: ${{ steps.packen.outputs.archiv }}
+          name: agent-office-tarball
+          path: agent-office.tgz
           if-no-files-found: error
 
-      - uses: actions/upload-artifact@v4
-        if: matrix.name == 'linux-x64'
-        with:
-          name: version
-          path: version.txt
-
-  # Die Installer der Desktop-App, nur für das Release (in Pull Requests prüfen die beiden Workflows sich selbst).
   windows:
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     uses: ./.github/workflows/windows-app.yml
@@ -141,9 +116,10 @@ jobs:
     uses: ./.github/workflows/mac-app.yml
 
   veroeffentlichen:
-    needs: [bauen, windows, mac]
-    # Ein Installer, der nicht baut, hält das Release der Archive (install.sh, install.ps1) nicht auf.
-    if: ${{ !cancelled() && needs.bauen.result == 'success' && github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
+    # Also when the Mac job finds no runner in time: the release then goes out without the disk
+    # images, and re-running the failed job adds them to the same release.
+    needs: [release, windows, mac]
+    if: ${{ !cancelled() && needs.release.result == 'success' && github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -153,20 +129,18 @@ jobs:
           path: artefakte
           merge-multiple: true
 
-      - name: Release anlegen
+      - name: Release anlegen oder ergänzen
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: v${{ needs.release.outputs.version }}
         run: |
           shopt -s nullglob
-          tag="v$(cat artefakte/version.txt)"
-          version="${tag#v}"
-          # Die Installer der Desktop-App und die Archive.
-          dateien=(artefakte/OpenAgenticOffice-* artefakte/open-agentic-office-*)
-          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
-            echo "$tag ist schon veröffentlicht: lade fehlende Dateien nach"
-            gh release upload "$tag" "${dateien[@]}" --repo "$GITHUB_REPOSITORY" --clobber
+          dateien=(artefakte/Agent-Office-* artefakte/agent-office.tgz)
+          ls -la "${dateien[@]}"
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            gh release upload "$TAG" "${dateien[@]}" --clobber
             exit 0
           fi
-          hinweis="**Installieren:** Windows: \`OpenAgenticOffice-Setup-$version.exe\` · Mac: \`OpenAgenticOffice-$version-mac-arm64.dmg\` (Apple-Chip) oder \`OpenAgenticOffice-$version-mac-x64.dmg\` (Intel). Die \`.zip\`- und \`.tar.gz\`-Archive sind der Server für die Kommandozeile (install.sh, install.ps1)."
-          gh release create "$tag" "${dateien[@]}" --repo "$GITHUB_REPOSITORY" \
-            --target "$GITHUB_SHA" --title "$tag" --notes "$hinweis" --generate-notes --latest
+          hinweis="Windows: Agent-Office-Setup-<version>.exe. Mac: Agent-Office-<version>-mac-arm64.dmg (Apple-Chip) bzw. -mac-x64.dmg (Intel); meldet macOS „beschädigt“, siehe docs/mac-app.md."
+          gh release create "$TAG" "${dateien[@]}" --target "$GITHUB_SHA" --title "$TAG" --notes "$hinweis" --generate-notes --latest
