@@ -3,10 +3,13 @@
 #   desktop/build/mac-paket.sh <quellordner> <version> <arch>      (arch: arm64 oder x64)
 # Der Quellordner enthält die Desktop-Hülle, den Server, dist/, claude/ und tools/.
 # Die App wird ad hoc signiert (ohne Apple-Zertifikat), das braucht Apple Silicon zum Starten.
+# Im Disk-Image liegen neben der App eine Verknüpfung „Programme“ zum Hineinziehen und eine Anleitung
+# für die Meldung „beschädigt“, mit der macOS nicht beglaubigte Apps aus dem Internet abweist.
 set -euo pipefail
 quelle="$1"; version="$2"; arch="$3"
-app="desktop/release/OpenAgenticOffice.app"
-rm -rf "$app"
+inhalt="desktop/release/dmg-inhalt"
+app="$inhalt/OpenAgenticOffice.app"
+rm -rf "$inhalt"
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources" desktop/release
 cp -R "$quelle"/. "$app/Contents/MacOS/"
 cp desktop/build/icon.png "$app/Contents/Resources/icon.png"
@@ -26,7 +29,25 @@ cat > "$app/Contents/Info.plist" <<PLIST
 PLIST
 chmod +x "$app/Contents/MacOS/"* 2>/dev/null || true
 codesign --force --deep --sign - "$app"
+codesign --verify --deep --strict "$app" || echo "::warning::codesign --verify meldet Lücken in der Signatur von $app"
+ln -s /Applications "$inhalt/Programme"
+cat > "$inhalt/Wenn macOS „beschädigt“ meldet.txt" <<'TEXT'
+OpenAgenticOffice installieren
+
+1. Zieh OpenAgenticOffice auf „Programme“.
+
+2. Die App ist nicht von Apple beglaubigt (dafür bräuchte es ein kostenpflichtiges Zertifikat).
+   Meldet macOS beim Start „OpenAgenticOffice ist beschädigt und kann nicht geöffnet werden“,
+   ist sie nicht kaputt: So weist macOS solche Apps ab, wenn sie aus dem Internet kommen.
+   Öffne dann das Terminal (Programme → Dienstprogramme → Terminal) und gib ein:
+
+       xattr -dr com.apple.quarantine /Applications/OpenAgenticOffice.app
+
+   Danach startet die App normal. Nach jedem Update ist das wieder einmal nötig.
+
+Mehr dazu: https://github.com/Luna-OS/OpenAgenticOffice/blob/main/docs/mac-app.md
+TEXT
 dmg="desktop/release/OpenAgenticOffice-${version}-mac-${arch}.dmg"
 rm -f "$dmg"
-hdiutil create -volname "OpenAgenticOffice" -srcfolder "$app" -ov -format UDZO "$dmg"
+hdiutil create -volname "OpenAgenticOffice" -srcfolder "$inhalt" -ov -format UDZO "$dmg"
 echo "$dmg"

@@ -58,14 +58,27 @@ pub fn webview_bauen(
     ansicht: Arc<Mutex<Ansicht>>,
     proxy: EventLoopProxy<Ereignis>,
 ) -> WebView {
-    WebViewBuilder::new()
+    let bauer = WebViewBuilder::new()
         .with_custom_protocol("oao".into(), move |_id, anfrage| {
             antwort(&anfrage, &ansicht, &proxy)
         })
-        .with_url(START_URL)
+        .with_url(START_URL);
+    #[cfg(windows)]
+    let bauer = {
+        use wry::WebViewBuilderExtWindows;
+        bauer.with_additional_browser_args(BROWSER_SCHALTER)
+    };
+    bauer
         .build(fenster)
         .expect("Die Ansicht ließ sich nicht erzeugen (WebView2 bzw. WebKit fehlt?)")
 }
+
+/// Schalter für WebView2. Steht die Grafikkarte auf Chromiums Sperrliste, gibt es dort kein WebGPU, und
+/// das 3D-Office bleibt leer; im Fenster läuft nur das Office, also schalten wir es immer frei. Die ersten
+/// beiden sind wrys Vorgaben (ohne Mini-Menü und SmartScreen, Ton ohne Klick), die eigene Schalter ersetzen.
+#[cfg(windows)]
+const BROWSER_SCHALTER: &str = "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection \
+    --autoplay-policy=no-user-gesture-required --enable-unsafe-webgpu --ignore-gpu-blocklist";
 
 fn html(seite: String) -> Response<Cow<'static, [u8]>> {
     Response::builder()

@@ -75,6 +75,11 @@ soll dein PC geschont werden, nimm den Umbrel.
   Internet. Ein Token geht immer.
 - **Die Durchleitung lässt sich nicht starten**: Port 48600 ist belegt (ein zweiter Connector läuft?).
   Dann gehen Sprache und Bildschirm teilen nur über `https://`.
+- **„Dein Browser kann kein WebGPU“ im Fenster**: Unter Windows schaltet der Connector WebGPU im Fenster
+  auch für Grafikkarten frei, die Chromium sonst sperrt (`--enable-unsafe-webgpu --ignore-gpu-blocklist`
+  in `desktop/src/fenster.rs`). Kommt die Meldung trotzdem (Hardwarebeschleunigung aus, sehr alte
+  Grafiktreiber), nimm **🌐 Im Browser öffnen** mit einem aktuellen Chrome oder Edge, oder die 2D-Ansicht
+  unter `/lite`. Auf dem Mac nutzt das Fenster das WebKit von Safari, WebGPU gibt es dort ab Safari 26.
 
 ## Wie der Connector funktioniert
 

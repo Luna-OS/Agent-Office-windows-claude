@@ -16,12 +16,19 @@ einem API-Key.
    `.tar.gz`-Dateien daneben sind nur der Server für die Kommandozeile:
    - `OpenAgenticOffice-<version>-mac-arm64.dmg` für Macs mit Apple-Chip (M1, M2, M3, M4 …)
    - `OpenAgenticOffice-<version>-mac-x64.dmg` für Macs mit Intel-Prozessor
-2. Öffne das Image und zieh **OpenAgenticOffice** in den Ordner **Programme**.
+2. Öffne das Image und zieh **OpenAgenticOffice** auf die Verknüpfung **Programme** daneben.
 3. Die App ist nicht von Apple beglaubigt (dafür bräuchte es ein kostenpflichtiges Apple-Developer-
-   Zertifikat), deshalb blockiert macOS den ersten Start. So startest du sie trotzdem:
-   - Starte sie einmal, schließ die Meldung, und öffne **Systemeinstellungen → Datenschutz &
-     Sicherheit**: unten bei „OpenAgenticOffice wurde blockiert“ auf **Trotzdem öffnen** klicken.
-   - Oder im Terminal: `xattr -dr com.apple.quarantine "/Applications/OpenAgenticOffice.app"`
+   Zertifikat), deshalb blockiert macOS den ersten Start, meist mit **„OpenAgenticOffice ist beschädigt
+   und kann nicht geöffnet werden“**. Die App ist nicht kaputt: So weist macOS nicht beglaubigte Apps aus
+   dem Internet ab. Öffne das Terminal (*Programme → Dienstprogramme*) und gib ein:
+
+   ```bash
+   xattr -dr com.apple.quarantine /Applications/OpenAgenticOffice.app
+   ```
+
+   Danach startet sie normal; nach jedem Update ist das einmal wieder nötig. Die Anleitung liegt auch im
+   Image („Wenn macOS „beschädigt“ meldet.txt“). Sagt macOS stattdessen, es könne die App nicht
+   überprüfen, geht auch **Systemeinstellungen → Datenschutz & Sicherheit → Dennoch öffnen**.
 
 Nur den Server ohne App installierst du mit
 `curl -fsSL https://raw.githubusercontent.com/Luna-OS/OpenAgenticOffice/main/install.sh | bash`.
