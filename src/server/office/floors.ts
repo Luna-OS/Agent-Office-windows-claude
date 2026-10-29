@@ -117,6 +117,7 @@ export async function openFloors(ctx: Ctx, hookPort: number): Promise<FloorsOpen
     },
     lent: (floor) => [...floors.values()].some((f) => f !== floor && worksIn(f, floor)),
     locksUp: () => !!ctx.maps.plan().sendHome?.keeps,
+    planOf: (owner) => (owner && ctx.signins.claudeKey(owner) ? ctx.accountLimits.get(owner)?.reader.state : ctx.limits.state),
     runAs: ctx.signins,
     ghAs: (owner) => (owner ? ctx.signins.ghAs(owner) : undefined),
   };

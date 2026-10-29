@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import headless from '@xterm/headless';
-import { checkLimit, limitIn, resetTime } from '../src/server/workers/limit.js';
+import { checkLimit, limitIn, planVoll, resetTime } from '../src/server/workers/limit.js';
 
 // Donnerstag, 29. Oktober 2026, 08:00 UTC (in Berlin 09:00, Winterzeit; in New York 04:00, noch Sommerzeit).
 const NOW = Date.UTC(2026, 9, 29, 8, 0);
@@ -76,4 +76,54 @@ test('er schläft, bis es weitergeht oder er wieder arbeitet', async () => {
   s.info.kind = 'shell';
   checkLimit(s, events, NOW);
   assert.equal(s.info.limit, undefined);
+});
+
+test('die Claude-Limits des Kontos voll: wann das zählt', () => {
+  const in2h = NOW + 2 * 3600_000;
+  assert.deepEqual(planVoll({ windows: [{ label: '5h session', pct: 100, resetsAt: in2h }, { label: 'Week', pct: 40 }], at: NOW }, NOW), { until: in2h });
+  // Beide voll: bis das spätere zurückgesetzt wird.
+  assert.deepEqual(planVoll({ windows: [{ label: '5h session', pct: 100, resetsAt: in2h }, { label: 'Week', pct: 100, resetsAt: in2h + 86_400_000 }], at: NOW }, NOW), { until: in2h + 86_400_000 });
+  // Schon zurückgesetzt (der Stand ist von vorher), nur ein Modell voll, oder noch nicht ganz voll: zählt nicht.
+  assert.equal(planVoll({ windows: [{ label: '5h session', pct: 100, resetsAt: NOW - 1 }], at: NOW - 3600_000 }, NOW), undefined);
+  assert.equal(planVoll({ windows: [{ label: 'Opus week', pct: 100, resetsAt: in2h }], at: NOW }, NOW), undefined);
+  assert.equal(planVoll({ windows: [{ label: '5h session', pct: 99.5, resetsAt: in2h }], at: NOW }, NOW), undefined);
+  // Ohne Zeitpunkt: solange der Stand frisch ist.
+  assert.deepEqual(planVoll({ windows: [{ label: 'Week', pct: 100 }], at: NOW - 60_000 }, NOW), {});
+  assert.equal(planVoll({ windows: [{ label: 'Week', pct: 100 }], at: NOW - 3600_000 }, NOW), undefined);
+  assert.equal(planVoll(undefined, NOW), undefined);
+});
+
+test('sind die Limits des Kontos voll, schlafen auch die Claude-Arbeiter, die gerade nichts tun', async () => {
+  const in2h = NOW + 2 * 3600_000;
+  let voll = true;
+  const gefragt: (string | undefined)[] = [];
+  const events: any = {
+    update: () => {},
+    plan: (owner: string | undefined) => (gefragt.push(owner), { windows: [{ label: '5h session', pct: voll ? 100 : 12, resetsAt: in2h }], at: NOW }),
+  };
+  const w = await arbeiter('> \n');
+  w.info.provider = 'claude';
+  w.info.status = 'idle';
+  w.owner = 'konto-kim';
+  checkLimit(w, events, NOW);
+  assert.deepEqual(w.info.limit, { until: in2h });
+  assert.equal(gefragt[0], 'konto-kim', 'die Limits ihres Kontos');
+  // Arbeitet er doch (etwa mit Zusatz-Nutzung), wacht er auf; ist er wieder fertig, schläft er weiter.
+  w.info.status = 'working';
+  checkLimit(w, events, NOW + 1000);
+  assert.equal(w.info.limit, undefined);
+  w.info.status = 'done';
+  checkLimit(w, events, NOW + 2000);
+  assert.deepEqual(w.info.limit, { until: in2h });
+  // Nicht mehr voll: Er wacht auf.
+  voll = false;
+  checkLimit(w, events, NOW + 3000);
+  assert.equal(w.info.limit, undefined);
+  // Ein Arbeiter mit Codex schläft nicht wegen Claudes Limits.
+  voll = true;
+  const c = await arbeiter('> \n');
+  c.info.provider = 'codex';
+  c.info.status = 'idle';
+  checkLimit(c, events, NOW);
+  assert.equal(c.info.limit, undefined);
 });

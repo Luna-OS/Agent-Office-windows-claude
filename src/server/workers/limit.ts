@@ -1,7 +1,9 @@
 // Ein Arbeiter, der sein Limit erreicht hat: Sein Anbieter sagt es im Terminal ("You've hit your limit ·
 // resets 3pm (Europe/Berlin)", "5-hour limit reached ∙ resets 3pm", "Claude usage limit reached. Your
 // limit will reset at 5pm", Codex: "You've hit your usage limit … try again in 2 hours 13 minutes").
-// Dann schläft er an seinem Platz (WorkerInfo.limit), bis es weitergeht oder er wieder arbeitet.
+// Oder die Claude-Limits seines Kontos (der Zähler unter den Arbeitern) stehen bei 100 %, auch wenn er
+// gerade nichts tut. Dann schläft er an seinem Platz (WorkerInfo.limit), bis es weitergeht oder er wieder arbeitet.
+import type { PlanLimits } from '../../shared/protocol.js';
 import type { Worker, WorkerEvents } from './types.js';
 import { screenText } from './terminal.js';
 
@@ -81,12 +83,26 @@ export function limitIn(text: string, now: number): { line: string; until?: numb
   return undefined;
 }
 
+/** Die Fenster, die für das ganze Konto gelten (nicht nur für ein Modell, wie "Opus week"). */
+const KONTO = new Set(['5h session', 'Week']);
+/** Ein Stand ohne Zeitpunkt für das Weitergehen gilt so lange. */
+const FRISCH_MS = 15 * 60_000;
+
+/** Ob die Claude-Limits `plan` aufgebraucht sind, und bis wann (das späteste Zurücksetzen der vollen Fenster). */
+export function planVoll(plan: PlanLimits | undefined, now: number): { until?: number } | undefined {
+  const voll = (plan?.windows ?? []).filter((w) => KONTO.has(w.label) && w.pct >= 100 && (w.resetsAt !== undefined ? w.resetsAt > now : now - plan!.at < FRISCH_MS));
+  if (!voll.length) return undefined;
+  const bis = voll.map((w) => w.resetsAt).filter((t): t is number => t !== undefined);
+  return bis.length ? { until: Math.max(...bis) } : {};
+}
+
 /** Wovon jeder Arbeiter zuletzt aufgewacht ist: dieselbe Meldung schickt ihn nicht wieder schlafen. */
 const geweckt = new WeakMap<Worker, string>();
 
 /**
- * Beim Lesen seines Bildschirms (terminal.ts flushScreens): Hat ein Arbeiter sein Limit erreicht,
- * schläft er (WorkerInfo.limit); arbeitet er wieder, ist die Zeit um, oder ist die Meldung weg, wacht er auf.
+ * Beim Lesen seines Bildschirms (terminal.ts flushScreens): Hat ein Arbeiter sein Limit erreicht (die
+ * Meldung auf dem Bildschirm, oder bei Claude die vollen Limits seines Kontos), schläft er
+ * (WorkerInfo.limit); arbeitet er wieder, ist die Zeit um, oder ist das Limit nicht mehr voll, wacht er auf.
  */
 export function checkLimit(w: Worker, events: WorkerEvents, now = Date.now()) {
   if (w.info.kind !== 'agent' || !w.term) return;
@@ -98,14 +114,17 @@ export function checkLimit(w: Worker, events: WorkerEvents, now = Date.now()) {
   }
   // Nur was diesmal auf dem Bildschirm steht: eine Meldung von vor einem Neustart ist alt.
   const found = limitIn(screenText(w.term, w.term.buffer.active.type === 'normal' ? Math.max(0, w.fresh?.line ?? 0) : 0), now);
+  const plan = w.info.provider === 'claude' ? planVoll(events.plan?.(w.owner), now) : undefined;
   if (w.info.limit) {
     const aus = w.info.limit.until !== undefined && now >= w.info.limit.until;
-    if (!aus && found) return;
+    if (!aus && (found || plan)) return;
     if (found) geweckt.set(w, found.line);
     w.info.limit = undefined;
     return melden();
   }
-  if (!found || geweckt.get(w) === found.line || (found.until !== undefined && found.until <= now)) return;
-  w.info.limit = found.until !== undefined ? { until: found.until } : {};
+  const neu = found && geweckt.get(w) !== found.line && !(found.until !== undefined && found.until <= now) ? found : undefined;
+  if (!neu && !plan) return;
+  const until = neu?.until ?? plan?.until;
+  w.info.limit = until !== undefined ? { until } : {};
   melden();
 }

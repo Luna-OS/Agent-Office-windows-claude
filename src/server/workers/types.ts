@@ -1,6 +1,6 @@
 // The shapes the workers' modules and the provider adapters (server/providers/) share.
 import type serialize from '@xterm/addon-serialize';
-import type { Run, WorkerInfo, WorkerStatus } from '../../shared/protocol.js';
+import type { PlanLimits, Run, WorkerInfo, WorkerStatus } from '../../shared/protocol.js';
 import type { DshSession } from '../dsh.js';
 import type { PromptSource } from '../prompts.js';
 import type { Pty } from '../ptys.js';
@@ -110,6 +110,8 @@ export interface WorkerEvents {
   data(workerId: string, data: string, viewers: string[]): void;
   screen(workerId: string, frame: { cols: number; rows: number; lines: Record<number, Run[]>; full: boolean; cursor: [number, number] }): void;
   toast(text: string, level: 'info' | 'warn' | 'error'): void;
+  /** Die Claude-Limits, auf denen ein Arbeiter von `owner` läuft (seine eigenen oder die des Office), für limit.ts. */
+  plan?(owner: string | undefined): PlanLimits | undefined;
 }
 
 /**
