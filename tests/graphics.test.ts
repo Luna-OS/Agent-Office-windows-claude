@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Pace } from '../src/client/core/registry.js';
-import { DEFAULT_GRAPHICS, GRAPHICS, fpsFor, loadGraphics, onGraphics, pixelRatioFor, setGraphics } from '../src/client/features/graphics/quality.js';
+import { DEFAULT_GRAPHICS, GRAPHICS, fpsFor, loadGraphics, onGraphics, pixelRatioFor, setGraphics, shadowDue } from '../src/client/features/graphics/quality.js';
 
 /** How many of `frames` screen frames, `hz` a second, `pace` draws. */
 function drawn(pace: Pace, hz: number, frames: number, from = 1000): number {
@@ -68,9 +68,13 @@ test('the presets: Balanced by default, Eco lightest, High with no limits', () =
   assert.equal(loadGraphics(), 'balanced', 'nothing saved (no localStorage under node)');
   assert.equal(fpsFor('high', false), 0);
   assert.equal(fpsFor('high', true), 0);
+  assert.equal(fpsFor('high', false, true), 0, 'High stays at full speed while you stand still');
   assert.equal(fpsFor('balanced', false), 60);
-  assert.equal(fpsFor('balanced', true), 30);
+  assert.equal(fpsFor('balanced', false, true), 30, 'standing and watching');
+  assert.equal(fpsFor('balanced', true), 20);
+  assert.equal(fpsFor('balanced', true, true), 20, 'behind a window, idle or not');
   assert.equal(fpsFor('eco', false), 30);
+  assert.equal(fpsFor('eco', false, true), 30);
   assert.equal(fpsFor('eco', true), 15);
   assert.ok(GRAPHICS.eco.shadowMap < GRAPHICS.balanced.shadowMap);
   assert.equal(GRAPHICS.balanced.shadowMap, GRAPHICS.high.shadowMap, 'Balanced keeps the shadows as sharp as High');
@@ -80,6 +84,26 @@ test('the presets: Balanced by default, Eco lightest, High with no limits', () =
   assert.equal(pixelRatioFor('balanced', 2), 1.5);
   assert.equal(pixelRatioFor('high', 3), 2);
   assert.equal(pixelRatioFor('eco', 2), 1);
+});
+
+test('the sun’s shadows: every frame on High, 30 times a second on Balanced, 15 on Eco', () => {
+  /** How many of a second's frames, `hz` a second, draw the shadows afresh. */
+  const fresh = (q: Parameters<typeof shadowDue>[0], hz: number) => {
+    let last = -Infinity;
+    let n = 0;
+    for (let i = 0; i < hz; i++) {
+      const now = 1000 + (i * 1000) / hz;
+      if (shadowDue(q, now, last)) {
+        last = now;
+        n++;
+      }
+    }
+    return n;
+  };
+  assert.equal(fresh('high', 144), 144);
+  assert.equal(fresh('balanced', 60), 30);
+  assert.equal(fresh('balanced', 30), 30, 'at 30 frames a second, every one');
+  assert.equal(fresh('eco', 30), 15);
 });
 
 test('picking a preset tells the renderer', () => {

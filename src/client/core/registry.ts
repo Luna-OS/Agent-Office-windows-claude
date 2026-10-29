@@ -187,6 +187,8 @@ export interface Frame {
 
 interface TickEntry {
   fn: (f: Frame) => void;
+  /** It threw, and that's been said once already. */
+  failed?: boolean;
 }
 
 /** What runs each frame, phase by phase (see TICK_PHASES). */
@@ -199,7 +201,18 @@ export class Ticks {
   }
 
   run(f: Frame): void {
-    for (const phase of TICK_PHASES) for (const e of this.phases.get(phase)?.items ?? []) e.fn(f);
+    for (const phase of TICK_PHASES)
+      for (const e of this.phases.get(phase)?.items ?? []) {
+        try {
+          e.fn(f);
+        } catch (err) {
+          // One feature's slip doesn't stop the frame, and with it the whole office (the frame loop asks
+          // for the next one after this): the rest runs on, and it's in the console once.
+          if (e.failed) continue;
+          e.failed = true;
+          console.error(err);
+        }
+      }
   }
 }
 
