@@ -94,6 +94,9 @@ function createController({ settings, save, seal = (s) => ({ p: s }), unseal = (
     const origin = lobbyOrigin(input);
     if (!origin) return show('lobbies', { error: `„${input ?? ''}“ ist keine Adresse, die der Connector versteht. Zum Beispiel: 100.78.107.162:4600, umbrel.local:4600 oder https://office.example.com`, address: input ?? '' });
     const token = inviteOf(input)?.slice('/join#'.length);
+    // Die eigene Lobby, die dieser Computer über den Vermittler gastgibt: Sie läuft hier. Wer sich über den
+    // Vermittler bei ihr anmeldet, beendet nicht das Office, das sie gerade ist.
+    if (settings().relay?.url === origin) return connectHere();
     show('busy', { busy: `Verbinde mit ${origin} …` });
     const why = await unreachable(origin, get);
     if (why) return show('lobbies', { error: why, address: input });
