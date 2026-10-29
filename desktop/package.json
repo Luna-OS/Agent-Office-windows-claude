@@ -36,7 +36,6 @@
       "preload.cjs",
       "lobby.cjs",
       "platform.cjs",
-      "hosting.cjs",
       "ui/**",
       "package.json"
     ],

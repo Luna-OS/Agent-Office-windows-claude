@@ -14,7 +14,6 @@ export const routes: readonly Route[] = [
   // Anyone.
   authRoutes.login,
   authRoutes.loginOptions,
-  authRoutes.join,
   authRoutes.claimable,
   authRoutes.claim,
   authRoutes.link,
@@ -23,14 +22,12 @@ export const routes: readonly Route[] = [
   pageRoutes.assets,
   pageRoutes.login,
   pageRoutes.claim,
-  pageRoutes.join,
   pageRoutes.favicon,
   // Signed in.
   authRoutes.whoami,
   connectorRoutes.handoff,
   connectorRoutes.signins,
   connectorRoutes.signin,
-  connectorRoutes.invite,
   agentRoutes.openCodeModels,
   agentRoutes.grokModels,
   fileRoutes.image,

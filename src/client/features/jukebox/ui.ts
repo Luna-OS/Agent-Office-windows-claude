@@ -1,16 +1,19 @@
 import './ui.css';
-import { JUKEBOX_TUNES, STREAM, checkStreamUrl, trackTitle, tuneById } from '../../../shared/jukebox';
+import { JUKEBOX_TUNES, STREAM, checkStreamUrl, trackTitle, tuneById, youtubeVideo } from '../../../shared/jukebox';
 import type { Net } from '../../net';
 import { store } from '../../state';
 import { h, openModal, toast } from '../../ui/dom';
 
-/** The jukebox: what's on, the tunes to pick from, skip and stop, and a box for a stream. */
-export function openJukebox(net: Net, openVolume: () => void) {
+/**
+ * The jukebox: what's on, the tunes to pick from, skip and stop, and a box for a stream or a YouTube
+ * link (only its sound). `songTitle` is the YouTube video's title, once YouTube has told it.
+ */
+export function openJukebox(net: Net, openVolume: () => void, songTitle: () => string | undefined = () => undefined) {
   const close = h('button.btn.close', { 'aria-label': 'Close' }, '✕');
   const now = h('div.jb-now');
   const list = h('ul.svc-list');
-  const url = h('input', { type: 'text', placeholder: 'https://… internet radio, or a link to an .mp3', 'aria-label': 'Stream or audio file link', spellcheck: 'false', autocomplete: 'off' }) as HTMLInputElement;
-  const playUrl = h('button.btn.primary', { type: 'button' }, '📻 Play');
+  const url = h('input', { type: 'text', placeholder: 'YouTube-Link, Internetradio oder eine .mp3', 'aria-label': 'YouTube-, Stream- oder Audio-Link', spellcheck: 'false', autocomplete: 'off' }) as HTMLInputElement;
+  const playUrl = h('button.btn.primary', { type: 'button' }, '▶️ Abspielen');
   const volume = h('button.btn', { type: 'button' }, '🔈 Your volume');
   const el = h(
     'div.modal.jukebox',
@@ -22,9 +25,9 @@ export function openJukebox(net: Net, openVolume: () => void) {
       now,
       h('label', { style: 'margin-top:16px' }, 'Put on a tune'),
       list,
-      h('label', { style: 'margin-top:16px' }, 'Or play a stream'),
+      h('label', { style: 'margin-top:16px' }, 'Oder YouTube, Internetradio, eine Audiodatei'),
       h('div.webhook', {}, url, playUrl),
-      h('p.setting-note', {}, 'Internet radio or an audio file. It plays from the jukebox, for everyone on this floor.'),
+      h('p.setting-note', {}, 'Ein YouTube-Video spielt nur mit seinem Ton, ohne Bild, wieder von vorn, wenn es zu Ende ist. Alles kommt aus der Jukebox, für alle auf dieser Etage.'),
     ),
     h('footer', {}, h('span.grow', {}, 'Everyone on this floor hears the same song, louder the closer they are to the lounge.'), volume),
   );
@@ -34,13 +37,14 @@ export function openJukebox(net: Net, openVolume: () => void) {
   const render = () => {
     const j = store.jukebox;
     const stream = j.track === STREAM;
+    const yt = stream && !!youtubeVideo(j.url);
     now.replaceChildren(
-      h('span.jb-disc', { class: j.on ? 'spin' : '' }, stream ? '📻' : '💿'),
+      h('span.jb-disc', { class: j.on ? 'spin' : '' }, yt ? '📺' : stream ? '📻' : '💿'),
       h(
         'div.svc-main',
         {},
-        h('div.svc-title', {}, j.on ? trackTitle(j) : 'The jukebox is off'),
-        h('div.svc-meta', {}, j.on ? [stream ? 'a stream' : tuneById(j.track)?.mood, j.by && `put on by ${j.by}`].filter(Boolean).join(' · ') : j.by ? `${j.by} turned it off` : 'Pick a tune to put it on'),
+        h('div.svc-title', {}, j.on ? ((yt && songTitle()) || trackTitle(j)) : 'The jukebox is off'),
+        h('div.svc-meta', {}, j.on ? [yt ? 'YouTube, nur der Ton' : stream ? 'a stream' : tuneById(j.track)?.mood, j.by && `put on by ${j.by}`].filter(Boolean).join(' · ') : j.by ? `${j.by} turned it off` : 'Pick a tune to put it on'),
       ),
       j.on ? button('⏭️ Skip', 'On to the next tune', () => net.send({ t: 'jukebox.skip' })) : button('▶️ Play', `Put ${trackTitle(j)} back on`, () => net.send({ t: 'jukebox.play' }), true),
       j.on ? button('⏹️ Stop', 'Turn the jukebox off', () => net.send({ t: 'jukebox.stop' })) : '',

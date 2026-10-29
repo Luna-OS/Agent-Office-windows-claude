@@ -296,4 +296,9 @@ export class OfficeSound {
   beat(): number {
     return this.music.beat();
   }
+
+  /** The title of the YouTube video on the jukebox, once YouTube has told it. */
+  jukeboxTitle(): string | undefined {
+    return this.music.youtubeTitle();
+  }
 }

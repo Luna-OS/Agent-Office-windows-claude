@@ -67,10 +67,10 @@ deploy/azure.sh revoke 203.0.113.7    # take an IP back off the list
 
 The office knows it was deployed with `deploy/azure.sh`, so the commands it suggests in **👥 Invite teammates** and on the **🌐 Services** board are the Azure ones.
 
-Accounts work as in the [README](../README.md#add-users). To make an invite link from your terminal:
+Accounts work as in the [README](../README.md#add-users): everyone signs in with their name and the office password. To list them from your terminal:
 
 ```bash
-deploy/azure.sh ssh 'node /opt/agent-office/bin/agent-office.js accounts invite ada --dir "$(cat /etc/agent-office/home)"'
+deploy/azure.sh ssh 'node /opt/agent-office/bin/agent-office.js accounts --dir "$(cat /etc/agent-office/home)"'
 ```
 
 ## Everything else

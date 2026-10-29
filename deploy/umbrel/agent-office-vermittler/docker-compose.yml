@@ -1,6 +1,9 @@
-# Der Vermittler auf dem Umbrel: der Container aus deploy/vermittler/Dockerfile, hinter dem App-Proxy
-# von Umbrel auf Port 4600. Das Lobby-Passwort ist das APP_PASSWORD der App (auf ihrer Seite zu
-# sehen); nur das Office des Gastgebers braucht es. Der Vermittler speichert nichts.
+# Agent Office Vermittler auf dem Umbrel: der Server, auf dem euer Office läuft, der Container aus
+# deploy/container/Dockerfile hinter dem App-Proxy von Umbrel auf Port 4600. Keiner der Spieler muss
+# gastgeben: Das Office ist da, solange der Umbrel läuft. Wer mitspielt, verbindet sich im Connector mit
+# der Adresse des Umbrel, dem Passwort des Servers (das APP_PASSWORD der App, auf ihrer Seite zu sehen)
+# und seinem Namen. Alles, was das Office behält, liegt im Daten-Ordner der App: Etagen, Konten,
+# Board, Chat und die Anmeldungen bei GitHub.
 version: "3.7"
 
 services:
@@ -8,13 +11,18 @@ services:
     environment:
       APP_HOST: agent-office-vermittler_web_1
       APP_PORT: 4600
-      # Das Office des Gastgebers meldet die Spieler selbst an, mit seinem Passwort oder Konten.
+      # Das Office meldet die Spieler selbst an (Name und Passwort des Servers), ohne das Passwort
+      # des Umbrel selbst.
       PROXY_AUTH_ADD: "false"
 
   web:
-    image: ghcr.io/luna-os/agent-office-vermittler:latest
+    image: ghcr.io/luna-os/agent-office:latest
     restart: on-failure
+    stop_grace_period: 1m
     environment:
-      VERMITTLER_PASSWORT: ${APP_PASSWORD}
-      # Der App-Proxy hängt die Adresse des Browsers an X-Forwarded-For an.
-      VERMITTLER_HINTER_PROXY: "1"
+      AGENT_OFFICE_SSHD: "off"
+      AGENT_OFFICE_HOST: 0.0.0.0
+      AGENT_OFFICE_TRUST_PROXY: "1"
+      AGENT_OFFICE_PASSWORD: ${APP_PASSWORD}
+    volumes:
+      - ${APP_DATA_DIR}/data:/data

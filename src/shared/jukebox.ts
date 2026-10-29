@@ -1,6 +1,8 @@
 // The lounge jukebox: the tunes it has and what it's playing, shared by the server (which keeps one
 // per floor) and the browser (which synthesizes the tunes, see client/sound/music.ts).
 
+import { parseYoutube, type YoutubeVideo } from './youtube.js';
+
 export interface JukeboxTune {
   id: string;
   title: string;
@@ -37,6 +39,8 @@ export const tuneById = (id: string): JukeboxTune | undefined => JUKEBOX_TUNES.f
 /** What's on, for the hint bar and the jukebox's own display: a tune's title, or where the stream comes from. */
 export function trackTitle(s: Pick<JukeboxState, 'track' | 'url'>): string {
   if (s.track !== STREAM) return tuneById(s.track)?.title ?? 'A tune';
+  const video = youtubeVideo(s.url);
+  if (video) return `YouTube · ${video.id}`;
   try {
     const u = new URL(s.url ?? '');
     const file = decodeURIComponent(u.pathname.split('/').filter(Boolean).pop() ?? '');
@@ -46,9 +50,19 @@ export function trackTitle(s: Pick<JukeboxState, 'track' | 'url'>): string {
   }
 }
 
+/** A stream's link, when it's a YouTube video's (the jukebox plays only its sound). */
+export function youtubeVideo(url: string | undefined): YoutubeVideo | undefined {
+  if (!url) return undefined;
+  try {
+    return parseYoutube(url);
+  } catch {
+    return undefined;
+  }
+}
+
 export function checkStreamUrl(raw: unknown): { url: string } | { error: string } {
   const s = typeof raw === 'string' ? raw.trim() : '';
-  if (!s) return { error: 'Paste a link to a stream or an audio file' };
+  if (!s) return { error: 'Füge einen Link ein: YouTube, Internetradio oder eine Audiodatei' };
   if (s.length > 2048) return { error: 'That link is too long' };
   let u: URL;
   try {

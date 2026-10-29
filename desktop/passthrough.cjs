@@ -1,16 +1,14 @@
 // The office in the normal browser, voice and screen sharing included. Browsers only let a page use
-// the microphone and the screen on https:// and on this computer's own addresses, and a lobby over
+// the microphone and the screen on https:// and on this computer's own addresses, and a server over
 // plain http on another machine (an Umbrel at http://100.78.107.162:4600) is neither. So the
-// connector passes it on at http://127.0.0.1:<port>: every request and WebSocket goes to the lobby
+// connector passes it on at http://127.0.0.1:<port>: every request and WebSocket goes to the server
 // as it came, Host and all, and every answer comes back as it is. The office sees the address the
-// browser does, so its sign-in cookie and its same-origin checks hold. Only the connector's own
-// note (WELL_KNOWN) is answered here: where the lobby really is, for invite links made in the browser.
+// browser does, so its sign-in cookie and its same-origin checks hold.
 const http = require('node:http');
 const net = require('node:net');
 
 /** The first port tried, so the browser finds the office at the same address every time. */
 const PORT = 48600;
-const WELL_KNOWN = '/.well-known/agent-office-connector.json';
 
 /** Listens on 127.0.0.1 from `port`, or the next free one: resolves to the server and its port. */
 function listen(server, port, tries = 20) {
@@ -24,16 +22,12 @@ function listen(server, port, tries = 20) {
 }
 
 /**
- * Passes the lobby at `target` (an http:// origin) on at 127.0.0.1. Resolves to { origin, close,
- * retarget(origin) }: retarget points it at another lobby without the browser's address changing.
+ * Passes the server at `target` (an http:// origin) on at 127.0.0.1. Resolves to { origin, close,
+ * retarget(origin) }: retarget points it at another server without the browser's address changing.
  */
 async function startPassthrough(target, port = PORT) {
   let to = new URL(target);
   const server = http.createServer((req, res) => {
-    if (req.url === WELL_KNOWN) {
-      res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' });
-      return res.end(JSON.stringify({ lobby: to.origin }));
-    }
     const up = http.request({ host: to.hostname, port: to.port || 80, method: req.method, path: req.url, headers: req.headers }, (ur) => {
       res.writeHead(ur.statusCode ?? 502, ur.statusMessage, ur.rawHeaders);
       ur.pipe(res);
@@ -41,7 +35,7 @@ async function startPassthrough(target, port = PORT) {
     up.on('error', (err) => {
       if (res.headersSent) return res.destroy();
       res.writeHead(502, { 'content-type': 'text/html; charset=utf-8' });
-      res.end(`<!doctype html><meta charset="utf-8"><title>Agent Office</title><body style="font:16px system-ui;background:#1b1d2a;color:#e8e8f0;padding:40px">` + `<h1>Die Lobby antwortet nicht</h1><p>${to.origin} ist gerade nicht erreichbar (${err.code ?? err.message}). Läuft sie, und ist dieser Computer im selben Netz?</p><p><a style="color:#f0a487" href="/">Noch einmal versuchen</a></p>`);
+      res.end(`<!doctype html><meta charset="utf-8"><title>Agent Office</title><body style="font:16px system-ui;background:#1b1d2a;color:#e8e8f0;padding:40px">` + `<h1>Der Server antwortet nicht</h1><p>${to.origin} ist gerade nicht erreichbar (${err.code ?? err.message}). Läuft die Umbrel-App „Agent Office Vermittler“, und ist dieser Computer im selben Netz?</p><p><a style="color:#f0a487" href="/">Noch einmal versuchen</a></p>`);
     });
     res.on('close', () => up.destroy());
     req.pipe(up);
@@ -82,4 +76,4 @@ async function startPassthrough(target, port = PORT) {
   };
 }
 
-module.exports = { PORT, WELL_KNOWN, startPassthrough };
+module.exports = { PORT, startPassthrough };

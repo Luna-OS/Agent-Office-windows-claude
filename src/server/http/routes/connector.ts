@@ -1,6 +1,6 @@
 // What the desktop app's connector asks the office for (see desktop/connector.cjs): your own Claude
-// and GitHub sign-ins and invite links, over plain HTTP so the connector isn't one more person
-// walking around the office, and a one-time link that signs the normal browser in as you.
+// and GitHub sign-ins, over plain HTTP so the connector isn't one more person walking around the
+// office, and a one-time link that signs the normal browser in as you.
 import type http from 'node:http';
 import type { SignInKind } from '../../../shared/protocol.js';
 import type { Ctx } from '../../office/context.js';
@@ -12,7 +12,7 @@ const SHARED = "On the shared office password, workers run on the office's own s
 
 /**
  * A small JSON body, from a page that is the office itself (or the connector, which sends the
- * office's origin): another site can't make sign-ins or invites with a visitor's cookie. Undefined
+ * office's origin): another site can't make sign-ins with a visitor's cookie. Undefined
  * once it has already answered.
  */
 async function readPost(ctx: Ctx, req: http.IncomingMessage, res: http.ServerResponse): Promise<Record<string, unknown> | undefined> {
@@ -71,22 +71,6 @@ export const connectorRoutes = {
       else if (body.do === 'signout') await ctx.signins.signOut(id, which);
       else return send(res, 400, { error: 'Bad request' });
       send(res, error ? 400 : 200, { state: ctx.signins.state(id), ...(error ? { error } : {}) });
-    },
-  },
-  // An invite link (admins), as 🔑 Accounts makes them: { name?, role, by? }.
-  invite: {
-    method: 'POST',
-    path: '/api/accounts/invite',
-    auth: 'session',
-    async handle(ctx, { req, res, session }) {
-      const body = await readPost(ctx, req, res);
-      if (!body) return;
-      if (!ctx.meOf(session.account?.id).admin) return send(res, 403, { error: 'Only admins can invite people' });
-      const by = session.account?.name ?? (str(body.by, 24).trim() || 'the app');
-      const r = ctx.accounts.invite(by, body.role === 'admin' ? 'admin' : 'member', typeof body.name === 'string' && body.name.trim() ? body.name : undefined);
-      if (typeof r === 'string') return send(res, 400, { error: r });
-      ctx.accountsChanged();
-      send(res, 200, { invite: r });
     },
   },
 } satisfies Record<string, Route>;

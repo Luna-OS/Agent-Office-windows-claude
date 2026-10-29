@@ -1,176 +1,129 @@
-// What the connector's window shows and does (ui/connector.js draws it): which lobby you're in,
-// signing in there, your own Claude and GitHub sign-ins, invite links, and the office in your normal
-// browser. main.cjs hands it what it needs from Electron and from the office on this computer, so
-// the tests drive it with plain stand-ins.
-const { Lobby, linkKeyOf } = require('./connector.cjs');
-const { inviteOf, lobbyName, lobbyOrigin, needsPassthrough, notARelay, unreachable } = require('./lobby.cjs');
+// What the connector's window shows and does (ui/connector.js draws it): the server you're connected
+// to (its address, its password and your name), your workers on this computer with its Claude and
+// GitHub, your sign-ins on the server, and the office in your normal browser. There are no lobbies
+// and no office on this computer: the office runs on the server (the Umbrel app „Agent Office
+// Vermittler“), and every player connects to it. main.cjs hands it what it needs from Electron and
+// from this computer, so the tests drive it with plain stand-ins.
+const { Lobby } = require('./connector.cjs');
+const { cleanName, lobbyOrigin, needsPassthrough, unreachable } = require('./lobby.cjs');
 const { startPassthrough } = require('./passthrough.cjs');
 
-/** Only https:// pages are opened for a lobby (Claude's and GitHub's sign-in pages). */
+/** Only https:// pages are opened for the server (Claude's and GitHub's sign-in pages). */
 const httpsUrl = (url) => (typeof url === 'string' && /^https:\/\/[^\s]+$/.test(url) ? url : undefined);
 const KINDS = ['claude', 'github'];
 
 /**
- * `settings()` and `save(patch)` are the app's settings (lobbies, mode, sessions), `seal`/`unseal`
- * keep a session cookie encrypted at rest, `openExternal` and `copy` are the browser and the
- * clipboard, `onChange(state)` redraws the window, and `here` is this computer: its office
- * ({ running(), start() → { origin, link }, stop(), inviteBase() → where friends reach it }) and its own
- * sign-ins ({ look(which) → { status, who?, missing? }, claude(), github() to sign in in a console
- * window, githubToken() }).
+ * `settings()` and `save(patch)` are the app's settings ({ server: { url, name }, password, session,
+ * connect, ownWorkers }), `seal`/`unseal` keep the password and the session cookie encrypted at
+ * rest, `openExternal` and `copy` are the browser and the clipboard, `onChange(state)` redraws the
+ * window, and `here` is this computer: your workstation ({ start(origin, cookie), stop(), state() },
+ * where your workers run) and its own sign-ins ({ look(which) → { status, who?, missing? },
+ * claude(), github() to sign in in a console window, githubToken() }).
  */
 function createController({ settings, save, seal = (s) => ({ p: s }), unseal = (v) => v?.p ?? null, openExternal, copy, here, onChange, passthroughPort, get = fetch }) {
+  /** The server, signed in: a Lobby with your session. Null while not connected. */
   let lobby = null;
-  /** The lobby is the office on this computer. */
-  let local = false;
   let me = null;
-  /** Your own sign-ins; null on the shared office password, which has none. */
+  /** Your sign-ins on the server. */
   let signins = null;
-  let options = null;
-  /** The invite link being joined: { token, name?, role, by, project }. */
-  let pending = null;
-  let invited = null;
-  let view = 'lobbies';
+  /** 'server' (the form), 'busy' or 'home'. */
+  let view = 'server';
+  /** The form is open while connected (⚙️ Einstellungen): Abbrechen goes back home. */
+  let editing = false;
   let busy = '';
   let error = '';
-  let address = '';
   let passthrough = null;
   let timer = null;
   /** Claude's sign-in pages opened in the browser already: each opens by itself once. */
   const opened = new Set();
-  /**
-   * This computer's own sign-ins, { claude?, github? }: what the office here runs on (on its
-   * password), and GitHub's, to hand on to a lobby that doesn't have yours yet.
-   */
+  /** This computer's own sign-ins, { claude?, github? }: the ones your workers here run with. */
   let mine = {};
   /** Sign-ins under way in a console window on this computer: since when, by kind. */
   const waiting = {};
   /** How long a console sign-in is waited for before the window stops looking every few seconds. */
   const WAIT_MS = 10 * 60_000;
 
-  const state = () => {
-    const s = settings();
-    return {
-      view,
-      busy,
-      error,
-      address,
-      lobbies: s.lobbies,
-      lobby: lobby && { origin: lobby.origin, here: local, name: local ? 'Dieser Computer' : (s.lobbies.find((l) => l.url === lobby.origin)?.name ?? new URL(lobby.origin).host) },
-      options,
-      pending: pending && { name: pending.name, role: pending.role, by: pending.by, project: pending.project },
-      me,
-      signins,
-      mine,
-      waiting: { claude: !!waiting.claude, github: !!waiting.github },
-      invited,
-      viaPassthrough: !!lobby && needsPassthrough(lobby.origin),
-      passthrough: passthrough?.origin ?? null,
-      share: !!s.share,
-      relay: s.relay ? { url: s.relay.url, stand: here.relayStand?.() ?? null } : null,
-      // Dein Arbeitsplatz: in einer Lobby mit eigenem Konto laufen deine Arbeiter auf diesem Computer.
-      workstation: here.workstation && lobby && !local && me?.account ? { on: s.ownWorkers !== false, stand: here.workstation.state()?.stand ?? null } : null,
-    };
-  };
+  const saved = () => settings().server ?? null;
+  const state = () => ({
+    view,
+    editing,
+    busy,
+    error,
+    /** The server as saved: { url, name }, and whether its password is kept. */
+    server: saved() && { url: saved().url, name: saved().name, password: !!settings().password },
+    connected: !!lobby && !!me,
+    me,
+    signins,
+    mine,
+    waiting: { claude: !!waiting.claude, github: !!waiting.github },
+    viaPassthrough: !!lobby && needsPassthrough(lobby.origin),
+    passthrough: passthrough?.origin ?? null,
+    // Deine Arbeiter: Mit deinem Konto auf dem Server laufen sie auf diesem Computer.
+    workstation: here.workstation && lobby && me?.account ? { on: settings().ownWorkers !== false, stand: here.workstation.state()?.stand ?? null } : null,
+  });
   const push = () => onChange(state());
   function show(next, extra = {}) {
     view = next;
     error = extra.error ?? '';
     busy = extra.busy ?? '';
-    address = extra.address ?? '';
     if (next !== 'home') clearTimeout(timer);
+    if (next !== 'server') editing = false;
     push();
   }
 
-  /** The session cookie, kept for the next start (not for the office here: that one hands the app a fresh link). */
-  function keepSession() {
-    if (!lobby || local) return;
-    const sessions = { ...settings().sessions };
-    if (lobby.cookie) sessions[lobby.origin] = seal(lobby.cookie);
-    else delete sessions[lobby.origin];
-    save({ sessions });
-  }
+  const open = (v) => {
+    try {
+      return unseal(v);
+    } catch {
+      // sealed on another computer, or by another user
+      return null;
+    }
+  };
 
-  async function connect(input, name) {
-    const origin = lobbyOrigin(input);
-    if (!origin) return show('lobbies', { error: `„${input ?? ''}“ ist keine Adresse, die der Connector versteht. Zum Beispiel: 100.78.107.162:4600, umbrel.local:4600 oder https://office.example.com`, address: input ?? '' });
-    const token = inviteOf(input)?.slice('/join#'.length);
-    // Die eigene Lobby, die dieser Computer über den Vermittler gastgibt: Sie läuft hier. Wer sich über den
-    // Vermittler bei ihr anmeldet, beendet nicht das Office, das sie gerade ist.
-    if (settings().relay?.url === origin) return connectHere();
+  /** The session cookie, kept for the next start. */
+  const keepSession = () => save({ session: lobby?.cookie ? seal(lobby.cookie) : null });
+
+  /**
+   * Connects to the server at `origin` as `name`, with the session from before if it still counts,
+   * else signing in with `password`. Resolves once home, or back at the form with what went wrong.
+   */
+  async function connect(origin, name, password, cookie = null) {
+    clearTimeout(timer);
     show('busy', { busy: `Verbinde mit ${origin} …` });
     const why = await unreachable(origin, get);
-    if (why) return show('lobbies', { error: why, address: input });
-    // The lobby's workers are the ones that run now.
-    if (here.running()) await here.stop();
-    const s = settings();
-    const before = s.lobbies.find((l) => l.url === origin);
-    save({ mode: 'lobby', lobby: origin, lobbies: [{ name: lobbyName(name || before?.name, origin), url: origin }, ...s.lobbies.filter((l) => l.url !== origin)].slice(0, 12) });
-    let cookie = null;
+    if (why) return leave(why);
+    const l = new Lobby(origin, cookie, get);
     try {
-      cookie = unseal(s.sessions?.[origin]);
-    } catch {
-      // sealed on another computer, or by another user: sign in again
-    }
-    return enter(new Lobby(origin, cookie, get), false, token);
-  }
-
-  /** The office on this computer, signed in with the link it hands the app. */
-  async function connectHere() {
-    save({ mode: 'local' });
-    show('busy', { busy: 'Das Office startet auf diesem Computer …' });
-    try {
-      const { origin, link } = await here.start();
-      const l = new Lobby(origin, null, get);
-      const key = linkKeyOf(link);
-      if (key) await l.useLink(key).catch(() => {});
-      await enter(l, true);
-    } catch (err) {
-      show('lobbies', { error: `Das Office auf diesem Computer startet nicht: ${err.message}` });
-    }
-  }
-
-  async function enter(l, isHere, token) {
-    clearTimeout(timer);
-    lobby = l;
-    local = isHere;
-    me = null;
-    signins = null;
-    options = null;
-    pending = null;
-    invited = null;
-    opened.clear();
-    try {
-      options = await l.options();
-      if (token) {
-        pending = { token, ...(await l.peek(token)) };
-        return show('signin');
+      let who = cookie ? await l.whoami() : null;
+      // The session from before is somebody else's (the name was changed meanwhile): sign in again.
+      if (who && who.account?.name !== name) who = null;
+      if (!who) {
+        if (!password) return leave('Das Passwort des Servers fehlt.');
+        await l.login(name, password);
+        who = await l.whoami();
       }
-      me = await l.whoami();
+      if (!who?.account) throw new Error('Die Anmeldung hat nicht geklappt. Versuch es noch einmal.');
+      lobby = l;
+      me = who;
       keepSession();
-      if (!me) return show('signin');
+      save({ connect: true });
       await home();
     } catch (err) {
-      show(options ? 'signin' : 'lobbies', { error: err.message, address: l.origin });
+      leave(err.status === 401 ? 'Das Passwort des Servers stimmt nicht.' : err.message);
     }
-  }
-
-  async function signedIn() {
-    keepSession();
-    me = await lobby.whoami();
-    if (!me) throw new Error('Die Anmeldung hat nicht geklappt. Versuch es noch einmal.');
-    await home();
   }
 
   async function home() {
-    signins = me.account ? await lobby.signins() : null;
+    opened.clear();
+    signins = await lobby.signins();
     syncWorkstation();
     await lookHere();
     show('home');
     afterLook();
   }
 
-  /** Dein Arbeitsplatz soll laufen: in einer Lobby (nicht hier), mit eigenem Konto, und wenn du es nicht ausgeschaltet hast. */
-  const workstationWanted = () => !!here.workstation && !!lobby && !local && !!me?.account && !!lobby.cookie && settings().ownWorkers !== false;
+  /** Deine Arbeiter sollen hier laufen: verbunden, mit deinem Konto, und wenn du es nicht ausgeschaltet hast. */
+  const workstationWanted = () => !!here.workstation && !!lobby && !!me?.account && !!lobby.cookie && settings().ownWorkers !== false;
 
   /** Startet oder beendet deinen Arbeitsplatz, wie es gerade sein soll (here.workstation, siehe main.cjs). */
   function syncWorkstation() {
@@ -184,13 +137,9 @@ function createController({ settings, save, seal = (s) => ({ p: s }), unseal = (
     } else void ws.stop();
   }
 
-  /**
-   * This computer's sign-ins, as far as they matter here: both, for the office here on its password
-   * (they're the ones its workers use), and GitHub's, while a lobby account has none of its own yet.
-   */
+  /** This computer's sign-ins, as far as they matter: both while your workers run here, else GitHub's while the server has none of yours. */
   async function lookHere() {
-    // Mit Arbeitsplatz laufen deine Arbeiter hier: Dann zählen Claude und GitHub dieses Computers.
-    const kinds = (local && !me?.account) || workstationWanted() ? KINDS : !local && me?.account && signins?.github?.status !== 'ok' ? ['github'] : [];
+    const kinds = workstationWanted() ? KINDS : signins?.github?.status !== 'ok' ? ['github'] : [];
     const found = {};
     for (const k of kinds) found[k] = await here.look(k).catch(() => ({ status: 'none' }));
     mine = found;
@@ -214,7 +163,7 @@ function createController({ settings, save, seal = (s) => ({ p: s }), unseal = (
     if (view !== 'home' || !lobby) return;
     const live = signins && KINDS.some((k) => signins[k].pending || signins[k].status === 'busy');
     const inConsole = KINDS.some((k) => waiting[k]);
-    timer = setTimeout(refresh, live ? 1500 : inConsole ? 3000 : local ? 30_000 : 15_000);
+    timer = setTimeout(refresh, live ? 1500 : inConsole ? 3000 : 15_000);
     timer.unref?.();
   }
 
@@ -222,11 +171,12 @@ function createController({ settings, save, seal = (s) => ({ p: s }), unseal = (
     if (view !== 'home' || !lobby) return;
     try {
       me = await lobby.whoami();
-      if (!me) {
-        keepSession();
-        return show('signin', { error: 'Deine Anmeldung in dieser Lobby gilt nicht mehr. Melde dich wieder an.' });
+      if (!me?.account) {
+        // The session stopped counting (the server restarted with a new key, say): sign in again with what's kept.
+        const s = settings();
+        return connect(lobby.origin, s.server?.name, open(s.password));
       }
-      signins = me.account ? await lobby.signins() : null;
+      signins = await lobby.signins();
       await lookHere();
       error = '';
     } catch (err) {
@@ -235,13 +185,14 @@ function createController({ settings, save, seal = (s) => ({ p: s }), unseal = (
     afterLook();
   }
 
+  /** Not connected (any more): your workers here stop, and the window shows the form, with `why`. */
   function leave(why) {
     clearTimeout(timer);
     lobby = null;
-    local = false;
     me = null;
+    signins = null;
     syncWorkstation();
-    show('lobbies', { error: why });
+    show('server', { error: why });
   }
 
   function signInHere(which) {
@@ -251,13 +202,9 @@ function createController({ settings, save, seal = (s) => ({ p: s }), unseal = (
     schedule();
   }
 
-  const samePassword = (password, again) => {
-    if (again !== undefined && password !== again) throw new Error('Die beiden Passwörter sind nicht gleich.');
-  };
-
   /** The office in the browser, signed in as you: plain http elsewhere goes through the passthrough, for voice. */
   async function openOffice() {
-    if (!lobby || !me) throw new Error('Melde dich zuerst in einer Lobby an.');
+    if (!lobby || !me) throw new Error('Verbinde dich zuerst mit dem Server.');
     const key = await lobby.handoff();
     let origin = lobby.origin;
     if (needsPassthrough(origin)) {
@@ -272,35 +219,40 @@ function createController({ settings, save, seal = (s) => ({ p: s }), unseal = (
   const text = (v, max = 1024) => String(v ?? '').slice(0, max);
 
   const actions = {
-    connect: ({ address: a, name }) => connect(text(a, 2048), text(name, 40)),
-    here: () => connectHere(),
-    lobbies: () => leave(),
-    forget({ url }) {
-      const s = settings();
-      const sessions = { ...s.sessions };
-      delete sessions[url];
-      save({ lobbies: s.lobbies.filter((l) => l.url !== url), sessions, ...(s.lobby === url ? { lobby: null, mode: null } : {}) });
-      push();
+    /**
+     * Mit dem Server verbinden: seine Adresse, sein Passwort (leer: das gespeicherte, solange es derselbe
+     * Server ist) und dein Name. Beim ersten Mal legt der Server dabei dein Konto an.
+     */
+    async connect({ address, password, name }) {
+      const origin = lobbyOrigin(text(address, 2048));
+      if (!origin) return void show('server', { error: `„${text(address, 200)}“ ist keine Adresse, die der Connector versteht. Zum Beispiel: 100.78.107.162:4600 oder umbrel.local:4600` });
+      const n = cleanName(name);
+      if (!n) return void show('server', { error: 'Wie heißt du? Unter diesem Namen bist du im Office.' });
+      const before = saved();
+      const same = before?.url === origin;
+      const pw = text(password, 512) || (same ? open(settings().password) : '');
+      if (!pw) return void show('server', { error: 'Das Passwort des Servers fehlt (bei der Umbrel-App steht es auf ihrer Seite im App Store).' });
+      // Another server or another name: whoever was connected before goes first, workers and all.
+      if (lobby) leave();
+      save({ server: { url: origin, name: n }, password: seal(pw), ...(same && before.name === n ? {} : { session: null }) });
+      await connect(origin, n, pw, same && before.name === n ? open(settings().session) : null);
     },
-    async login({ name, password }) {
-      await lobby.login(text(name, 64).trim(), text(password));
-      await signedIn();
+    /** ⚙️ Einstellungen: das Formular, mit dem, was gespeichert ist. */
+    settings() {
+      editing = !!lobby;
+      show('server');
     },
-    async join({ name, password, again }) {
-      samePassword(password, again);
-      if (!pending) throw new Error('Füge den Einladungslink noch einmal ein.');
-      await lobby.join(pending.token, text(name, 64).trim() || pending.name, text(password));
-      pending = null;
-      await signedIn();
+    /** Zurück aus den Einstellungen, ohne etwas zu ändern. */
+    back() {
+      if (!lobby || !me) return void show('server');
+      show('home');
+      schedule();
     },
-    /** Your own admin account, made from the office password: an invite for you, used at once. */
-    async account({ name, password, again }) {
-      samePassword(password, again);
-      const n = text(name, 24).trim();
-      if (!n) throw new Error('Wie heißt du?');
-      const v = await lobby.invite('admin', n, n);
-      await lobby.join(v.token, n, text(password));
-      await signedIn();
+    /** Verbindung trennen: Deine Arbeiter hier stoppen, und beim nächsten Start verbindet der Connector nicht von selbst. */
+    disconnect() {
+      save({ connect: false });
+      leave();
+      return passthrough?.close().then(() => (passthrough = null));
     },
     async signin({ what, which, code, token }) {
       const r = await lobby.signin(text(what, 16), which === 'github' ? 'github' : 'claude', { code: text(code, 4096), token: text(token, 4096) });
@@ -320,56 +272,17 @@ function createController({ settings, save, seal = (s) => ({ p: s }), unseal = (
       if (url) openExternal(url);
     },
     office: () => openOffice(),
-    /**
-     * Gastgeber über einen Vermittler: Das Office auf diesem Computer meldet sich dort an, und wer zum
-     * Vermittler kommt, landet hier. Die Lobby und ihre Worker laufen dann auf diesem Computer.
-     */
-    async relayHost({ url, password }) {
-      const origin = lobbyOrigin(text(url, 2048));
-      if (!origin) throw new Error('Das ist keine Adresse. Zum Beispiel: umbrel.local:4600 oder 100.78.107.162:4600');
-      const pw = text(password, 512);
-      if (!pw) throw new Error('Das Lobby-Passwort des Vermittlers fehlt (bei der Umbrel-App steht es auf ihrer Seite im App Store).');
-      show('busy', { busy: `Prüfe den Vermittler ${origin} …` });
-      const why = await notARelay(origin, get);
-      if (why) return show('lobbies', { error: why });
-      here.ensureSharePassword?.();
-      save({ relay: { url: origin, password: seal(pw) } });
-      if (here.running()) await here.stop();
-      return connectHere();
-    },
-    /** Deine Arbeiter auf diesem Computer (an), oder beim Gastgeber (aus). */
+    /** Deine Arbeiter auf diesem Computer (an), oder auf dem Server (aus). */
     async ownWorkers({ on }) {
       save({ ownWorkers: on !== false });
       syncWorkstation();
       await lookHere();
       push();
     },
-    /** Nicht mehr über den Vermittler gastgeben: Das Office läuft weiter, nur für diesen Computer. */
-    async relayStop() {
-      save({ relay: null });
-      if (here.running()) await here.stop();
-      return connectHere();
-    },
-    async invite({ role, name }) {
-      const base = local ? here.inviteBase() : lobby.origin;
-      if (!base) throw new Error('Das Office auf diesem Computer ist nur für dich offen. Öffne es zuerst für andere: Menü „Dieser Computer → Lobby für andere öffnen“.');
-      const v = await lobby.invite(role === 'admin' ? 'admin' : 'member', text(name, 24).trim() || undefined, me?.account?.name);
-      invited = { link: `${base}/join#${v.token}`, name: v.name, role: v.role };
-      push();
-    },
-    copy: ({ text: t }) => copy(text(t, 4096)),
-    async logout() {
-      await lobby.logout();
-      keepSession();
-      me = null;
-      signins = null;
-      syncWorkstation();
-      show('signin');
-    },
     /** This computer's own sign-in, in a console window: the window looks every few seconds until it's done. */
     hereClaude: () => signInHere('claude'),
     hereGithub: () => signInHere('github'),
-    /** The GitHub CLI's sign-in on this computer, for your account in the lobby too. */
+    /** The GitHub CLI's sign-in on this computer, for your account on the server too. */
     async githubFromHere() {
       const token = await here.githubToken();
       if (!token) throw new Error('Die GitHub CLI ist auf diesem Computer nicht angemeldet.');
@@ -396,23 +309,26 @@ function createController({ settings, save, seal = (s) => ({ p: s }), unseal = (
         return { error: err?.message ?? String(err) };
       }
     },
-    /** Where the app was last: back in that lobby, or the office on this computer, or the list of lobbies. */
+    /** Beim Start: wieder mit dem Server verbinden, wenn einer gespeichert ist und die Verbindung nicht getrennt wurde. */
     start() {
       const s = settings();
-      if (s.mode === 'lobby' && s.lobby) return connect(s.lobby);
-      if (s.mode === 'local') return connectHere();
-      show('lobbies');
+      if (s.server?.url && s.server.name && s.connect !== false && s.password) return connect(s.server.url, s.server.name, open(s.password), open(s.session));
+      show('server');
     },
-    /** Signed in to the office on this computer again (after it restarted). */
-    reconnectHere: () => connectHere(),
-    leave,
-    /** In a lobby, signed in: { origin, here }, for the menus. */
-    current: () => (lobby && me ? { origin: lobby.origin, here: local } : null),
-    isHere: () => !!lobby && local,
-    passthroughRunning: () => !!passthrough,
+    /** Verbunden: { origin, name }, für die Menüs und das Symbol in der Menüleiste. */
+    current: () => (lobby && me ? { origin: lobby.origin, name: me.account?.name ?? '' } : null),
+    /** Ob ein Server gespeichert ist, mit dem „Verbinden“ gleich wieder geht. */
+    canConnect: () => !!settings().server?.url && !!settings().password,
+    /** Wieder verbinden, mit dem, was gespeichert ist (aus dem Menü). */
+    reconnect() {
+      const s = settings();
+      if (!s.server?.url || !s.password) return show('server');
+      return connect(s.server.url, s.server.name, open(s.password), open(s.session));
+    },
+    disconnect: () => actions.disconnect(),
     openOffice: () => actions.office(),
-    /** Beim Vermittler hat sich etwas getan (siehe main.cjs): die Ansicht neu zeichnen. */
-    relayChanged: () => push(),
+    /** Beim Arbeitsplatz hat sich etwas getan (siehe main.cjs): die Ansicht neu zeichnen. */
+    changed: () => push(),
     close: () => {
       clearTimeout(timer);
       return passthrough?.close();

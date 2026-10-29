@@ -1,9 +1,9 @@
-// Inviting, listing and revoking people. Admins only: an admin account, or the shared password.
+// Listing and revoking people, and their roles. Admins only: an admin account, or the shared password.
 import type { AccountsClientMsg } from '../../../shared/protocol.js';
 import type { Ctx } from '../../office/context.js';
 import type { Client } from '../../office/client.js';
 import { str } from '../../office/input.js';
-import { accountsView } from '../../office/origins.js';
+import { accountsView } from '../../office/people.js';
 import type { HandlerMap } from './types.js';
 
 /** Whether `c` may manage accounts; if not, they're told so. */
@@ -17,18 +17,6 @@ export const accountsHandlers = {
   'accounts.get'(ctx, c) {
     if (!admin(ctx, c)) return;
     ctx.sendTo(c, { t: 'accounts', state: accountsView(ctx) });
-  },
-  'accounts.invite'(ctx, c, msg) {
-    const who = c.peer.name;
-    if (!admin(ctx, c)) return;
-    const r = ctx.accounts.invite(who, msg.role === 'admin' ? 'admin' : 'member', typeof msg.name === 'string' ? msg.name : undefined);
-    if (typeof r === 'string') return ctx.sendTo(c, { t: 'accounts.invited', error: r });
-    ctx.sendTo(c, { t: 'accounts.invited', invite: r });
-    ctx.accountsChanged();
-  },
-  'accounts.cancel'(ctx, c, msg) {
-    if (!admin(ctx, c)) return;
-    if (ctx.accounts.cancel(str(msg.inviteId, 32))) ctx.accountsChanged();
   },
   'accounts.revoke'(ctx, c, msg) {
     const who = c.peer.name;

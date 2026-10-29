@@ -1,31 +1,28 @@
 manifestVersion: 1.1
-# deploy/umbrel/publish.sh --app agent-office-vermittler kopiert diesen Ordner in einen Community-App-Store,
-# als <Store-ID>-agent-office-vermittler, mit der ID, der Version und dem Image des neuesten Builds.
+# deploy/umbrel/publish.sh kopiert diesen Ordner in einen Community-App-Store, als
+# <Store-ID>-agent-office-vermittler, mit der ID, der Version und dem Image des neuesten Builds.
 id: agent-office-vermittler
 category: developer
 name: Agent Office Vermittler
 version: "0.1.0"
-tagline: Vermittelt eure Agent-Office-Lobby, ohne selbst zu rechnen
+tagline: Der Server für euer Agent Office, immer offen
 description: >-
   Agent Office ist ein 3D-Office, das sich dein Team mit seinen Coding-Agents teilt: Claude Code und
   andere Arbeiter sitzen an Schreibtischen, jeder mit seinem Terminal, und jedes GitHub-Repository
   ist eine Etage.
 
 
-  Diese App ist nur der Vermittler. Die Lobby mit ihren Etagen und dem Board läuft im Office eines
-  Spielers, dem Gastgeber: Er wählt in der App „Agent Office“ (Windows oder Mac)
-  „🛰️ Über den Vermittler gastgeben“ und trägt die Adresse dieses Umbrel und das Passwort unten
-  ein. Alle anderen treten in ihrer App unter „Lobby beitreten“ mit der Adresse des Umbrel bei.
-  Die Arbeiter mit ihren Terminals laufen auf dem PC dessen, der sie einstellt, und sind trotzdem
-  für alle da. Der Umbrel reicht die Verbindungen nur durch und rechnet nichts: Dafür reicht auch
-  ein schwacher.
+  Diese App ist der Server: Das Office mit seinen Etagen, dem Board und dem Chat läuft hier, solange
+  der Umbrel läuft. Keiner muss gastgeben. Jeder verbindet sich in der App „Agent Office“ (Windows
+  oder Mac) mit der Adresse dieses Umbrel, dem Passwort unten und seinem Namen; beim ersten Mal legt
+  der Server dabei sein Konto an. Die Arbeiter mit ihren Terminals laufen auf dem PC dessen, der sie
+  einstellt, mit seinem Claude, und sind trotzdem für alle da.
 
 
-  Das Passwort unten braucht nur der Gastgeber. Mitspieler melden sich im Office mit dessen
-  Passwort oder einem Einladungslink an; mit einem eigenen Konto laufen ihre Arbeiter bei ihnen.
+  Das Passwort unten ist das Passwort des Servers: Gebt es nur Leuten, die mitspielen sollen.
 releaseNotes: >-
-  Der Umbrel vermittelt nur. Die Lobby läuft im Office des Gastgebers, die Arbeiter laufen auf dem
-  PC dessen, der sie einstellt (App ab 0.1.41).
+  Das Office läuft jetzt auf dem Umbrel selbst, immer offen: Keiner muss mehr gastgeben, und es gibt
+  keine Einladungslinks mehr. Jeder verbindet sich mit Adresse, Passwort und Namen (App ab 0.1.47).
 developer: Luna-OS
 website: https://github.com/Luna-OS/Agent-Office-windows-claude
 dependencies: []
