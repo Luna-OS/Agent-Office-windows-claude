@@ -45,16 +45,14 @@ process.on('disconnect', () => close(false));
 // Last line of defense, as in cli.ts: one bad request must never take down every running worker.
 process.on('unhandledRejection', (err) => console.error('agent-office: unhandled rejection', err));
 
-// Gastgeber über einen Vermittler, oder Arbeitsplatz in einer Lobby: Die App zeigt, wie es dort steht.
-const zuletzt = { vermittler: 'null', arbeitsplatz: 'null' };
+// Arbeitsplatz auf dem Server: Die App zeigt, wie es dort steht.
+let zuletzt = 'null';
 setInterval(() => {
-  for (const t of ['vermittler', 'arbeitsplatz']) {
-    const stand = office[t]() ?? null;
-    const json = JSON.stringify(stand);
-    if (json === zuletzt[t]) continue;
-    zuletzt[t] = json;
-    send({ t, stand });
-  }
+  const stand = office.arbeitsplatz() ?? null;
+  const json = JSON.stringify(stand);
+  if (json === zuletzt) return;
+  zuletzt = json;
+  send({ t: 'arbeitsplatz', stand });
 }, 1000).unref();
 
 console.log(`agent-office is open at ${base} (data in ${cfg.dataDir})`);

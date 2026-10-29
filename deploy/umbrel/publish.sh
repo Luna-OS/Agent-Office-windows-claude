@@ -1,32 +1,29 @@
 #!/usr/bin/env bash
-# Puts the Agent Office Umbrel app (deploy/umbrel/agent-office) into an Umbrel community app store:
-# a git repository with an umbrel-app-store.yml at its root, like
-# http://100.78.107.162:8101/nicorenezweers/nrzStore.
+# Puts the Umbrel app Agent Office Vermittler (deploy/umbrel/agent-office-vermittler, the server the
+# office runs on, see docs/vermittler.md) into an Umbrel community app store: a git repository with
+# an umbrel-app-store.yml at its root, like http://100.78.107.162:8101/nicorenezweers/nrzStore.
 #
 #   git clone http://100.78.107.162:8101/nicorenezweers/nrzStore
 #   deploy/umbrel/publish.sh nrzStore --pr      # a branch of its own, to merge as a pull request
 #   deploy/umbrel/publish.sh nrzStore --push    # or straight onto the branch you're on
 #
-# The app lands in <store>/<store id>-agent-office/ (Umbrel wants every app's id, and its folder,
-# to start with the store's id), on the newest image the "Umbrel image" workflow pushed to
+# The app lands in <store>/<store id>-agent-office-vermittler/ (Umbrel wants every app's id, and its
+# folder, to start with the store's id), on the newest image the "Umbrel image" workflow pushed to
 # ghcr.io/luna-os/agent-office, pinned by its digest, with its version as the app's version, so
 # Umbrel offers an update each time you publish a newer one. Run it again to update.
 #
 # Options:
-#   --app <name>      which app: agent-office (the office itself, its workers on the Umbrel) or
-#                     agent-office-vermittler (only the Vermittler; the lobby runs in a player's office,
-#                     see docs/vermittler.md). Default: agent-office
 #   --push            git add, commit and push the store afterwards
-#   --pr              the same, on a new branch agent-office-<version>, and print the link that opens
-#                     the pull request for it (Gitea and GitHub both take /compare/<base>...<branch>)
+#   --pr              the same, on a new branch agent-office-vermittler-<version>, and print the link
+#                     that opens the pull request for it (Gitea and GitHub both take /compare/<base>...<branch>)
 #   --tag <version>   a particular image (default: the newest x.y.z tag)
-#   --image <repo>    another image repository (default: ghcr.io/luna-os/<app>)
+#   --image <repo>    another image repository (default: ghcr.io/luna-os/agent-office)
 #   --store-id <id>   the store's id, for a store without an umbrel-app-store.yml yet (one is made)
 #   --port <port>     the port the Umbrel serves the office on (default 4600)
 set -euo pipefail
 
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-app=agent-office
+app=agent-office-vermittler
 image=''
 tag=''
 store=''
@@ -40,7 +37,6 @@ usage() { sed -n '2,/^set -euo/p' "${BASH_SOURCE[0]}" | sed '$d; s/^# \{0,1\}//'
 
 while (($#)); do
   case "$1" in
-    --app) app=${2:?--app needs a name}; shift ;;
     --push) push=1 ;;
     --pr) push=1 pr=1 ;;
     --tag) tag=${2:?--tag needs a version}; shift ;;
@@ -56,8 +52,7 @@ done
 [[ -n "$store" ]] || usage 1
 [[ -d "$store" ]] || die "$store isn't a folder: clone your app store first (git clone <its url>)"
 [[ "$port" =~ ^[0-9]+$ ]] || die "--port must be a number"
-[[ "$app" == agent-office || "$app" == agent-office-vermittler ]] || die "--app is agent-office or agent-office-vermittler"
-[[ -n "$image" ]] || image=ghcr.io/luna-os/$app
+[[ -n "$image" ]] || image=ghcr.io/luna-os/agent-office
 name=$(sed -n 's/^name:[[:space:]]*//p' "$here/$app/umbrel-app.yml" | head -1)
 
 # The store's id: from its umbrel-app-store.yml, or made with --store-id.
@@ -108,7 +103,7 @@ sed -e "s/^id: $app$/id: $app_id/" \
   -e "s/^port: .*/port: $port/" \
   "$here/$app/umbrel-app.yml" >"$dest/umbrel-app.yml"
 sed -e "s|APP_HOST: ${app}_web_1|APP_HOST: ${app_id}_web_1|" \
-  -e "s|image: ghcr.io/luna-os/$app:latest|image: $ref|" \
+  -e "s|image: ghcr.io/luna-os/agent-office:latest|image: $ref|" \
   "$here/$app/docker-compose.yml" >"$dest/docker-compose.yml"
 grep -q "^id: $app_id$" "$dest/umbrel-app.yml" || die "couldn't set the app's id in $dest/umbrel-app.yml"
 grep -q "image: $ref" "$dest/docker-compose.yml" || die "couldn't set the image in $dest/docker-compose.yml"

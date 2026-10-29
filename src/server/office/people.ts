@@ -1,7 +1,9 @@
 import type { AccountsState, Me } from '../../shared/protocol.js';
 import type { Ctx, People } from './context.js';
 import type { Client } from './client.js';
-import { accountsView } from './origins.js';
+
+/** The accounts as admins see them (🔑 Accounts). */
+export const accountsView = (ctx: Ctx): AccountsState => ctx.accounts.state(ctx.onlineAccounts());
 
 /** WebSocket close code for a session that stopped counting: the account was revoked, or the shared password switched off. */
 const SIGNED_OUT = 4001;

@@ -1,12 +1,12 @@
-// Online lobbies: an office on another machine (your Umbrel, a server) that the connector signs you
-// in to (see controller.cjs). The workers run there; this computer only shows the office, in the
-// browser, and everyone else joins the same address from their own connector or a browser.
+// Der Server, mit dem der Connector spricht: die Umbrel-App „Agent Office Vermittler“ (oder ein
+// anderer Server mit dem Office darauf). Das Office läuft dort; dieser Computer zeigt es im Browser
+// und lässt die Arbeiter laufen, die du einstellst (siehe controller.cjs).
 
 const DOCS = 'https://github.com/Luna-OS/Agent-Office-windows-claude/blob/main/docs/';
 
 /**
- * The lobby's address as typed ("umbrel.local:4600", "100.78.107.162:4600",
- * "https://office.example.com/"), as an origin: http unless it says https. Null when it isn't one.
+ * Die Adresse des Servers, wie sie eingetippt wurde ("umbrel.local:4600", "100.78.107.162:4600",
+ * "https://office.example.com/"), als Origin: http, wenn nicht https dasteht. Null, wenn es keine ist.
  */
 function lobbyOrigin(input) {
   let s = String(input ?? '').trim();
@@ -22,15 +22,10 @@ function lobbyOrigin(input) {
   return u.origin;
 }
 
-/** The /join#<token> part of an invite link (from 🔑 Accounts), when `input` is one. */
-function inviteOf(input) {
-  return /\/join#[A-Za-z0-9_-]{16,}$/.exec(String(input ?? '').trim())?.[0];
-}
-
 /**
- * Whether the browser gets the lobby through the passthrough on this computer (passthrough.cjs), for
- * voice and screen sharing: plain http on any machine but this one (an Umbrel at home, on Tailscale
- * or NetBird, say). Browsers allow those on https:// and on this computer's own addresses only.
+ * Whether the browser gets the office through the passthrough on this computer (passthrough.cjs),
+ * for voice and screen sharing: plain http on any machine but this one (an Umbrel at home, on
+ * Tailscale or NetBird, say). Browsers allow those on https:// and on this computer's own addresses only.
  */
 function needsPassthrough(origin) {
   return origin.startsWith('http://') && !/^http:\/\/(localhost|127\.\d+\.\d+\.\d+|\[::1\])(:\d+)?$/.test(origin);
@@ -43,7 +38,7 @@ function needsPassthrough(origin) {
 async function unreachable(origin, get = fetch, ms = 8000) {
   try {
     const res = await get(`${origin}/login.html`, { signal: AbortSignal.timeout(ms), redirect: 'follow' });
-    if (!res.ok) return closedLobby(res.status, await res.text().catch(() => '')) ?? `${origin} antwortet mit HTTP ${res.status}.`;
+    if (!res.ok) return `${origin} antwortet mit HTTP ${res.status}. Läuft dort die Umbrel-App „Agent Office Vermittler“ in der neuesten Version?`;
     if (!/Agent Office/i.test(await res.text())) return `Unter ${origin} läuft etwas anderes als Agent Office.`;
     return undefined;
   } catch (err) {
@@ -52,39 +47,13 @@ async function unreachable(origin, get = fetch, ms = 8000) {
   }
 }
 
-/**
- * Why `origin` isn't a Vermittler (crates/vermittler) to host a lobby through, in a sentence; undefined
- * when it is. It answers /vermittler/stand with who hosts there now.
- */
-async function notARelay(origin, get = fetch, ms = 8000) {
-  try {
-    const res = await get(`${origin}/vermittler/stand`, { signal: AbortSignal.timeout(ms) });
-    const stand = res.ok ? await res.json().catch(() => null) : null;
-    if (stand?.dienst !== 'agent-office-vermittler') return `Unter ${origin} läuft kein Vermittler. Gemeint ist die Umbrel-App „Agent Office Vermittler“ (Port 4600).`;
-    return undefined;
-  } catch (err) {
-    const why = err?.name === 'TimeoutError' ? 'keine Antwort' : (err?.cause?.code ?? err?.message ?? String(err));
-    return `${origin} ist nicht erreichbar (${why}). Läuft der Vermittler, und ist dieser Computer im selben Netz (Heimnetz, Tailscale oder NetBird)?`;
-  }
-}
-
-/** What a Vermittler with nobody hosting says, in the words of the app: who opens the lobby, and how. */
-const CLOSED =
-  'Die Lobby ist gerade geschlossen: Niemand ist dort Gastgeber. Wer sie aufmacht, wählt in seiner App „🛰️ Über den Vermittler gastgeben“ ' +
-  'und trägt das Passwort der Umbrel-App ein; danach kommen alle anderen hier mit „Verbinden“ hinein.';
-
-/** CLOSED, when an answer (`status`, `body`) is a Vermittler's "nobody hosts here" (crates/vermittler, 503); else undefined. */
-function closedLobby(status, body) {
-  return status === 503 && /Lobby ist gerade geschlossen/.test(String(body ?? '')) ? CLOSED : undefined;
-}
-
-/** A short name for a lobby: the one given, or its address. */
-function lobbyName(name, origin) {
-  const clean = String(name ?? '')
-    .replace(/[\p{C}<>]/gu, '')
+/** Dein Name, wie das Office ihn nimmt: ohne Steuerzeichen, Leerraum zusammengezogen, höchstens 24 Zeichen. */
+function cleanName(v) {
+  return String(v ?? '')
+    .replace(/[\p{C}]/gu, '')
+    .replace(/\s+/g, ' ')
     .trim()
-    .slice(0, 40);
-  return clean || new URL(origin).host;
+    .slice(0, 24);
 }
 
-module.exports = { DOCS, closedLobby, inviteOf, lobbyOrigin, needsPassthrough, notARelay, unreachable, lobbyName };
+module.exports = { DOCS, cleanName, lobbyOrigin, needsPassthrough, unreachable };

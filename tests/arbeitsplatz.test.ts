@@ -88,11 +88,8 @@ before(async () => {
   const g = await office('gastgeber');
   gastgeber = await startServer(g.cfg, { publicDir: g.publicDir });
   base = `http://127.0.0.1:${g.port}`;
-  // Kim hat ein eigenes Konto in der Lobby.
-  const invite = gastgeber.accounts.invite('test', 'member', 'Kim');
-  assert.equal(typeof invite, 'object');
-  await gastgeber.accounts.join((invite as { token: string }).token, 'Kim', 'kim-passwort-1');
-  kimCookie = await login('Kim', 'kim-passwort-1');
+  // Kim meldet sich mit ihrem Namen und dem Passwort des Servers an: Ihr Konto wird dabei angelegt.
+  kimCookie = await login('Kim', PASSWORT);
   platz = await kimsPc('kims-pc');
 });
 

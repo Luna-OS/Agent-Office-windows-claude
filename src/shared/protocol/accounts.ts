@@ -1,4 +1,4 @@
-// Who is signed in: accounts and invites, people's own sign-ins, and the SSH team.
+// Who is signed in: accounts, people's own sign-ins, and the SSH team.
 
 export type AccountRole = 'admin' | 'member';
 
@@ -6,7 +6,7 @@ export type AccountRole = 'admin' | 'member';
 export interface Me {
   /** Your own account; missing when you came in with the shared office password. */
   account?: { name: string; role: AccountRole };
-  /** May invite, list and revoke accounts. */
+  /** May list and revoke accounts. */
   admin: boolean;
 }
 
@@ -51,32 +51,13 @@ export interface AccountInfo {
   online: boolean;
 }
 
-/** A single-use link that makes a named account: /join#<token>. */
-export interface AccountInvite {
-  id: string;
-  token: string;
-  /** The name the account gets; when missing, whoever opens the link picks one. */
-  name?: string;
-  role: AccountRole;
-  createdBy: string;
-  createdAt: number;
-  expiresAt: number;
-}
-
 /** Per-person accounts, for admins (see server/accounts.ts). */
 export interface AccountsState {
   accounts: AccountInfo[];
-  invites: AccountInvite[];
-  /** Whether the shared office password still lets people in. */
+  /** Whether the office password lets people in without a name (with one, it always signs them in as their account). */
   sharedPassword: boolean;
   /** Whether members may run their workers on the office machine's own Claude (the host's), as well as their own. */
   shareClaude: boolean;
-  /**
-   * Where other computers reach the office (see server/office/origins.ts): none when it's open to
-   * this computer alone. An invite link made on the office's own computer (the desktop app, at
-   * 127.0.0.1) points at the first, since 127.0.0.1 would mean the invited person's own computer.
-   */
-  origins?: string[];
 }
 
 export interface TeamMember {
@@ -111,8 +92,6 @@ export type TeamClientMsg =
 export type AccountsClientMsg =
   /** The rest of the accounts messages are for admins only. */
   | { t: 'accounts.get' }
-  | { t: 'accounts.invite'; name?: string; role: AccountRole }
-  | { t: 'accounts.cancel'; inviteId: string }
   | { t: 'accounts.revoke'; accountId: string }
   | { t: 'accounts.role'; accountId: string; role: AccountRole }
   /** Let the shared office password sign people in, or stop it. */
@@ -140,8 +119,6 @@ export type AccountsServerMsg =
   | { t: 'team.invited'; github: string; name?: string; keys?: number; error?: string }
   /** Sent to admins, when asked and whenever accounts change. */
   | { t: 'accounts'; state: AccountsState }
-  /** Sent to whoever made the invite. */
-  | { t: 'accounts.invited'; invite?: AccountInvite; error?: string }
   /** Your role changed. */
   | { t: 'me'; me: Me }
   /** Your own sign-ins, whenever they change (accounts only). */

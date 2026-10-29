@@ -1,5 +1,5 @@
-// Signing in and out: the office password, an account's own, an invite link, a claim link, and a
-// sign-in link printed in the office's terminal.
+// Signing in and out: your name and the office password (your own account, made the first time), the
+// office password alone, a claim link, and a sign-in link printed in the office's terminal.
 import type http from 'node:http';
 import type { Ctx } from '../../office/context.js';
 import { str } from '../../office/input.js';
@@ -26,7 +26,11 @@ async function readGuess(ctx: Ctx, req: http.IncomingMessage, res: http.ServerRe
 }
 const signedIn = (ctx: Ctx, req: http.IncomingMessage, accountId?: string) => ({ 'set-cookie': ctx.auth.cookie(req, ctx.auth.issue(accountId), isSecure(req, ctx.cfg)) });
 
-/** With a name, that person's own account; without one, the shared office password (while it's on). */
+/**
+ * With a name and the office password (the server's, as the connector sends it): that person's own
+ * account, made the first time. With a name and an account's own password: that account. Without a
+ * name, the shared office password (while it's on).
+ */
 export async function login(ctx: Ctx, req: http.IncomingMessage, res: http.ServerResponse) {
   const { accounts, auth } = ctx;
   const guess = await readGuess(ctx, req, res);
@@ -34,8 +38,17 @@ export async function login(ctx: Ctx, req: http.IncomingMessage, res: http.Serve
   const name = str(guess.body.name, 64).trim();
   const password = str(guess.body.password, 512);
   if (name) {
-    const account = await accounts.check(name, password);
-    if (!account) return send(res, 401, { error: 'Wrong name or password' });
+    let account = await accounts.check(name, password);
+    if (!account && (await auth.checkPassword(password))) {
+      const r = await accounts.ensure(name);
+      if (typeof r === 'string') return send(res, 400, { error: r });
+      account = r.account;
+      if (r.made) {
+        console.log(`  ${account.name} hat sich zum ersten Mal angemeldet: Das Konto ist angelegt`);
+        ctx.accountsChanged();
+      }
+    }
+    if (!account) return send(res, 401, { error: 'Das Passwort stimmt nicht' });
     auth.recordSuccess(guess.ip);
     return send(res, 200, { ok: true }, signedIn(ctx, req, account.id));
   }
@@ -49,33 +62,12 @@ export async function login(ctx: Ctx, req: http.IncomingMessage, res: http.Serve
 /** Which fields the sign-in forms ask for. */
 export const loginOptions = (ctx: Ctx) => ({ accounts: ctx.accounts.any, shared: ctx.accounts.sharedPassword });
 
-/**
- * An invite link: `peek` says who it's for; otherwise it makes the account and signs it in.
- * Counted like a password guess, since the token is one.
- */
-async function join(ctx: Ctx, req: http.IncomingMessage, res: http.ServerResponse) {
-  const { accounts, auth } = ctx;
-  const guess = await readGuess(ctx, req, res);
-  if (!guess) return;
-  const token = str(guess.body.token, 128);
-  const invite = accounts.findInvite(token);
-  if (!invite) return send(res, 410, { error: 'This invite link has expired or was already used. Ask whoever sent it for a new one.' });
-  auth.recordSuccess(guess.ip);
-  if (guess.body.peek === true) return send(res, 200, { name: invite.name, role: invite.role, by: invite.createdBy, project: ctx.officeName });
-  const r = await accounts.join(token, str(guess.body.name, 64), str(guess.body.password, 1024));
-  if (typeof r === 'string') return send(res, 400, { error: r });
-  console.log(`  ${r.name} joined the office with an invite from ${r.createdBy}`);
-  ctx.accountsChanged();
-  return send(res, 200, { ok: true, name: r.name }, signedIn(ctx, req, r.id));
-}
-
 // One-time reveal of the generated password. After this the plaintext is gone for good.
 const claimable = ({ cfg }: Ctx) => !!cfg.claimToken && !cfg.claimed && !!cfg.password;
 
 export const authRoutes = {
   login: { method: 'POST', path: '/api/login', auth: 'public', handle: (ctx, { req, res }) => login(ctx, req, res) },
   loginOptions: { method: 'GET', path: '/api/login', auth: 'public', handle: (ctx, { res }) => send(res, 200, loginOptions(ctx)) },
-  join: { method: 'POST', path: '/api/join', auth: 'public', handle: (ctx, { req, res }) => join(ctx, req, res) },
   claimable: { method: 'GET', path: '/api/claim', auth: 'public', handle: (ctx, { res }) => send(res, 200, { claimable: claimable(ctx) }) },
   claim: {
     method: 'POST',

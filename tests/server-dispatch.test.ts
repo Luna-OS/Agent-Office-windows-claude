@@ -188,7 +188,6 @@ test('answers the open routes before anyone signs in', async () => {
   assert.deepEqual(await whoami.json(), { error: 'Not logged in' });
   assert.equal((await get('/%zz')).status, 400);
   assert.match(await (await get('/claim')).text(), /<title>claim<\/title>/);
-  assert.match(await (await get('/join.html')).text(), /<title>join<\/title>/);
   assert.deepEqual(await (await fetch(base + '/api/health', { method: 'POST' })).json(), { ok: true });
   // A route for another method is passed over, on to the sign-in check.
   const put = await fetch(base + '/api/login', { method: 'PUT' });
@@ -196,7 +195,6 @@ test('answers the open routes before anyone signs in', async () => {
   assert.deepEqual(await put.json(), { error: 'Not logged in' });
   assert.deepEqual(await (await post('/api/claim', { token: 'nope' })).json(), { error: 'This office has already been claimed. Sign in with the password you saved.' });
   assert.equal((await post('/api/link', { key: 'nope' })).status, 410);
-  assert.equal((await post('/api/join', { token: 'nope' })).status, 410);
 });
 
 test('signs in with the office password', async () => {
@@ -416,12 +414,18 @@ test('settings, accounts, sign-ins and the boards answer as before', async () =>
   a.send({ t: 'upgrade.check' });
   a.send({ t: 'limits.refresh' });
 
-  a.send({ t: 'accounts.invite', name: 'Fay', role: 'member' });
-  const invite = (await a.take('accounts.invited')).invite;
-  assert.equal(invite?.name, 'Fay');
-  assert.equal((await a.take('accounts')).state.invites.length, 1);
-  a.send({ t: 'accounts.cancel', inviteId: invite?.id });
-  assert.equal((await a.take('accounts')).state.invites.length, 0);
+  // Ihr Name und das Passwort des Servers: Fays Konto, beim ersten Mal angelegt (als Admin), danach dasselbe.
+  const fay = await post('/api/login', { name: 'Fay', password: PASSWORD });
+  assert.equal(fay.status, 200);
+  const made = (await a.take('accounts', (m) => m.state.accounts.some((x) => x.name === 'Fay'))).state.accounts.find((x) => x.name === 'Fay');
+  assert.equal(made?.role, 'admin');
+  assert.equal((await post('/api/login', { name: ' fay ', password: PASSWORD })).status, 200);
+  assert.deepEqual(await (await post('/api/login', { name: 'Fay', password: 'nope' })).json(), { error: 'Das Passwort stimmt nicht' });
+  assert.deepEqual(await (await post('/api/login', { name: '\u200b', password: PASSWORD })).json(), { error: 'Dein Name braucht mindestens einen Buchstaben' });
+  assert.equal(office.accounts.state(new Set()).accounts.filter((x) => x.name === 'Fay').length, 1, 'nur ein Konto für Fay');
+  a.send({ t: 'accounts.revoke', accountId: made?.id ?? '' });
+  await a.take('accounts', (m) => !m.state.accounts.some((x) => x.name === 'Fay'));
+  assert.equal(await told('Eve revoked'), "Eve revoked Fay's account");
   a.send({ t: 'accounts.revoke', accountId: 'nobody' });
   for (const t of ['signins.start', 'signins.cancel', 'signins.signout'] as const) {
     a.send({ t, which: 'github' });

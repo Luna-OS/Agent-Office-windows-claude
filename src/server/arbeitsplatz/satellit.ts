@@ -12,7 +12,7 @@ import { FUER_DIE_ETAGE, FUER_EINEN, type FernBrowser, type FernEtage, type VomA
 import { scheinBrowser } from './virtuell.js';
 
 export interface ArbeitsplatzOpts {
-  /** Die Lobby des Gastgebers, z. B. http://umbrel.local:4600 (über den Vermittler) oder sein Office direkt. */
+  /** Das Office auf dem Server, z. B. http://umbrel.local:4600 (die Umbrel-App „Agent Office Vermittler“). */
   url: string;
   /** Die Sitzung des Spielers dort, als Cookie (`name=wert`) oder nur ihr Wert. */
   sitzung: string;

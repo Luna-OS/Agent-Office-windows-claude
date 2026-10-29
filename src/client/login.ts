@@ -26,15 +26,15 @@ if (linkKey) {
     .catch(() => void (error.textContent = 'Server unreachable'));
 }
 
-// Ask for a name once people have accounts; it's optional while the shared password still works.
+// Your name and the office's password: your own account, made the first time. Without a name only
+// while the office password still lets guests in.
 void fetch('/api/login', { cache: 'no-store' })
   .then((r) => r.json())
-  .then(({ accounts, shared }: { accounts: boolean; shared: boolean }) => {
-    if (!accounts && shared) return;
+  .then(({ shared }: { shared: boolean }) => {
     nameRow.hidden = false;
     nameInput.required = !shared;
     nameNote.hidden = !shared;
-    sub.textContent = shared ? 'Knock knock. Who is it?' : 'Knock knock. Who is it? Sign in with your own account.';
+    sub.textContent = 'Knock knock. Who is it?';
     try {
       nameInput.value = localStorage.getItem(NAME_KEY) ?? '';
     } catch {
