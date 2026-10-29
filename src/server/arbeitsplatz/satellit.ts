@@ -23,6 +23,8 @@ export type ArbeitsplatzStand = { stand: 'verbinde' } | { stand: 'verbunden' } |
 
 /** Alle so oft zeigt jeder Laptop hier beim Gastgeber, was auf ihm steht (für wer gerade dazukam). */
 const BILDSCHIRME_MS = 20_000;
+/** Kommt so lange kein Ping vom Gastgeber (er schickt alle 20 s einen), ist die Verbindung tot. */
+const STILL_MS = 60_000;
 /** So lange darf das Klonen eines Repos dauern. */
 const KLONEN_MS = 10 * 60_000;
 
@@ -157,7 +159,13 @@ export function arbeitsplatzSein(ctx: Ctx, opts: ArbeitsplatzOpts) {
     if (gestoppt) return;
     const sock = new WebSocket(`${lobby.replace(/^http/, 'ws')}/arbeitsplatz`, { headers: { cookie, origin: lobby }, maxPayload: 8 * 1024 * 1024 });
     ws = sock;
+    // Hängt die Verbindung, ohne dass sie zugeht (Netz weg), merkt das nur, wer auf die Pings achtet.
+    let zuletzt = Date.now();
+    const wache = setInterval(() => Date.now() - zuletzt > STILL_MS && sock.terminate(), STILL_MS / 4);
+    wache.unref();
+    sock.on('ping', () => (zuletzt = Date.now()));
     sock.on('open', () => {
+      zuletzt = Date.now();
       pause = 2000;
       stand = { stand: 'verbunden' };
       log(`verbunden mit ${lobby}: Deine Arbeiter dort laufen jetzt auf diesem Computer`);
@@ -179,15 +187,23 @@ export function arbeitsplatzSein(ctx: Ctx, opts: ArbeitsplatzOpts) {
           const hier = etageHier(e.repo);
           if (hier) zuordnen(hier, e.id);
         }
+        // Alle gemeldet: Wer beim Gastgeber noch in der Pause sitzt und hier nicht mehr ist, geht dort.
+        senden({ t: 'bestand', arbeiter: [...new Set(zuordnung.values())].flatMap((hier) => ctx.floors.get(hier)?.workers.list().map((w) => w.id) ?? []) });
       } else if (m.t === 'nachricht') void nachricht(m);
       else if (m.t === 'weg') weg(String(m.id));
     });
     sock.on('error', (e) => {
       if (stand.stand !== 'abgelehnt') stand = { stand: 'getrennt', grund: e.message };
     });
-    sock.on('close', () => {
+    sock.on('close', (code: number) => {
+      clearInterval(wache);
       for (const id of [...browser.keys()]) weg(id);
       if (gestoppt) return;
+      // Ein anderer Computer mit demselben Konto ist jetzt der Arbeitsplatz: nicht zurückdrängeln (bis zum nächsten Start).
+      if (code === 4000) {
+        stand = { stand: 'abgelehnt', grund: 'Ein anderer Computer mit deinem Konto ist jetzt dein Arbeitsplatz' };
+        return log(stand.grund);
+      }
       if (stand.stand === 'verbunden') stand = { stand: 'getrennt', grund: 'Verbindung zur Lobby unterbrochen' };
       wieder = setTimeout(verbinden, pause);
       pause = Math.min(pause * 2, 30_000);

@@ -98,6 +98,11 @@ export interface WorkerInfo {
   workingSince?: number;
   /** Sent out by a map's herald (the castle's Hand of the King), so every browser has it run to its seat from beside them. */
   via?: 'herald';
+  /**
+   * Er läuft auf dem Arbeitsplatz eines Spielers, dessen PC gerade aus ist (siehe server/arbeitsplatz):
+   * der Name des Spielers. So lange macht er an seinem Platz Pause (Kaffee, Handy, ein Snack).
+   */
+  pause?: string;
 }
 
 /** Where the branch of a worker whose worktree was deleted still is (see WorkerInfo.lost). */

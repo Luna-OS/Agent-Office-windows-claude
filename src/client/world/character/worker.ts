@@ -2,8 +2,10 @@ import * as THREE from 'three';
 import type { Theme, WorkerAction, WorkerStatus, WorkerTask } from '../../../shared/protocol';
 import { isAsleep, type WorkerPr } from '../../../shared/status';
 import { beard, grime, peasantGarb, type Beard, type PeasantGarb } from '../costumes';
-import { disposeSprite, mesh, textSprite, toon, toonUnique } from '../toon';
+import { disposeSprite, textSprite, toonUnique } from '../toon';
 import type { WorkerRig } from './rig';
+import { buildBody } from './worker-body';
+import { PAUSE_BULB, endBreak, pauseBubble, takeBreak, unwind, type Pausing } from './worker-pause';
 import { ease, popIn } from './curves';
 import { undress } from './props';
 import { ACT_MIN, DESPAIR_MIN, TWIRL_TIME, WAIT_CYCLE, WAIT_HOPS, blendStance, type Act, type Stance } from './worker-stance';
@@ -34,7 +36,7 @@ export class Worker {
   /** Its worktree was deleted outside the office (WorkerInfo.lost): its bubble says so until it's fixed. */
   private lost = false;
   private nameTag: THREE.Sprite | null = null;
-  private eyes: THREE.Mesh[] = [];
+  private eyes: THREE.Mesh[];
   private blinkAt = Math.random() * 4;
   status: WorkerStatus = 'starting';
   bouncing = false;
@@ -46,8 +48,10 @@ export class Worker {
   private cheerT = 0;
   /** Up on its desk dancing (a pull request merged): where, and how many seconds in. */
   private dancing: Dancing | null = null;
-  private pupils: THREE.Mesh[] = [];
-  private feet: THREE.Mesh[] = [];
+  /** On a break while its player's PC is off (see setPause): coffee, its phone or a doughnut. */
+  private pausing: Pausing | null = null;
+  private pupils: THREE.Mesh[];
+  private feet: THREE.Mesh[];
   /** Sent home: the box of its things in its arms, and how far into its waddle it is. */
   private leaving: Leaving | null = null;
   /** On its way out (sent home) or in (called to a meeting): it waddles along instead of standing. */
@@ -81,7 +85,7 @@ export class Worker {
   /** How quick its steps are, next to a walk: more running, less shuffling (see Court). */
   gait = 1;
   /** Its headset, which a peasant doesn't wear. */
-  private headset: THREE.Object3D[] = [];
+  private headset: THREE.Object3D[];
   /** What it wears on the map it's on (see setOutfit): a peasant's smock and coif, or its own skin. */
   private garb: PeasantGarb | null = null;
   /** How worn out it looks, 0–1 (see setAge), and the beard, brows and dirt that show it. */
@@ -103,54 +107,11 @@ export class Worker {
     private color: string,
   ) {
     const skin = (this.skin = toonUnique(color));
-    const white = toon('#ffffff');
-    const ink = toon('#1d1d1d');
-
     this.root.add(this.body);
-    // Bean-shaped body
-    const bean = mesh(new THREE.CapsuleGeometry(0.28, 0.3, 8, 16), skin, 0, 0.55, 0);
-    this.body.add(bean);
-    // Big cartoon eyes
-    for (const sx of [-1, 1]) {
-      const eye = mesh(new THREE.SphereGeometry(0.09, 12, 10), white, sx * 0.11, 0.7, 0.23, false);
-      eye.scale.z = 0.6;
-      this.body.add(eye);
-      const pupil = mesh(new THREE.SphereGeometry(0.045, 10, 8), ink, sx * 0.11, 0.7, 0.29, false);
-      this.body.add(pupil);
-      this.eyes.push(eye, pupil);
-      this.pupils.push(pupil);
-    }
-    // Headset: band + mic
-    const band = mesh(new THREE.TorusGeometry(0.29, 0.025, 6, 20, Math.PI), toon('#2b2d42'), 0, 0.72, 0, false);
-    band.rotation.y = Math.PI / 2;
-    this.body.add(band);
-    this.headset.push(band);
-    for (const sx of [-1, 1]) {
-      const cup = mesh(new THREE.SphereGeometry(0.07, 10, 8), toon('#2b2d42'), sx * 0.29, 0.72, 0, false);
-      this.body.add(cup);
-      this.headset.push(cup);
-    }
-    // Antenna with status bulb
-    this.body.add(mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.22, 6), toon('#2b2d42'), 0, 1.07, 0, false));
-    this.bulb = toonUnique(STATUS_BULB.starting);
-    this.bulb.emissive = new THREE.Color(STATUS_BULB.starting).multiplyScalar(0.6);
-    this.bulbMesh = mesh(new THREE.SphereGeometry(0.075, 12, 10), this.bulb, 0, 1.2, 0, false);
-    this.body.add(this.bulbMesh);
-
-    const arm = (x: number) => {
-      const pivot = new THREE.Group();
-      pivot.position.set(x, 0.55, 0.05);
-      pivot.add(mesh(new THREE.CapsuleGeometry(0.055, 0.16, 4, 8), skin, 0, -0.12, 0));
-      this.body.add(pivot);
-      return pivot;
-    };
-    this.armL = arm(-0.3);
-    this.armR = arm(0.3);
-    for (const sx of [-1, 1]) {
-      const foot = mesh(new THREE.CapsuleGeometry(0.06, 0.1, 4, 8), skin, sx * 0.12, 0.2, 0.05);
-      this.body.add(foot);
-      this.feet.push(foot);
-    }
+    // Its bean of a body, eyes, headset, status light, arms and feet (see worker-body.ts).
+    const b = buildBody(this.body, skin);
+    [this.eyes, this.pupils, this.headset, this.feet] = [b.eyes, b.pupils, b.headset, b.feet];
+    [this.bulb, this.bulbMesh, this.armL, this.armR] = [b.bulb, b.bulbMesh, b.armL, b.armR];
 
     // What it acts out with: papers in its hands, and a globe beside its laptop.
     this.papers = papers();
@@ -257,7 +218,7 @@ export class Worker {
   }
 
   private paintBulb() {
-    const c = STATUS_BULB[this.status] ?? '#adb5bd';
+    const c = this.pausing ? PAUSE_BULB : (STATUS_BULB[this.status] ?? '#adb5bd');
     this.bulb.color.set(c);
     this.bulb.emissive.set(c).multiplyScalar(0.7);
   }
@@ -307,9 +268,19 @@ export class Worker {
     this.drawBubble();
   }
 
+  /** Its player's PC is off: it takes a break at its desk (see worker-pause.ts) until it's back (null). */
+  setPause(seed: string | null) {
+    if (!seed === !this.pausing || this.leaving || this.jailed) return;
+    if (this.pausing) endBreak(this.pausing);
+    this.pausing = seed ? takeBreak(this.rig, seed) : null;
+    this.paintBulb();
+    this.drawBubble();
+  }
+
   /** Sent home: its light goes out, its face falls, and its things pop into a box in its arms. `farewell` goes over its head. */
   leave(farewell: string) {
     if (this.leaving) return;
+    this.setPause(null);
     this.bouncing = false;
     this.cheerT = 0;
     this.bounceT = 0;
@@ -348,7 +319,7 @@ export class Worker {
   private drawBubble() {
     if (this.leaving) return;
     const { status, bouncing: bounce, task, pr, lost } = this;
-    const { key, draw } = bubbleFor(status, bounce, task, pr, lost);
+    const { key, draw } = this.pausing ? pauseBubble(this.pausing) : bubbleFor(status, bounce, task, pr, lost);
     if (key === this.bubbleKey) return;
     this.bubbleKey = key;
     if (this.bubble) {
@@ -435,6 +406,7 @@ export class Worker {
     if (this.jailed) return this.languish(dt, t);
     if (this.leaving) return this.carry(this.leaving, dt, t);
     if (this.dancing) return this.boogie(this.dancing, dt, t);
+    if (this.pausing) return this.relax(this.pausing, dt, t);
     this.cheerT = Math.max(0, this.cheerT - dt);
     // Waiting on you: a couple of seconds of jumping, then arms crossed and a tapping foot, and round again.
     this.waitT = this.status === 'needs_input' ? this.waitT + dt : 0;
@@ -543,6 +515,15 @@ export class Worker {
     }
   }
 
+  /** On its break: its coffee, phone or doughnut (see worker-pause.ts), the bubble over its head saying which. */
+  private relax(p: Pausing, dt: number, t: number) {
+    const was = p.kind;
+    this.blink(dt, unwind(this.rig, p, dt, t));
+    if (p.kind !== was) this.drawBubble();
+    if (this.bubble) this.bubble.position.y = 1.95 + this.body.position.y + Math.sin(t * 3) * 0.03;
+    if (this.nameTag) this.nameTag.position.y = 1.55 + this.body.position.y;
+  }
+
   /** Sent home: head hung, the box in its arms, waddling along while `walking`. */
   private carry(l: NonNullable<Worker['leaving']>, dt: number, t: number) {
     waddle(this.rig, l, this.walking, dt);
@@ -588,6 +569,7 @@ export class Worker {
   }
 
   dispose() {
+    if (this.pausing) endBreak(this.pausing);
     if (this.bubble) disposeSprite(this.bubble);
     if (this.nameTag) disposeSprite(this.nameTag);
     undress(this.crosses);
