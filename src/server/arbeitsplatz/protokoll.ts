@@ -34,7 +34,12 @@ export type VomArbeitsplatz =
   /** Für alle auf der Etage `etage` des Gastgebers: worker.update, worker.remove, screen oder toast. */
   | { t: 'etage'; etage: string; msg: ServerMsg }
   /** Nur für den Browser `an` beim Gastgeber (sein Terminal, eine Antwort, eine Warnung). */
-  | { t: 'an'; an: string; msg: ServerMsg };
+  | { t: 'an'; an: string; msg: ServerMsg }
+  /**
+   * Nach dem Verbinden, wenn alle Arbeiter gemeldet sind: wer hier auf den Etagen des Gastgebers sitzt.
+   * Wer von seinen Arbeitern beim Gastgeber noch in der Pause sitzt und hier nicht mehr ist, geht.
+   */
+  | { t: 'bestand'; arbeiter: string[] };
 
 /** Was ein Arbeitsplatz der ganzen Etage sagen darf. */
 export const FUER_DIE_ETAGE: ReadonlySet<string> = new Set(['worker.update', 'worker.remove', 'screen', 'toast']);

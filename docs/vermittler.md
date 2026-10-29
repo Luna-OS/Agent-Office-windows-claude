@@ -60,7 +60,11 @@ alles durch den Vermittler und das Office des Gastgebers zu deinem PC; beide rec
 
 - Ausschalten: **Lieber beim Gastgeber laufen lassen** in der App; dann laufen deine Arbeiter wieder dort,
   mit deinen Anmeldungen dort.
-- Ist deine App aus, sind deine Arbeiter in der Lobby weg; startest du sie wieder, sind sie zurück.
+- Ist deine App aus (oder dein PC, oder dein Netz weg), bleiben deine Arbeiter in der Lobby an ihren Plätzen
+  sitzen und machen **Pause**: mit einem Becher Kaffee, am Handy oder mit einem Donut. Ihre Plätze bleiben
+  belegt, und wer sie anspricht, erfährt, dass dein PC gerade aus ist. Startest du die App wieder, ist die Pause
+  vorbei, und mit **R** machen sie weiter, wo sie waren. Schickt jemand einen in der Pause nach Hause, geht er aus
+  der Lobby; auf deinem PC ist er noch und kommt mit ihm zurück.
 - Mit dem Office-Passwort statt eines eigenen Kontos gibt es keinen Arbeitsplatz. Etagen ohne GitHub-Repo
   und Arbeiter über mehrere Repos laufen beim Gastgeber.
 - Ohne App: `agent-office --arbeitsplatz http://umbrel.local:4600` mit deiner Sitzung in der Lobby in
@@ -74,6 +78,13 @@ Browsern bei ihm, und schickt zurück, was die ganze Etage sehen soll (`worker.u
 `screen`, `toast`) und was nur für einen Browser ist (sein Terminal, Antworten). Der Gastgeber zeigt die
 Arbeiter von außen auf seinen Etagen und lässt keinen Arbeitsplatz die eigenen Arbeiter oder die eines
 anderen ändern.
+
+Der Gastgeber schickt jedem Arbeitsplatz alle 20 Sekunden ein Ping. Geht die Verbindung zu, oder kommt bis
+zum nächsten Ping keine Antwort, merkt er sich dessen Arbeiter in `arbeitsplatz-pausen.json` (in seinen Daten,
+auch über einen Neustart) und zeigt sie in der Pause (`WorkerInfo.pause`). Meldet sich der Arbeitsplatz wieder,
+schickt er erst seine Arbeiter und dann ihre Liste (`bestand`); wer dort fehlt, geht beim Gastgeber. Meldet
+sich derselbe Spieler von einem zweiten Computer an, ist der neue sein Arbeitsplatz; der alte drängelt sich
+nicht zurück, und was nur auf dem alten läuft, macht Pause.
 
 ## Umbrel-App
 

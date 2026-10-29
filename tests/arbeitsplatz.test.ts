@@ -5,12 +5,13 @@
 import { after, before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import net from 'node:net';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import WebSocket from 'ws';
 import { loadConfig } from '../src/server/config.js';
+import { Pausen } from '../src/server/arbeitsplatz/pause.js';
 import { scheinBrowser } from '../src/server/arbeitsplatz/virtuell.js';
 import { startServer } from '../src/server/server.js';
 
@@ -45,7 +46,8 @@ async function office(name: string, extra: string[] = []) {
   const publicDir = path.join(tmp, `${name}-public`);
   mkdirSync(path.join(publicDir, 'assets'), { recursive: true });
   for (const page of ['index', 'login']) writeFileSync(path.join(publicDir, `${page}.html`), `<!doctype html><title>Agent Office ${page}</title>`);
-  projekt(path.join(home, 'werkstatt'));
+  // Noch einmal gestartet (derselbe PC, wieder an): sein Projekt ist schon da.
+  if (!existsSync(path.join(home, 'werkstatt', '.git'))) projekt(path.join(home, 'werkstatt'));
   const port = await freePort();
   const cfg = loadConfig([path.join(home, 'werkstatt'), '--home', home, '--projects', path.join(home, 'projects'), '--port', String(port), '--password', PASSWORT, '--no-open', '--weather', 'clear', ...extra]);
   return { cfg, publicDir, port };
@@ -89,12 +91,18 @@ before(async () => {
   assert.equal(typeof invite, 'object');
   await gastgeber.accounts.join((invite as { token: string }).token, 'Kim', 'kim-passwort-1');
   kimCookie = await login('Kim', 'kim-passwort-1');
-  const p = await office('kims-pc');
-  p.cfg.arbeitsplatz = { url: base, sitzung: kimCookie };
-  platz = await startServer(p.cfg, { publicDir: p.publicDir });
-  for (let i = 0; i < 100 && platz.arbeitsplatz()?.stand !== 'verbunden'; i++) await new Promise((r) => setTimeout(r, 50));
-  assert.deepEqual(platz.arbeitsplatz(), { stand: 'verbunden' });
+  platz = await kimsPc('kims-pc');
 });
+
+/** Kims PC, mit ihrem Arbeitsplatz in der Lobby des Gastgebers, verbunden. */
+async function kimsPc(name: string) {
+  const p = await office(name);
+  p.cfg.arbeitsplatz = { url: base, sitzung: kimCookie };
+  const pc = await startServer(p.cfg, { publicDir: p.publicDir });
+  for (let i = 0; i < 100 && pc.arbeitsplatz()?.stand !== 'verbunden'; i++) await new Promise((r) => setTimeout(r, 50));
+  assert.deepEqual(pc.arbeitsplatz(), { stand: 'verbunden' });
+  return pc;
+}
 
 after(async () => {
   platz?.shutdown();
@@ -179,12 +187,78 @@ test('ohne eigenes Konto gibt es keinen Arbeitsplatz', async () => {
   assert.equal(status, 401);
 });
 
-test('geht der Arbeitsplatz, verschwinden seine Arbeiter beim Gastgeber', async () => {
+test('geht der Arbeitsplatz, machen seine Arbeiter Pause, und ist er wieder da, geht es weiter', async () => {
   const kim = await browser(kimCookie);
   kim.send({ t: 'worker.spawn', deskId: 'desk-4', kind: 'shell' });
-  const update = await kim.until((m) => m.t === 'worker.update' && m.worker.deskId === 'desk-4');
+  const a = (await kim.until((m) => m.t === 'worker.update' && m.worker.deskId === 'desk-4')).worker.id;
+  kim.send({ t: 'worker.spawn', deskId: 'desk-5', kind: 'shell' });
+  const b = (await kim.until((m) => m.t === 'worker.update' && m.worker.deskId === 'desk-5')).worker.id;
+
+  // Kims PC geht aus: Ihre Arbeiter bleiben an ihren Plätzen sitzen und machen Pause.
   platz!.shutdown();
   platz = undefined;
-  await kim.until((m) => m.t === 'worker.remove' && m.workerId === update.worker.id);
+  const inPause = (id: string) => (m: any) => m.t === 'worker.update' && m.worker.id === id && m.worker.pause === 'Kim';
+  assert.equal((await kim.until(inPause(a))).worker.status, 'offline');
+  await kim.until(inPause(b));
+  const gast = await browser(await login(undefined, PASSWORT));
+  assert.ok(gast.welcome.workers.some((w: { id: string; pause?: string }) => w.id === a && w.pause === 'Kim'), 'wer dazukommt, sieht ihn in der Pause');
+  // Sein Platz bleibt belegt, und wer ihn anspricht, erfährt, warum er nichts tut.
+  gast.send({ t: 'worker.spawn', deskId: 'desk-4', kind: 'shell' });
+  await gast.until((m) => m.t === 'toast' && /gerade in der Pause/.test(m.text));
+  gast.send({ t: 'worker.attach', workerId: a });
+  await gast.until((m) => m.t === 'toast' && /macht Pause: Der PC von Kim ist gerade aus/.test(m.text));
+  // Nach Hause geschickt, geht einer aus der Pause aus der Lobby.
+  gast.send({ t: 'worker.kill', workerId: b });
+  await gast.until((m) => m.t === 'worker.remove' && m.workerId === b);
+  await gast.until((m) => m.t === 'toast' && /geht aus der Pause nach Hause/.test(m.text));
+
+  // Kims PC ist wieder an: Die Pause ist vorbei, und auch der andere ist wieder da (auf ihrem PC war er noch).
+  const seit = gast.got.length;
+  platz = await kimsPc('kims-pc');
+  const zurueck = (id: string) => (m: any) => gast.got.indexOf(m) >= seit && m.t === 'worker.update' && m.worker.id === id && !m.worker.pause;
+  await gast.until(zurueck(a));
+  await gast.until(zurueck(b));
+
+  // Und von einem neuen PC aus, auf dem sie nicht sind: Sie gehen.
+  platz.shutdown();
+  await kim.until((m) => kim.got.indexOf(m) > kim.got.findIndex(zurueck(b)) && inPause(a)(m));
+  platz = await kimsPc('kims-neuer-pc');
+  await gast.until((m) => m.t === 'worker.remove' && m.workerId === a && gast.got.indexOf(m) >= seit);
+  await gast.until((m) => m.t === 'worker.remove' && m.workerId === b && gast.got.indexOf(m) >= seit);
+  for (const x of [kim, gast]) x.ws.close();
+});
+
+test('ein zweiter PC mit demselben Konto wird der Arbeitsplatz; was nur auf dem ersten läuft, macht Pause', async () => {
+  const kim = await browser(kimCookie);
+  kim.send({ t: 'worker.spawn', deskId: 'desk-6', kind: 'shell' });
+  const x = (await kim.until((m) => m.t === 'worker.update' && m.worker.deskId === 'desk-6')).worker.id;
+  const erster = platz!;
+  platz = await kimsPc('kims-zweiter-pc');
+  await kim.until((m) => m.t === 'worker.update' && m.worker.id === x && m.worker.pause === 'Kim');
+  // Der erste drängelt sich nicht zurück.
+  for (let i = 0; i < 60 && erster.arbeitsplatz()?.stand !== 'abgelehnt'; i++) await new Promise((r) => setTimeout(r, 50));
+  assert.equal(erster.arbeitsplatz()?.stand, 'abgelehnt');
+  // Wer einem in der Pause etwas tippt, erfährt es einmal, nicht bei jeder Taste.
+  const hinweis = (m: any) => m.t === 'toast' && /macht Pause/.test(m.text);
+  for (const ch of 'hallo') kim.send({ t: 'term.input', workerId: x, data: ch });
+  kim.send({ t: 'term.resize', workerId: x, cols: 80, rows: 24 });
+  await kim.until(hinweis);
+  await new Promise((r) => setTimeout(r, 300));
+  assert.equal(kim.got.filter(hinweis).length, 1);
+  erster.shutdown();
   kim.ws.close();
+});
+
+test('die Pausen bleiben gemerkt, auch über einen Neustart', () => {
+  const datei = path.join(tmp, 'pausen.json');
+  const info = { id: 'w9', name: 'Ada', deskId: 'desk-7', status: 'working', viewers: ['Mo'], viewerIds: ['c1'] } as any;
+  const ruht = new Pausen(datei).add('konto-kim', 'Kim', 'etage-1', info);
+  assert.equal(ruht.pause, 'Kim');
+  assert.equal(ruht.status, 'offline');
+  assert.deepEqual(ruht.viewers, []);
+  const wieder = new Pausen(datei);
+  assert.equal(wieder.get('w9')?.info.pause, 'Kim');
+  assert.equal(wieder.ofAccount('konto-kim').length, 1);
+  wieder.delete('w9');
+  assert.equal(new Pausen(datei).size, 0);
 });
