@@ -327,10 +327,26 @@ test('the connector: hosting through a Vermittler starts the office here with it
   assert.equal(s.lobby.here, true);
   assert.deepEqual(s.relay, { url: relayUrl, stand: { stand: 'gastgeber' } });
   assert.deepEqual(c.settings().relay, { url: relayUrl, password: { p: 'geheim' } });
+  // Die eigene Lobby über den Vermittler verbinden: Das Office hier läuft weiter, es ist ja die Lobby.
+  s = await c.run('connect', { address: relayUrl.replace('http://', '') });
+  assert.equal(s.view, 'home');
+  assert.equal(s.lobby.here, true);
+  assert.equal(stops, 0, 'the office hosting the lobby keeps running');
   s = await c.run('relayStop');
   assert.equal(s.relay, null);
   assert.equal(c.settings().relay, null);
   assert.equal(stops, 1, 'the office here starts again without the Vermittler');
+});
+
+test('the connector: a Vermittler with nobody hosting says so, not HTTP 503', async (t) => {
+  // Ein Vermittler zum Schein, bei dem niemand Gastgeber ist (wie crates/vermittler/src/seiten.rs).
+  const zu = http.createServer((_req, res) => void res.writeHead(503, { 'content-type': 'text/plain; charset=utf-8' }).end('Die Lobby ist gerade geschlossen: Kein Gastgeber ist online.'));
+  await new Promise<void>((r) => zu.listen(0, '127.0.0.1', r));
+  t.after(() => zu.close());
+  const c = connector({});
+  t.after(() => c.c.close());
+  await c.run('connect', { address: `127.0.0.1:${(zu.address() as net.AddressInfo).port}` });
+  assert.match(c.last().error, /Lobby ist gerade geschlossen: Niemand ist dort Gastgeber.*Über den Vermittler gastgeben/);
 });
 
 test("this computer's own sign-ins, as claude and gh tell them", async () => {

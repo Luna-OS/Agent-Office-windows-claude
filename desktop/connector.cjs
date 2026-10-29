@@ -5,6 +5,8 @@
 // src/server/http/routes/connector.ts). Plain fetch, so it runs in Electron's main process and in
 // the tests alike; the session is the office's own cookie, kept by the app between starts.
 
+const { closedLobby } = require('./lobby.cjs');
+
 const COOKIE = /^(ao_session(?:_\d+)?)=([^;]*)/;
 
 class LobbyError extends Error {
@@ -55,13 +57,19 @@ class Lobby {
     }
     const set = sessionCookie(res.headers);
     if (set !== undefined) this.cookie = set;
-    const json = await res.json().catch(() => ({}));
-    return { status: res.status, ok: res.ok, json: json && typeof json === 'object' ? json : {} };
+    const raw = await res.text().catch(() => '');
+    let json = {};
+    try {
+      json = JSON.parse(raw);
+    } catch {
+      // not JSON: a Vermittler's "nobody hosts here", say (see closedLobby)
+    }
+    return { status: res.status, ok: res.ok, json: json && typeof json === 'object' ? json : {}, raw };
   }
 
   async must(path, body, ms) {
     const r = await this.call(path, body, ms);
-    if (!r.ok) throw new LobbyError(r.json.error ?? `HTTP ${r.status}`, r.status);
+    if (!r.ok) throw new LobbyError(r.json.error ?? closedLobby(r.status, r.raw) ?? `HTTP ${r.status}`, r.status);
     return r.json;
   }
 
@@ -98,7 +106,7 @@ class Lobby {
       this.cookie = null;
       return null;
     }
-    if (!r.ok) throw new LobbyError(r.json.error ?? `HTTP ${r.status}`, r.status);
+    if (!r.ok) throw new LobbyError(r.json.error ?? closedLobby(r.status, r.raw) ?? `HTTP ${r.status}`, r.status);
     return r.json.me;
   }
 
@@ -106,7 +114,7 @@ class Lobby {
   async signins() {
     const r = await this.call('/api/signins');
     if (r.status === 409) return null;
-    if (!r.ok) throw new LobbyError(r.json.error ?? `HTTP ${r.status}`, r.status);
+    if (!r.ok) throw new LobbyError(r.json.error ?? closedLobby(r.status, r.raw) ?? `HTTP ${r.status}`, r.status);
     return r.json.state;
   }
 
@@ -117,7 +125,7 @@ class Lobby {
   async signin(what, which, more = {}) {
     const r = await this.call('/api/signins', { do: what, which, ...more }, 60_000);
     if (r.json.state) return { state: r.json.state, error: r.json.error };
-    throw new LobbyError(r.json.error ?? `HTTP ${r.status}`, r.status);
+    throw new LobbyError(r.json.error ?? closedLobby(r.status, r.raw) ?? `HTTP ${r.status}`, r.status);
   }
 
   /** An invite link's token (admins): for `name` (or whoever opens it), as a member or an admin. */

@@ -43,7 +43,7 @@ function needsPassthrough(origin) {
 async function unreachable(origin, get = fetch, ms = 8000) {
   try {
     const res = await get(`${origin}/login.html`, { signal: AbortSignal.timeout(ms), redirect: 'follow' });
-    if (!res.ok) return `${origin} antwortet mit HTTP ${res.status}.`;
+    if (!res.ok) return closedLobby(res.status, await res.text().catch(() => '')) ?? `${origin} antwortet mit HTTP ${res.status}.`;
     if (!/Agent Office/i.test(await res.text())) return `Unter ${origin} läuft etwas anderes als Agent Office.`;
     return undefined;
   } catch (err) {
@@ -68,6 +68,16 @@ async function notARelay(origin, get = fetch, ms = 8000) {
   }
 }
 
+/** What a Vermittler with nobody hosting says, in the words of the app: who opens the lobby, and how. */
+const CLOSED =
+  'Die Lobby ist gerade geschlossen: Niemand ist dort Gastgeber. Wer sie aufmacht, wählt in seiner App „🛰️ Über den Vermittler gastgeben“ ' +
+  'und trägt das Passwort der Umbrel-App ein; danach kommen alle anderen hier mit „Verbinden“ hinein.';
+
+/** CLOSED, when an answer (`status`, `body`) is a Vermittler's "nobody hosts here" (crates/vermittler, 503); else undefined. */
+function closedLobby(status, body) {
+  return status === 503 && /Lobby ist gerade geschlossen/.test(String(body ?? '')) ? CLOSED : undefined;
+}
+
 /** A short name for a lobby: the one given, or its address. */
 function lobbyName(name, origin) {
   const clean = String(name ?? '')
@@ -77,4 +87,4 @@ function lobbyName(name, origin) {
   return clean || new URL(origin).host;
 }
 
-module.exports = { DOCS, inviteOf, lobbyOrigin, needsPassthrough, notARelay, unreachable, lobbyName };
+module.exports = { DOCS, closedLobby, inviteOf, lobbyOrigin, needsPassthrough, notARelay, unreachable, lobbyName };

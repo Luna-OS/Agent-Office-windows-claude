@@ -72,7 +72,9 @@ Unter **🛰️ Über den Vermittler gastgeben** trägst du die Adresse eines [V
 wird dann die Lobby, und wer zum Vermittler kommt, landet bei dir. Der Connector zeigt, wie es steht
 (✅ Gastgeber, 🕒 Ersatz, ❌ abgelehnt). Deine Mitspieler treten unter **🌐 Lobby beitreten** mit der
 Adresse des Vermittlers bei; Einladungslinks aus dem Office zeigen von selbst auf ihn.
-**Nicht mehr gastgeben** meldet dein Office dort wieder ab.
+**Nicht mehr gastgeben** meldet dein Office dort wieder ab. Du selbst bleibst einfach in deinem Office
+unter **Dieser Computer**; trägst du die Adresse des Vermittlers trotzdem unter **🌐 Lobby beitreten**
+ein, landest du ebenfalls dort, und dein Office läuft als Lobby weiter.
 
 ## Deine Arbeiter auf diesem Computer
 
@@ -87,6 +89,10 @@ Claude und GitHub, mit denen deine Arbeiter hier laufen. **Lieber beim Gastgeber
   Tailscale oder NetBird)? Teste im Terminal: `curl http://100.78.107.162:4600/login.html`. Bei NetBird
   hilft es manchmal, die Verbindung über das Relay zu zwingen (`NB_FORCE_RELAY=true` für den
   NetBird-Dienst), wenn die direkte Verbindung zwischen zwei Geräten hängt.
+- **„Die Lobby ist gerade geschlossen: Niemand ist dort Gastgeber“** (in älteren Versionen nur
+  „HTTP 503“): Der Vermittler läuft, aber kein Office ist gerade bei ihm angemeldet. Wer die Lobby
+  aufmacht, wählt **🛰️ Über den Vermittler gastgeben** und lässt die App offen; danach kommen alle
+  anderen mit **Verbinden** hinein.
 - **GitHub- oder Claude-Anmeldung zeigt einen Fehler**: Sie läuft auf dem Lobby-Server; der braucht
   Internet. Der Fehler steht in der Karte. Ein Token geht immer.
 - **Der Browser zeigt „Die Lobby antwortet nicht“**: Der Connector reicht weiter, aber die Lobby ist weg.
