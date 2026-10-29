@@ -44,7 +44,7 @@ solange **Passwort ohne Namen** in 🔑 Accounts an ist).
 
 Bis 0.1.34 rechnete die App „Agent Office Vermittler“ nichts und reichte nur zum Office eines Gastgebers
 durch. Ein Update im App Store macht sie zum Server; ihr Passwort bleibt dasselbe. Etagen, die bisher im
-Office des Gastgebers lagen, fügt ihr auf dem Server einmal neu hinzu. In der App (ab 0.1.47) verbindet ihr
+Office des Gastgebers lagen, fügt ihr auf dem Server einmal neu hinzu. In der App (ab 0.1.63) verbindet ihr
 euch wie oben; Lobbys, „Über den Vermittler gastgeben“ und Einladungslinks gibt es nicht mehr.
 
 ## Was wo läuft
