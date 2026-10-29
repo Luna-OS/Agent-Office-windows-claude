@@ -1,148 +1,80 @@
-# Online-Lobby: das Office auf deinem Umbrel (oder deinem PC)
+# Zusammen spielen: das Office auf eurem Server
 
-Zurück zur [README](../README.md) · [Connector](connector.md) · [Windows-App](windows-app.md) · [Mac-App](mac-app.md) · [Umbrel-App im Detail](umbrel.md)
+Zurück zur [README](../README.md) · [Server](vermittler.md) · [Connector](connector.md) · [Windows-App](windows-app.md) · [Mac-App](mac-app.md) · [Umbrel-App im Detail](umbrel.md)
 
-Ein Agent Office mit vielen Workern braucht Rechenleistung und Speicher: Jeder Worker ist ein Claude
-Code (oder Codex, OpenCode …) mit eigenem Terminal. In einer **Online-Lobby** läuft das alles auf
-einem Server, zum Beispiel deinem [Umbrel](https://umbrel.com). Dein Computer zeigt nur noch das
-3D-Office, im Browser, und deine Mitspieler kommen in dieselbe Lobby: mit dem
-[Connector](connector.md) für Windows oder macOS, oder direkt im Browser.
+Euer Agent Office läuft auf einem Server, zum Beispiel eurem [Umbrel](https://umbrel.com): der Umbrel-App
+**[Agent Office Vermittler](vermittler.md)**. Dort sind die Etagen, das Board, der Chat und das Dach, und
+es ist immer offen, solange der Server läuft. Keiner muss gastgeben, und es gibt keine Lobbys und keine
+Einladungslinks. Jeder Spieler verbindet sich mit dem [Connector](connector.md) für Windows oder macOS:
+Adresse des Servers, sein Passwort, der eigene Name. Die Arbeiter, die jemand einstellt, laufen auf
+seinem eigenen PC, mit seinem eigenen Claude-Abo.
 
-Das ist **nicht** Claudes eigene Cloud (claude.ai/code): Die Lobby und ihre Worker laufen auf deinem
-eigenen Server, mit deinem Claude-Abo oder dem deiner Mitspieler.
+Das ist **nicht** Claudes eigene Cloud (claude.ai/code): Das Office läuft auf eurem eigenen Server, die
+Arbeiter auf euren eigenen PCs.
 
-> [!TIP]
-> **Ist dein Server schwach?** Dann nimm den [Vermittler](vermittler.md): Die Umbrel-App „Agent Office
-> Vermittler“ rechnet nichts, sie reicht nur durch. Die Lobby mit ihren Workern läuft im Office eines
-> Spielers, der in der App **🛰️ Über den Vermittler gastgeben** wählt.
+## 1. Den Server aufsetzen
 
-## 1. Die Lobby auf dem Umbrel installieren
+Einmal, von dem, der den Umbrel hat: die App „Agent Office Vermittler“ in euren Community App Store legen
+und installieren ([so geht's](vermittler.md#einrichten), Details in [umbrel.md](umbrel.md)). Auf der Seite
+der App steht ihr **Passwort**: Das ist das Passwort des Servers.
 
-Die Umbrel-App „Agent Office“ kommt aus einem Community App Store, zum Beispiel deinem
-[nrzStore](http://100.78.107.162:8101/nicorenezweers/nrzStore):
+## 2. Verbinden
 
-1. Einmal die App in den Store legen (an einem Computer in deinem Tailnet, mit einem Klon dieses
-   Repositorys):
+1. Den [Connector](connector.md) installieren und öffnen.
+2. Unter **🛰️ Server**: die Adresse (z. B. `100.78.107.162:4600`, die Adresse des Umbrel im Tailnet oder
+   NetBird-Netz, oder `umbrel.local:4600` im Heimnetz), das Passwort des Servers und deinen Namen, dann
+   **Verbinden**. Beim ersten Mal legt der Server dein Konto an.
+3. **🖥️ Deine Arbeiter auf diesem Computer**: dein Claude-Abo und GitHub auf diesem Computer anmelden
+   (je ein Klick, es öffnet sich ein Konsolenfenster bzw. Terminal).
+4. **🔐 Deine Anmeldungen auf dem Server**: GitHub anmelden (oder vom Computer übernehmen). Damit handelt
+   das Office auf GitHub als du und klont die Repos, die du als Etage hinzufügst.
+5. **🌐 Office im Browser öffnen**: Dein Browser öffnet das Office, angemeldet als du. Sprache und
+   Bildschirm teilen gehen dort auch über `http://`, weil der Connector den Server über
+   `http://127.0.0.1:48600` weiterreicht; lass ihn dafür laufen (in der Menüleiste reicht).
 
-   ```bash
-   git clone http://100.78.107.162:8101/nicorenezweers/nrzStore
-   deploy/umbrel/publish.sh nrzStore --pr
-   ```
+Beim nächsten Start verbindet sich der Connector von selbst. Schließt du sein Fenster, läuft er in der
+Menüleiste (Mac) bzw. im Infobereich (Windows) weiter; von dort öffnest du das Office, die Einstellungen
+oder trennst die Verbindung.
 
-   Das legt `nrz-agent-office/` (Store-ID + `-agent-office`) mit der neuesten Version des Images auf
-   einem eigenen Branch an, pusht ihn und zeigt den Link, der den Pull Request im Store öffnet. Den
-   mergen, fertig (`--push` statt `--pr` committet direkt auf den aktuellen Branch). Mehr dazu, auch
-   zum Aktualisieren: [docs/umbrel.md](umbrel.md).
-2. Auf dem Umbrel: **App Store → ⋯ (oben rechts) → Community App Stores**, die Adresse des Stores
-   eintragen und hinzufügen.
-3. Im Store **Agent Office** installieren. Umbrel zeigt dir auf der Seite der App das
-   **Passwort** des Office: Das ist das gemeinsame Office-Passwort zum ersten Anmelden.
-4. Öffnen: Die Lobby ist unter `http://umbrel.local:4600` erreichbar (oder der IP deines Umbrel,
-   z. B. im Tailnet `http://100.x.y.z:4600`).
+## 3. Mitspieler
 
-Beim ersten Start installiert der Container Claude Code in seinen Daten-Ordner. Danach meldet sich
-jeder Spieler im Connector mit seinem eigenen Claude und GitHub an (siehe unten); die Anmeldungen
-liegen auf dem Umbrel, im Ordner des jeweiligen Kontos.
+1. Mitspieler brauchen einen Weg zu eurem Server: im selben Netz, oder über [Tailscale](https://tailscale.com)
+   oder NetBird (teile den Umbrel mit ihnen). Über das offene Internet stellt ihr ihn nur hinter HTTPS.
+2. Gib ihnen die **Adresse** und das **Passwort** des Servers. Jeder trägt im Connector seinen eigenen
+   Namen ein und hat damit sein eigenes Konto.
+3. Wer das Passwort hat, ist Admin. Gebt es nur Leuten, denen ihr das zutraut. Unter **☰ → 🔑 Accounts**
+   seht ihr, wer ein Konto hat.
 
-## 2. Mit dem Connector beitreten
+## 4. Wessen KI?
 
-Die App für Windows und macOS ist ein [Connector](connector.md): Sie meldet dich in der Lobby an, mit
-deinem eigenen Claude und GitHub, und öffnet das Office in deinem Browser.
+Jeder Arbeiter läuft mit dem Claude-Abo von dem, der ihn eingestellt hat:
 
-1. **Lobby beitreten**: die Adresse eintragen (z. B. `100.78.107.162:4600`, die Adresse deines Umbrel im
-   Tailnet oder NetBird-Netz, oder `umbrel.local:4600` im Heimnetz) und **Verbinden**. Der Connector
-   prüft, ob dort ein Agent Office antwortet, und merkt sich die Lobby.
-2. **Du als Host, beim ersten Mal**: Name leer lassen, das Office-Passwort von der Seite der Umbrel-App
-   eingeben, **Anmelden**. Dann unter **👤 Dein eigenes Konto** Name und Passwort wählen: Das ist dein
-   Admin-Konto, ab jetzt meldest du dich damit an.
-3. **🔐 Deine Anmeldungen**: **Mit Claude anmelden** (Claudes Seite geht im Browser auf, den Code dort
-   kopieren und im Connector einfügen) und **Mit GitHub anmelden** (Einmal-Code kopieren, auf GitHub
-   einfügen). Ab jetzt laufen deine Worker auf dem Umbrel mit deinem Claude-Abo, und auf GitHub
-   handelt das Office als du.
-4. **🌐 Office im Browser öffnen**: Dein Browser öffnet das Office, angemeldet als du. Sprache und
-   Bildschirm teilen gehen dort auch über `http://`, weil der Connector die Lobby über
-   `http://127.0.0.1:48600` weiterreicht; lass ihn dafür laufen.
-
-Beim nächsten Start ist der Connector gleich wieder in der Lobby; **‹ Lobbys** wechselt sie.
-
-## 3. Mitspieler einladen
-
-1. Mitspieler brauchen einen Weg zu deinem Umbrel: im selben Netz, oder über
-   [Tailscale](https://tailscale.com) oder NetBird (teile den Umbrel mit ihnen). Über das offene
-   Internet solltest du die Lobby nur hinter HTTPS stellen.
-2. Im Connector unter **👥 Mitspieler einladen** einen **Einladungslink** erstellen und **Kopieren**
-   (oder im Office unter ☰ → 🔑 Accounts). Der Link funktioniert einmal und gilt 7 Tage.
-3. Wer eingeladen ist, installiert den Connector, fügt den Link unter **Lobby beitreten** ein, wählt
-   Name und Passwort und meldet sich mit dem **eigenen** Claude und GitHub an. Ohne Connector geht der
-   Link auch im Browser.
-4. Wenn alle ein Konto haben: das gemeinsame Passwort im Office unter ☰ → 🔑 Accounts ausschalten.
-
-## Ohne Umbrel: die Lobby auf deinem PC hosten
-
-Im Connector unter **Ohne Server → Auf diesem Computer starten** läuft das Office auf deinem PC, zuerst
-nur für ihn selbst (`127.0.0.1`): Niemand sonst kommt hinein, auch nicht im selben WLAN oder über
-Tailscale. Um Mitspieler hereinzulassen:
-
-1. Menü **Dieser Computer → Lobby auf diesem Computer für andere öffnen**, und die Rückfrage bestätigen.
-   Das Office startet neu, jetzt für alle Netzwerke deines Computers, mit einem eigenen Lobby-Passwort.
-2. **Windows fragt**, ob „Node.js“ im Netzwerk erreichbar sein darf: für **private Netzwerke zulassen**.
-   Steht dein WLAN in Windows auf „Öffentlich“, stell es auf „Privat“ (Einstellungen → Netzwerk und
-   Internet → WLAN → dein Netz → Netzwerkprofil). Auf dem Mac: eingehende Verbindungen erlauben.
-3. Die App zeigt die **Einladung**: deine Adressen (z. B. `192.168.178.20:4600` im WLAN und
-   `100.78.135.198:4600` über Tailscale oder NetBird) und das Passwort. **Einladung kopieren** und
-   verschicken. Später wieder: **Dieser Computer → Mitspieler einladen (Adresse und Passwort) …**
-4. Besser mit eigenem Konto (für das eigene GitHub, die eigenen Projekte und die eigene KI): im Connector
-   unter **👥 Mitspieler einladen** einen Einladungslink erstellen. Er zeigt automatisch auf deine
-   Netzwerk-Adresse (nicht auf `127.0.0.1`). Wer eingeladen ist, fügt ihn im eigenen Connector ein.
-
-Wer mit dem Passwort hereinkommt, ist Admin und kann Worker einstellen, die **auf deinem Computer**
-Befehle ausführen. Lade nur Leute ein, denen du das zutraust, und gib ihnen am besten eigene Konten.
-Alle Worker laufen dann auf deinem PC; soll er geschont werden, nimm die Umbrel-App.
-**Dieser Computer → Lobby auf diesem Computer für andere öffnen** noch einmal schließt die Lobby wieder.
-
-## 4. Wessen KI? Die des Hosts oder die eigene
-
-Jeder Worker läuft mit dem Claude-Abo von dem, der ihn eingestellt hat:
-
-- **Eigene KI:** Mit einem Konto meldet sich jeder Spieler im Connector unter **🔐 Deine Anmeldungen**
-  (oder im Office unter ☰ → **🔐 Your sign-ins**) mit seinem eigenen Claude-Abo an (*Mit Claude
-  anmelden*, oder ein Token aus `claude setup-token`). Seine Worker laufen dann auf seinem Abo und
-  seinen Limits, auch wenn sie auf deinem Umbrel laufen.
-- **KI des Hosts:** Unter ☰ → **🔑 Accounts** → **✳️ The office’s own Claude** → *Share it with
-  everyone* gibt ein Admin die Claude-Anmeldung des Office (also deine) für alle frei. Jeder Spieler
-  wählt dann im Connector **Claude des Hosts nutzen** (im Office: **Use the host’s Claude**) oder bleibt
-  bei seinem eigenen, und kann jederzeit wechseln. Laufende Worker behalten das Abo, mit dem sie gestartet sind. Stoppt der Admin
-  das Teilen, laufen neue Worker der Mitspieler wieder auf ihrem eigenen Abo.
-- Admins dürfen die Anmeldung des Office immer nutzen. Ohne Konten (nur mit dem gemeinsamen
-  Passwort) laufen alle Worker auf der Anmeldung des Office.
+- **Normalfall, auf deinem PC:** Deine Arbeiter laufen in deinem Arbeitsplatz, mit dem Claude Code und
+  der GitHub CLI dieses Computers (die Karten unter **🖥️ Deine Arbeiter auf diesem Computer**). Ist dein PC
+  aus, machen sie im Office Pause.
+- **Auf dem Server:** Mit **Lieber auf dem Server laufen lassen** laufen sie dort, mit deinen Anmeldungen
+  auf dem Server (**🔐 Deine Anmeldungen auf dem Server**: Claude und GitHub, oder ein Token). Unter ☰ →
+  **🔑 Accounts** → **✳️ The office’s own Claude** kann ein Admin die Claude-Anmeldung des Servers für alle
+  freigeben; dann gibt es **Claude des Servers nutzen**.
 
 GitHub bleibt pro Person: Kommentare, Commits und Pull Requests erscheinen unter dem eigenen Namen.
 
-## 5. Projekte der Mitspieler als Etage
+## 5. Projekte als Etage
 
-Jeder Spieler kann sein eigenes Projekt als Etage ins Haus holen, auch ein privates:
+Jeder kann sein eigenes Projekt als Etage ins Haus holen, auch ein privates:
 
-1. Der Mitspieler meldet sich im Connector unter **🔐 Deine Anmeldungen** mit **seinem** GitHub an
-   (*Mit GitHub anmelden*, Code bei github.com/login/device eingeben). Sein GitHub auf seinem eigenen PC
-   zählt nicht: Die Lobby klont auf dem Rechner, auf dem sie läuft.
-2. Im Aufzug (**E**) → *Projekt hinzufügen* sieht er dann **seine** Repositorys und fügt eins hinzu. Es
-   wird mit seiner Anmeldung geklont und ist für alle in der Lobby eine Etage.
-3. **Du arbeitest mit deinem Claude daran:** Jeder Worker läuft mit dem Claude dessen, der ihn
-   einstellt, auf jeder Etage. Setz auf seiner Etage einen Worker an einen Tisch, und er arbeitet mit
-   deinem Abo an seinem Projekt.
-4. Damit deine Worker dort auch **pushen und Pull Requests öffnen** und die Issue- und PR-Tafeln das
-   Repository lesen können, braucht dein GitHub-Konto Zugriff darauf: Der Mitspieler lädt dich auf
-   GitHub als Collaborator ein (Repository → *Settings → Collaborators → Add people*). Ohne das arbeiten
-   deine Worker trotzdem am Code, nur Push und PRs gehen dann über seine Worker.
-
-Ohne Konto (nur mit dem gemeinsamen Passwort) läuft alles über das GitHub des Hosts: Dann gehen nur
-Repositorys, die der Host sehen kann.
+1. Im Connector unter **🔐 Deine Anmeldungen auf dem Server** mit **deinem** GitHub anmelden. Der Server
+   klont mit dieser Anmeldung.
+2. Im Aufzug (**E**) → *Projekt hinzufügen* siehst du deine Repositorys und fügst eins hinzu. Es ist für
+   alle eine Etage.
+3. Stellt jemand dort einen Arbeiter ein, klont sein Arbeitsplatz das Repo auf seinen PC. Damit seine
+   Arbeiter dort **pushen und Pull Requests öffnen**, braucht sein GitHub-Konto Zugriff: Lade ihn auf
+   GitHub als Collaborator ein (Repository → *Settings → Collaborators → Add people*).
 
 ## Gut zu wissen
 
 - Die Grafik stellst du für dich unter ⚙️ Settings → **You → Graphics** ein: **⚖️ Balanced** (Standard)
   sieht aus wie High, spart aber viel Arbeit; **🍃 Eco** für Laptops im Akkubetrieb.
-- Alles, was die Lobby sich merkt (Passwort, Konten, Etagen, Projekte, die Anmeldungen bei Claude und
-  GitHub), liegt im Daten-Ordner der Umbrel-App und übersteht Updates und Neustarts.
-- Jeder Spieler mit Konto kann Worker einstellen, die auf dem Umbrel Befehle ausführen. Gib Konten nur
-  Leuten, denen du das zutraust; siehe die Sicherheitshinweise in [How it works](how-it-works.md).
+- Alles, was der Server sich merkt (Konten, Etagen, Projekte, Board, Chat, die Anmeldungen auf dem Server),
+  liegt im Daten-Ordner der Umbrel-App und übersteht Updates und Neustarts.
+- Siehe auch die Sicherheitshinweise in [How it works](how-it-works.md).

@@ -2,25 +2,26 @@
 > **Neuer Aufbau, in Arbeit.** Der Client ist wieder der TypeScript-Client von vor der Rust-Umstellung: das 3D-Office
 > (three.js, läuft in jedem Browser und im App-Fenster) und die Electron-App für Windows und Mac. Der Server wird eine
 > Rust-App ohne Oberfläche (`crates/`), die nur zwischen den Spielern vermittelt: Positionen, Chat, Sprache, Repos,
-> Board und Konten. **Der erste Schritt ist da:** Die Umbrel-App „Agent Office Vermittler“ rechnet nichts mehr; die
-> Lobby läuft im Office eines Spielers, der in der App **🛰️ Über den Vermittler gastgeben** wählt, und alle anderen
-> treten über den Umbrel bei ([docs/vermittler.md](docs/vermittler.md)). **Und die Arbeiter laufen bei dem, der sie
-> einstellt:** Wer mit eigenem Konto in der Lobby ist, dessen App ist sein Arbeitsplatz; seine Arbeiter laufen auf
-> seinem PC, mit seinem Claude und GitHub, und alle sehen und benutzen sie trotzdem; sie reden über die PCs hinweg
-> miteinander, und ist sein PC aus, machen sie an ihren Plätzen Pause ([docs/vermittler.md](docs/vermittler.md#dein-arbeitsplatz-deine-arbeiter-auf-deinem-pc)). Mehr dazu in [ARCHITEKTUR.md](ARCHITEKTUR.md).
+> Board und Konten. **So ist es jetzt:** Das Office läuft auf eurem Server, der Umbrel-App „Agent Office Vermittler“,
+> immer offen und ohne Gastgeber. Jeder verbindet sich in der App mit der Adresse des Servers, seinem Passwort und
+> seinem Namen; Lobbys und Einladungslinks gibt es nicht mehr ([docs/vermittler.md](docs/vermittler.md)). **Die
+> Arbeiter laufen bei dem, der sie einstellt:** Seine App ist sein Arbeitsplatz; seine Arbeiter laufen auf seinem PC,
+> mit seinem Claude und GitHub, und alle sehen und benutzen sie trotzdem; sie reden über die PCs hinweg miteinander,
+> und ist sein PC aus, machen sie an ihren Plätzen Pause ([docs/vermittler.md](docs/vermittler.md#dein-arbeitsplatz-deine-arbeiter-auf-deinem-pc)). Mehr dazu in [ARCHITEKTUR.md](ARCHITEKTUR.md).
 
 > [!TIP]
 > **Ein Connector für Windows und Mac, das Office im Browser.** Diese Version gibt es als Windows-Installer
 > (`Agent-Office-Setup-<version>.exe` unter *Releases*) und als Mac-Disk-Image (`Agent-Office-<version>-mac-arm64.dmg`
-> bzw. `-x64.dmg`). Die App ist ein **Connector**: Sie verbindet dich mit einer Lobby, meldet **jeden Spieler mit seinem
-> eigenen Claude und GitHub** an und öffnet das Office in deinem normalen Browser, angemeldet als du, mit Sprache und
-> Bildschirm teilen. Alles dazu: [docs/connector.md](docs/connector.md), installieren: [Windows](docs/windows-app.md),
-> [Mac](docs/mac-app.md).
+> bzw. `-x64.dmg`). Die App ist ein **Connector**: Sie verbindet dich mit eurem Server (Adresse, Passwort, Name), lässt
+> **deine Arbeiter auf deinem PC mit deinem eigenen Claude und GitHub** laufen und öffnet das Office in deinem normalen
+> Browser, angemeldet als du, mit Sprache und Bildschirm teilen. Schließt du ihr Fenster, lebt sie in der Menüleiste
+> (Mac) bzw. im Infobereich (Windows) weiter. Alles dazu: [docs/connector.md](docs/connector.md), installieren:
+> [Windows](docs/windows-app.md), [Mac](docs/mac-app.md).
 >
-> **Online-Lobby auf deinem Umbrel.** Die Lobby läuft als Umbrel-App, und dort laufen auch alle Worker, nicht auf deinem PC.
-> Deine Mitspieler treten mit ihrem Connector (oder im Browser) bei. Jeder nutzt sein eigenes Claude-Abo, oder das des Hosts,
-> wenn der es teilt. Anleitung: [docs/online-lobby.md](docs/online-lobby.md), die Umbrel-App selbst: [docs/umbrel.md](docs/umbrel.md).
-> Ohne Server geht es auch: Der Connector startet das Office dann auf deinem Computer.
+> **Der Server auf deinem Umbrel.** Die Umbrel-App „Agent Office Vermittler“ ist euer Office, immer offen. Deine
+> Mitspieler verbinden sich mit ihrem Connector (oder im Browser), mit Adresse, Passwort und eigenem Namen.
+> Anleitung: [docs/online-lobby.md](docs/online-lobby.md), der Server: [docs/vermittler.md](docs/vermittler.md), die
+> Umbrel-App selbst: [docs/umbrel.md](docs/umbrel.md).
 
 > [!WARNING]
 > **Work in progress.** Agent Office is built for one person's workflow — mine — and it changes fast as I iterate on it.
@@ -44,7 +45,7 @@ and jump into any of them together. Every GitHub repo is a floor of the building
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey?style=flat-square)](#run-locally)
 [![Built with TypeScript](https://img.shields.io/badge/built%20with-TypeScript-3178c6?style=flat-square)](https://www.typescriptlang.org)
 
-[**Run locally**](#run-locally) · [**Online lobby on Umbrel**](docs/online-lobby.md) · [**Deploy to AWS**](#deploy-to-aws-ec2) · [**Azure**](#deploy-to-azure) · [**Railway**](#deploy-to-railway) · [**Fly.io**](#deploy-to-flyio) · [**Dokploy**](#deploy-to-dokploy) · [**Any server**](#deploy-to-any-ubuntu-or-debian-server) · [**Add users**](#add-users) · [**Controls**](#controls) · [**Features**](docs/features.md) · [**How it works**](docs/how-it-works.md)
+[**Run locally**](#run-locally) · [**Server on Umbrel**](docs/vermittler.md) · [**Deploy to AWS**](#deploy-to-aws-ec2) · [**Azure**](#deploy-to-azure) · [**Railway**](#deploy-to-railway) · [**Fly.io**](#deploy-to-flyio) · [**Dokploy**](#deploy-to-dokploy) · [**Any server**](#deploy-to-any-ubuntu-or-debian-server) · [**Add users**](#add-users) · [**Controls**](#controls) · [**Features**](docs/features.md) · [**How it works**](docs/how-it-works.md)
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/AgentSystemLabs/agent-office/main/install.sh | bash
@@ -79,11 +80,10 @@ On the machine that runs the office:
 ## Run locally
 
 On Windows and macOS, the easiest way is the app, a connector: install `Agent-Office-Setup-<version>.exe`
-([docs/windows-app.md](docs/windows-app.md)) or the Mac disk image ([docs/mac-app.md](docs/mac-app.md)). It joins an
-[online lobby](docs/online-lobby.md) on your Umbrel or a server, so the workers run there and not on your computer,
-signs each player in with their own Claude and GitHub, and opens the office in the browser
-([docs/connector.md](docs/connector.md)). It can also start the office on this computer, with its own Node.js and Claude
-Code on your Claude subscription, no API key needed.
+([docs/windows-app.md](docs/windows-app.md)) or the Mac disk image ([docs/mac-app.md](docs/mac-app.md)). It connects
+to your [server](docs/vermittler.md) (the Umbrel app „Agent Office Vermittler“, where the office runs) with its
+address, its password and your name, runs the workers you hire on your computer with its own Node.js and Claude Code on
+your Claude subscription (no API key needed), and opens the office in the browser ([docs/connector.md](docs/connector.md)).
 
 Install the latest release and start the office:
 
@@ -320,13 +320,12 @@ ssh -L 4600:localhost:4600 office@<your-office-ip>
 
 Their key logs in as a locked-down `office` user that can only forward to the office port: no shell, no other ports. Running the office on your own computer, or on your own domain over HTTPS? Skip this step.
 
-**2. Make them an account.** Open **☰ → 🔑 Accounts** and make an invite link. Name it (or let them pick) and make them a *Member* or an *Admin*. The link works once, for 7 days, and they choose their own password. Make one for yourself too, as an admin.
+**2. Their account.** Everyone signs in with **their name and the office password**: the first time, the office makes their account under that name (as an admin, since the password lets them do anything anyway); after that, the same name is the same account. The Agent Office app does this for them (Adresse, Passwort, Name), and so does the office's sign-in page. There are no invite links. In **☰ → 🔑 Accounts** you see who has an account, make someone a *Member*, or revoke an account.
 
 The same works from a terminal on the office's machine, even while it runs:
 
 ```bash
-agent-office accounts                      # accounts and open invites
-agent-office accounts invite ada --admin   # prints a single-use /join#… link
+agent-office accounts                      # accounts, and whether the password works without a name
 agent-office accounts role ada member
 agent-office accounts revoke ada           # signed out within seconds
 ```
@@ -334,17 +333,17 @@ agent-office accounts revoke ada           # signed out within seconds
 On the EC2 machine, run it through `deploy/aws.sh ssh` (on Azure, `deploy/azure.sh ssh`):
 
 ```bash
-deploy/aws.sh ssh 'node /opt/agent-office/bin/agent-office.js accounts invite ada --dir "$(cat /etc/agent-office/home)"'
-deploy/railway.sh ssh 'node /opt/agent-office/bin/agent-office.js accounts invite ada'   # on Railway
-deploy/fly.sh ssh 'node /opt/agent-office/bin/agent-office.js accounts invite ada'       # on Fly.io
-deploy/dokploy.sh ssh 'node /opt/agent-office/bin/agent-office.js accounts invite ada'   # on Dokploy
+deploy/aws.sh ssh 'node /opt/agent-office/bin/agent-office.js accounts --dir "$(cat /etc/agent-office/home)"'
+deploy/railway.sh ssh 'node /opt/agent-office/bin/agent-office.js accounts'   # on Railway
+deploy/fly.sh ssh 'node /opt/agent-office/bin/agent-office.js accounts'       # on Fly.io
+deploy/dokploy.sh ssh 'node /opt/agent-office/bin/agent-office.js accounts'   # on Dokploy
 ```
 
 **Their own Claude and GitHub.** With accounts, everyone's workers run on their own Claude plan, and the office acts on GitHub as them: comments, merges, labels, pushes and pull requests show up under their name. Or share the host's: in **🔑 Accounts**, **✳️ The office’s own Claude → Share it with everyone** lets every member pick **Use the host’s Claude** in **🔐 Your sign-ins** instead of their own, and switch back any time. The first time someone comes in, **🔐 Your sign-ins** opens (it's in the **☰** menu too). *Sign in with Claude* gives them Claude's sign-in page and takes back the code it shows. *Sign in with GitHub* shows a one-time code for github.com/login/device. They can paste a token from `claude setup-token`, or a GitHub token, instead. A 🐚 shell they open at a desk runs as them, so `claude auth login` and `gh auth login` typed there work too. Admins can use the office machine's own sign-ins instead. Each account's sign-ins live in `.agent-office/homes/<account>/`, and revoking the account deletes them. The boards are read with the machine's own `gh`, so that account needs read access to the repos. Running it just for yourself, with no accounts, none of this applies.
 
-**3. Turn off the shared password.** Until you do, anyone who knows the office password can get in, as an admin. Once everyone has an account, switch it off in **🔑 Accounts** (signed in with your own admin account), or `agent-office accounts password off`.
+**3. Signing in without a name.** The office password alone (no name) lets someone in as a guest without an account of their own. Switch that off in **🔑 Accounts → Passwort ohne Namen**, or `agent-office accounts password off`: then everyone comes in as their account.
 
-**Removing someone.** Revoke their account in **🔑 Accounts** (or `agent-office accounts revoke <name>`), and on a server also remove them in **👥 Invite teammates** (on AWS, `deploy/aws.sh uninvite <name>`; on Railway, `deploy/railway.sh uninvite <name>`; on Fly.io, `deploy/fly.sh uninvite <name>`; on Dokploy, `deploy/dokploy.sh uninvite <name>`) to take away their SSH keys and drop open tunnels (other teammates just reconnect). If the shared password is still on, change it with `deploy/aws.sh reset-password` (or `deploy/railway.sh reset-password`, `deploy/fly.sh reset-password` or `deploy/dokploy.sh reset-password`).
+**Removing someone.** Whoever knows the office password can always come back with a name, so change the password (`deploy/aws.sh reset-password`, or on Umbrel nothing short of reinstalling the app). Revoke their account in **🔑 Accounts** (or `agent-office accounts revoke <name>`), and on a server also remove them in **👥 Invite teammates** (on AWS, `deploy/aws.sh uninvite <name>`; on Railway, `deploy/railway.sh uninvite <name>`; on Fly.io, `deploy/fly.sh uninvite <name>`; on Dokploy, `deploy/dokploy.sh uninvite <name>`) to take away their SSH keys and drop open tunnels (other teammates just reconnect). If the shared password is still on, change it with `deploy/aws.sh reset-password` (or `deploy/railway.sh reset-password`, `deploy/fly.sh reset-password` or `deploy/dokploy.sh reset-password`).
 
 ## Controls
 
@@ -385,12 +384,12 @@ Every change to the app that lands on `main` is published as a GitHub release by
 
 ## More
 
-- [Connector](docs/connector.md): the app for Windows and macOS: join a lobby, sign in with your own Claude and GitHub, the office in your browser
+- [Connector](docs/connector.md): the app for Windows and macOS: connect to your server (address, password, name), your workers on your computer, the office in your browser, and the app in the menu bar
 - [Windows app](docs/windows-app.md): the Windows installer, and Claude Code on your Claude subscription without an API key
 - [Mac app](docs/mac-app.md): the same app for macOS (Apple silicon and Intel)
-- [Online lobby](docs/online-lobby.md): the office on your Umbrel, joined from the connector, with the host's AI or each player's own
+- [Zusammen spielen](docs/online-lobby.md): das Office auf eurem Server, verbunden mit dem Connector, jeder mit seinem eigenen Claude
 - [Umbrel app](docs/umbrel.md): what the Umbrel app is made of, and putting it in your community app store with `deploy/umbrel/publish.sh`
-- [Vermittler](docs/vermittler.md): eine Lobby über einen schwachen Server (Umbrel), der nur vermittelt: Die Lobby läuft im Office eines Spielers
+- [Server (Agent Office Vermittler)](docs/vermittler.md): die Umbrel-App, auf der euer Office läuft, immer offen, ohne Gastgeber; Anmeldung mit Name und Passwort, die Arbeitsplätze der Spieler
 - [Features](docs/features.md): everything in the office, room by room
 - [Agents](docs/agents.md): Claude Code, Codex and OpenCode, models and effort, and the office's prompts
 - [Configuration](docs/configuration.md): every command-line option, and where the office keeps its data

@@ -1,6 +1,7 @@
 // Draws the app's icons, without any image tools: build/icon.ico + build/icon.png (Agent Office, an
-// office building), ui/tray.png (the connector's tray icon) and claude/claude-code.ico (the
-// "Claude Code (ohne API-Key)" shortcut, a prompt).
+// office building), ui/tray.png (the connector's tray icon on Windows), ui/trayTemplate.png and
+// @2x (its icon in the Mac's menu bar) and claude/claude-code.ico (the "Claude Code (ohne API-Key)"
+// shortcut, a prompt).
 // Run it again after changing a drawing: node desktop/scripts/make-icons.mjs
 import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
@@ -143,4 +144,26 @@ write(path.join(desktop, 'build', 'icon.ico'), ico(office));
 write(path.join(desktop, 'build', 'icon.png'), png(render(DRAWINGS.office, 512), 512));
 // The connector's tray icon (Windows): small, so it stays sharp.
 write(path.join(desktop, 'ui', 'tray.png'), png(render(DRAWINGS.office, 32), 32));
+
+/**
+ * The Mac's menu bar icon: a template (black and see-through, which macOS colours itself for a light
+ * or a dark menu bar), an office building drawn on a grid of 16, with three rows of windows and a door.
+ */
+function menuBarIcon(size) {
+  const cell = size / 16;
+  const out = Buffer.alloc(size * size * 4);
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const gx = Math.floor(x / cell);
+      const gy = Math.floor(y / cell);
+      const body = gx >= 3 && gx <= 12 && gy >= 1 && gy <= 14;
+      const pane = [4, 5, 7, 8, 10, 11].includes(gx) && [3, 4, 6, 7, 9, 10].includes(gy);
+      const door = (gx === 7 || gx === 8) && gy >= 12;
+      out[(y * size + x) * 4 + 3] = body && !pane && !door ? 255 : 0;
+    }
+  }
+  return out;
+}
+write(path.join(desktop, 'ui', 'trayTemplate.png'), png(menuBarIcon(16), 16));
+write(path.join(desktop, 'ui', 'trayTemplate@2x.png'), png(menuBarIcon(32), 32));
 write(path.join(desktop, 'claude', 'claude-code.ico'), ico(pngsOf(DRAWINGS.claude)));

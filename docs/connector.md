@@ -1,87 +1,65 @@
 # Der Connector: eine App für Windows und Mac, das Office im Browser
 
-Zurück zur [README](../README.md) · [Online-Lobby](online-lobby.md) · [Windows-App](windows-app.md) · [Mac-App](mac-app.md)
+Zurück zur [README](../README.md) · [Server](vermittler.md) · [Zusammen spielen](online-lobby.md) · [Windows-App](windows-app.md) · [Mac-App](mac-app.md)
 
-Die App für Windows und macOS ist ein **Connector**: ein kleines Fenster, das dich mit einer Lobby
-verbindet, dich dort anmeldet und das Office in deinem **normalen Browser** öffnet. Die Lobby läuft
-auf deinem [Umbrel](online-lobby.md) (oder einem anderen Server), und dort laufen auch alle Worker.
-Dein Computer zeigt nur das Office.
-
-Das Wichtigste: **Jeder Spieler meldet sich im Connector mit seinem eigenen Claude und GitHub an.**
-Deine Worker laufen dann mit deinem Claude-Abo, und auf GitHub erscheinen Kommentare, Commits und
-Pull Requests unter deinem Namen, auch wenn alles auf dem Umbrel läuft.
+Die App für Windows und macOS ist ein **Connector**: ein kleines Fenster, das dich mit eurem Server
+verbindet (der Umbrel-App [Agent Office Vermittler](vermittler.md)), das Office in deinem **normalen
+Browser** öffnet und die Arbeiter, die du einstellst, auf deinem Computer laufen lässt. Das Office selbst
+läuft auf dem Server. Lobbys, ein Office auf diesem Computer und Einladungslinks gibt es nicht: Der
+Connector spricht nur mit dem Server, mit seiner Adresse und seinem Passwort.
 
 ## So geht's
 
 1. **Connector installieren**: unter Windows `Agent-Office-Setup-<version>.exe`
    ([Windows-App](windows-app.md)), auf dem Mac das Disk-Image ([Mac-App](mac-app.md)).
-2. **Lobby beitreten**: die Adresse der Lobby eintragen, z. B. `100.78.107.162:4600` (die Adresse deines
-   Umbrel im Tailnet oder im NetBird-Netz) oder `umbrel.local:4600` im Heimnetz, und **Verbinden**. Oder
-   gleich den **Einladungslink** einfügen, den du bekommen hast (`http://…:4600/join#…`).
-3. **Anmelden**:
-   - Mit einem Einladungslink wählst du deinen Namen und ein Passwort: Das ist dein Konto in der Lobby.
-   - Später meldest du dich mit Name und Passwort an. Der Connector merkt sich die Anmeldung (unter
-     Windows und macOS verschlüsselt mit dem Schlüsselbund des Systems) und ist beim nächsten Start
-     gleich wieder drin.
-   - Wer die Lobby aufgesetzt hat, kommt beim ersten Mal mit dem **Office-Passwort** herein (Name leer
-     lassen; bei der Umbrel-App steht es auf ihrer Seite) und legt dann mit **👤 Dein eigenes Konto**
-     sein eigenes Konto an, als Admin.
-4. **🔐 Deine Anmeldungen** (ganz oben, sobald du in der Lobby bist; jede Karte zeigt ✅ und mit
-   welchem Konto du angemeldet bist):
-   - **✳️ Claude → Mit Claude anmelden**: Claudes Anmeldeseite geht in deinem Browser auf. Melde dich
-     mit deinem eigenen Claude-Konto an, kopier den Code, den sie dir zeigt, und füge ihn im Connector
-     ein. Oder füge einen Token aus `claude setup-token` ein.
-   - **🐙 GitHub → Mit GitHub anmelden**: Der Connector zeigt einen Einmal-Code. **Code kopieren und
-     GitHub öffnen**, dort einfügen, bestätigen; der Connector merkt es von selbst. Oder füge einen
-     GitHub-Token ein. Ist auf deinem Computer die GitHub CLI schon angemeldet, geht es mit einem Klick:
-     **@dein-name von diesem Computer übernehmen**.
-   - Teilt der Host sein Claude (im Office unter ☰ → 🔑 Accounts), gibt es **Claude des Hosts
-     nutzen**. Du kannst jederzeit zwischen deinem und seinem wechseln.
-5. **🌐 Office im Browser öffnen**: Dein Browser öffnet das Office, schon angemeldet als du.
+2. **🛰️ Server**: die Adresse des Servers (z. B. `100.78.107.162:4600`, die Adresse deines Umbrel im
+   Tailnet oder im NetBird-Netz, oder `umbrel.local:4600` im Heimnetz), das **Passwort des Servers** (bei
+   der Umbrel-App steht es auf ihrer Seite im App Store) und **deinen Namen** eintragen, dann
+   **Verbinden**. Beim ersten Mal legt der Server dein Konto unter diesem Namen an; mit demselben Namen
+   bist du danach immer du, auch von einem anderen Computer.
+3. Der Connector merkt sich Adresse, Name und Passwort (das Passwort und deine Sitzung verschlüsselt mit
+   dem Schlüsselbund des Systems) und verbindet sich beim nächsten Start von selbst.
+4. **🖥️ Deine Arbeiter auf diesem Computer**: Die App startet im Hintergrund deinen
+   [Arbeitsplatz](vermittler.md#dein-arbeitsplatz-deine-arbeiter-auf-deinem-pc). Die Karten zeigen die
+   Anmeldungen dieses Computers, mit denen deine Arbeiter laufen: **✳️ Claude → Mit Claude anmelden**
+   öffnet ein Konsolenfenster (auf dem Mac ein Terminal) für dein Claude-Abo, **🐙 GitHub → Mit GitHub
+   anmelden** das für die GitHub CLI. Sobald es geklappt hat, zeigt die Karte von selbst ✅ mit deinem Konto.
+5. **🔐 Deine Anmeldungen auf dem Server**: Mit deinem **GitHub** dort handelt das Office auf GitHub als
+   du (Kommentare, Pull Requests) und klont die Repos, die du als Etage hinzufügst. **Mit GitHub
+   anmelden** zeigt einen Einmal-Code (**Code kopieren und GitHub öffnen**, dort einfügen, bestätigen),
+   oder du fügst einen Token ein. Ist dein Computer schon angemeldet: **@dein-name von diesem Computer
+   übernehmen**. Lässt du deine Arbeiter auf dem Server laufen (**Lieber auf dem Server laufen lassen**),
+   gibt es hier auch die Karte für **Claude**.
+6. **🌐 Office im Browser öffnen**: Dein Browser öffnet das Office, schon angemeldet als du.
 
-Als Admin machst du unter **👥 Mitspieler einladen** einen Einladungslink (einmal gültig, 7 Tage) und
-schickst ihn weiter. Wer ihn bekommt, fügt ihn im eigenen Connector unter **Lobby beitreten** ein.
+Unten im Fenster: **Einstellungen** (Adresse, Passwort, Name ändern; das Passwortfeld leer lassen, um das
+gespeicherte zu behalten) und **Verbindung trennen** (deine Arbeiter hier stoppen und im Office Pause
+machen; beim nächsten Start verbindet sich der Connector dann nicht von selbst).
+
+## In der Menüleiste
+
+Schließt du das Fenster (auf dem Mac auch beim Minimieren), läuft der Connector weiter: auf dem Mac **oben
+in der Menüleiste** (das Bürohaus-Symbol, ohne Symbol im Dock), unter Windows **unten im Infobereich**.
+Von dort:
+
+- **Office im Browser öffnen**
+- **Connector öffnen**
+- **Einstellungen …**
+- **Verbindung trennen** (bzw. **Verbinden**, wenn getrennt)
+- **Agent Office beenden**
+
+Oben im Menü steht, ob und mit wem du verbunden bist. Erst **Beenden** stoppt die App und mit ihr deine
+Arbeiter auf diesem Computer (sie machen im Office Pause, bis du wieder da bist).
 
 ## Sprache und Bildschirm teilen im Browser
 
 Browser erlauben Mikrofon und Bildschirm nur auf `https://`-Seiten und auf Adressen des eigenen
-Computers. Eine Lobby über `http://` auf einem anderen Gerät (dein Umbrel) ist keins von beiden.
-Deshalb reicht der Connector so eine Lobby über `http://127.0.0.1:48600` an deinen Browser weiter
+Computers. Ein Server über `http://` auf einem anderen Gerät (dein Umbrel) ist keins von beiden.
+Deshalb reicht der Connector so einen Server über `http://127.0.0.1:48600` an deinen Browser weiter
 (`desktop/passthrough.cjs`): Für den Browser ist das dein eigener Computer, also gehen Sprache und
-Bildschirm teilen. **Lass den Connector dafür laufen.** Unter Windows läuft er nach dem Schließen des
-Fensters im Infobereich weiter (Rechtsklick auf das Symbol: Connector anzeigen, Office öffnen,
-Beenden), auf dem Mac im Dock.
+Bildschirm teilen. **Lass den Connector dafür laufen** (in der Menüleiste reicht).
 
-Eine Lobby über `https://` öffnet der Browser direkt, ohne den Umweg.
-
-## Ohne Server: das Office auf diesem Computer
-
-Unter **Ohne Server → Auf diesem Computer starten** läuft das Office wie früher auf deinem Computer
-(mit dem Node.js, Claude Code und der GitHub CLI, die die App mitbringt), und der Connector meldet
-dich dort an. Die Anmeldungen des Office sind dann die deines Computers, und sie stehen genauso ganz
-oben unter **🔐 Deine Anmeldungen**: **Mit Claude anmelden** bzw. **Mit GitHub anmelden** öffnet ein
-Konsolenfenster (auf dem Mac ein Terminal) für die Anmeldung, und sobald sie geklappt hat, zeigt die
-Karte von selbst ✅ mit deinem Konto. Einmal anmelden reicht, für alle Worker hier. Andere lässt du über **Dieser
-Computer → Lobby auf diesem Computer für andere öffnen** herein ([so geht's](online-lobby.md#ohne-umbrel-die-lobby-auf-deinem-pc-hosten)).
-Das kostet Rechenleistung; soll dein PC geschont werden, nimm den Umbrel.
-
-## Über den Vermittler gastgeben
-
-Unter **🛰️ Über den Vermittler gastgeben** trägst du die Adresse eines [Vermittlers](vermittler.md)
-(etwa der Umbrel-App „Agent Office Vermittler“) und sein Passwort ein: Dein Office auf diesem Computer
-wird dann die Lobby, und wer zum Vermittler kommt, landet bei dir. Der Connector zeigt, wie es steht
-(✅ Gastgeber, 🕒 Ersatz, ❌ abgelehnt). Deine Mitspieler treten unter **🌐 Lobby beitreten** mit der
-Adresse des Vermittlers bei; Einladungslinks aus dem Office zeigen von selbst auf ihn.
-**Nicht mehr gastgeben** meldet dein Office dort wieder ab. Du selbst bleibst einfach in deinem Office
-unter **Dieser Computer**; trägst du die Adresse des Vermittlers trotzdem unter **🌐 Lobby beitreten**
-ein, landest du ebenfalls dort, und dein Office läuft als Lobby weiter.
-
-## Deine Arbeiter auf diesem Computer
-
-Mit einem eigenen Konto in einer Lobby laufen die Arbeiter, die du einstellst, auf deinem Computer: Die
-App startet dafür im Hintergrund deinen [Arbeitsplatz](vermittler.md#dein-arbeitsplatz-deine-arbeiter-auf-deinem-pc).
-Unter **🖥️ Deine Arbeiter auf diesem Computer** siehst du, ob er verbunden ist, und die Anmeldungen bei
-Claude und GitHub, mit denen deine Arbeiter hier laufen. **Lieber beim Gastgeber laufen lassen** schaltet ihn ab.
+Einen Server über `https://` öffnet der Browser direkt, ohne den Umweg.
 
 ## Wenn etwas nicht geht
 
@@ -89,31 +67,31 @@ Claude und GitHub, mit denen deine Arbeiter hier laufen. **Lieber beim Gastgeber
   Tailscale oder NetBird)? Teste im Terminal: `curl http://100.78.107.162:4600/login.html`. Bei NetBird
   hilft es manchmal, die Verbindung über das Relay zu zwingen (`NB_FORCE_RELAY=true` für den
   NetBird-Dienst), wenn die direkte Verbindung zwischen zwei Geräten hängt.
-- **„Die Lobby ist gerade geschlossen: Niemand ist dort Gastgeber“** (in älteren Versionen nur
-  „HTTP 503“): Der Vermittler läuft, aber kein Office ist gerade bei ihm angemeldet. Wer die Lobby
-  aufmacht, wählt **🛰️ Über den Vermittler gastgeben** und lässt die App offen; danach kommen alle
-  anderen mit **Verbinden** hinein.
-- **GitHub- oder Claude-Anmeldung zeigt einen Fehler**: Sie läuft auf dem Lobby-Server; der braucht
-  Internet. Der Fehler steht in der Karte. Ein Token geht immer.
-- **Der Browser zeigt „Die Lobby antwortet nicht“**: Der Connector reicht weiter, aber die Lobby ist weg.
-  Im Connector **‹ Lobbys** und neu verbinden.
+- **„Das Passwort des Servers stimmt nicht.“**: Das Passwort steht bei der Umbrel-App auf ihrer Seite im
+  App Store.
+- **„… antwortet mit HTTP 503“** (oder ein anderer Fehler): Auf dem Umbrel läuft vermutlich noch der alte
+  Vermittler (bis 0.1.34), der nur durchreichte. Aktualisiere die App im App Store
+  ([umsteigen](vermittler.md#vom-alten-vermittler-0134-umsteigen)).
+- **GitHub- oder Claude-Anmeldung zeigt einen Fehler**: Die Anmeldung auf dem Server läuft dort; der
+  braucht Internet. Der Fehler steht in der Karte. Ein Token geht immer.
+- **Der Browser zeigt „Der Server antwortet nicht“**: Der Connector reicht weiter, aber der Server ist weg.
+  Im Connector **Einstellungen** und neu verbinden.
 
 ## Wie der Connector funktioniert
 
-- `desktop/controller.cjs`: was das Fenster zeigt und tut (Lobby, Anmelden, Anmeldungen, Einladungen,
+- `desktop/controller.cjs`: was das Fenster zeigt und tut (Server, Verbinden, Anmeldungen, Arbeitsplatz,
   Browser). `desktop/ui/` zeichnet es, `desktop/preload.cjs` ist die einzige Verbindung dorthin.
+  `desktop/main.cjs` baut das Fenster, die Menüs und das Symbol in der Menüleiste und startet den Arbeitsplatz.
 - `desktop/local-signins.cjs` liest die Anmeldungen dieses Computers (`claude auth status`, `gh api user`)
-  für das Office hier; `gh auth token` gibt GitHubs Anmeldung an die Lobby weiter, wenn du es willst.
-- `desktop/connector.cjs` spricht mit der Lobby, über ihre normalen Anmelde-Routen und die Routen in
-  `src/server/http/routes/connector.ts`: `/api/signins` (deine Claude- und GitHub-Anmeldungen, wie
-  🔐 Your sign-ins im Office), `/api/accounts/invite` (Einladungen, für Admins) und `/api/link/new`.
+  für deine Arbeiter hier; `gh auth token` gibt GitHubs Anmeldung an den Server weiter, wenn du es willst.
+- `desktop/connector.cjs` spricht mit dem Server: `/api/login` mit Name und Passwort (dein Konto, beim
+  ersten Mal angelegt), `/api/whoami`, und die Routen in `src/server/http/routes/connector.ts`:
+  `/api/signins` (deine Claude- und GitHub-Anmeldungen, wie 🔐 Your sign-ins im Office) und `/api/link/new`.
   Er ist dabei kein Spieler: Im Office läuft keine zusätzliche Figur herum.
 - **Office im Browser öffnen** holt mit `/api/link/new` einen Einmal-Link für dieselbe Anmeldung (nur
   einmal gültig, nur 5 Minuten, nur der Hash bleibt im Speicher des Office) und öffnet
   `…/login#key=…` im Browser. Der Schlüssel steht hinter dem `#` und landet in keinem Server-Log.
-- Alle Anfragen des Connectors tragen die Adresse der Lobby als `Origin`, wie die Seite des Office
+- Alle Anfragen des Connectors tragen die Adresse des Servers als `Origin`, wie die Seite des Office
   selbst; andere Websites können diese Routen mit deinem Cookie nicht benutzen.
-- `desktop/passthrough.cjs` leitet jede Anfrage und jeden WebSocket unverändert an die Lobby weiter
-  (auch den `Host`), so sieht das Office dieselbe Adresse wie der Browser. Nur
-  `/.well-known/agent-office-connector.json` beantwortet er selbst: die echte Adresse der Lobby, damit
-  Einladungslinks aus 🔑 Accounts im Browser auf die Lobby zeigen und nicht auf `127.0.0.1`.
+- `desktop/passthrough.cjs` leitet jede Anfrage und jeden WebSocket unverändert an den Server weiter
+  (auch den `Host`), so sieht das Office dieselbe Adresse wie der Browser.

@@ -2,13 +2,13 @@
 
 > **Neue Richtung.** Der Client ist wieder TypeScript wie vor der Umstellung: `src/client` (das 3D-Office mit three.js),
 > `src/server` als lokales Office jedes Spielers (startet seine Arbeiter mit seinem eigenen Claude und GitHub, auf seinem
-> PC) und `desktop/` (die Electron-App). In Rust bleibt der Server, und der wird zum **Vermittler**: eine App ohne
-> Oberfläche (Umbrel, Docker oder ein PC), mit der sich die lokalen Offices verbinden. Sie reicht Positionen, Chat,
-> Sprach-Signale, Repos, Board, Arbeiter-Stände und Konten zwischen den Spielern weiter und merkt sich den gemeinsamen
-> Stand. Der Vermittler ist `crates/vermittler` ([docs/vermittler.md](docs/vermittler.md)); er reicht die Verbindungen aller
-> Spieler zum Office des Gastgebers durch. Die Arbeiter eines Spielers mit eigenem Konto laufen auf seinem
-> Arbeitsplatz (`src/server/arbeitsplatz/`): seinem eigenen Office im Hintergrund, an das der Gastgeber weiterreicht. Die übrigen Crates unten sind der Rust-Neubau des ganzen
-> Office; sie bleiben als Grundlage, bis der Vermittler sie ablöst.
+> PC) und `desktop/` (die Electron-App). Der Server, auf dem das Office für alle läuft, ist die Umbrel-App
+> **Agent Office Vermittler** ([docs/vermittler.md](docs/vermittler.md)): das Office aus `src/server` im Container
+> (`deploy/container`), immer offen, ohne Gastgeber. Jeder Spieler verbindet sich mit Adresse, Passwort und Namen; die
+> App (`desktop/`) spricht nur mit diesem Server. Die Arbeiter eines Spielers laufen auf seinem Arbeitsplatz
+> (`src/server/arbeitsplatz/`): seinem eigenen Office im Hintergrund, an das der Server weiterreicht. Der frühere
+> Rust-Vermittler, der nur zum Office eines Gastgebers durchreichte, ist weg. Die Crates unten sind der Rust-Neubau des
+> ganzen Office; sie bleiben als Grundlage.
 
 ## Der Rust-Neubau (bisher)
 
