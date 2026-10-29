@@ -58,6 +58,12 @@ Für alle anderen ist er ein Arbeiter wie jeder andere: Er sitzt am Schreibtisch
 Terminal, und jeder kann es öffnen, hineintippen, ihm Aufgaben geben oder ihn nach Hause schicken. Das geht
 alles durch den Vermittler und das Office des Gastgebers zu deinem PC; beide rechnen dabei nichts.
 
+Und die Arbeiter reden miteinander, über die PCs hinweg: Deine sehen mit `list_workers` auch die des
+Gastgebers und die auf den PCs der anderen (mit `pc`, wo sie laufen), und `tell_worker` erreicht jeden davon.
+Die Nachricht kommt mit Absender an, damit er antworten kann, und alle in der Lobby sehen das Gespräch:
+Sprechblase, Papierflieger, eine Zeile im Chat. Damit man jeden ansprechen kann, bekommt ein neuer Arbeiter auf
+deinem PC einen Namen, den es auf der Etage noch nicht gibt.
+
 - Ausschalten: **Lieber beim Gastgeber laufen lassen** in der App; dann laufen deine Arbeiter wieder dort,
   mit deinen Anmeldungen dort.
 - Ist deine App aus (oder dein PC, oder dein Netz weg), bleiben deine Arbeiter in der Lobby an ihren Plätzen
@@ -85,6 +91,12 @@ auch über einen Neustart) und zeigt sie in der Pause (`WorkerInfo.pause`). Meld
 schickt er erst seine Arbeiter und dann ihre Liste (`bestand`); wer dort fehlt, geht beim Gastgeber. Meldet
 sich derselbe Spieler von einem zweiten Computer an, ist der neue sein Arbeitsplatz; der alte drängelt sich
 nicht zurück, und was nur auf dem alten läuft, macht Pause.
+
+Reden (`src/server/arbeitsplatz/reden.ts`, `src/server/gespraech.ts`): Fragt ein Arbeiter auf einem Arbeitsplatz,
+wer auf der Etage sitzt, oder will er einem etwas sagen, der nicht bei ihm läuft, fragt sein Office den Gastgeber
+(`wer`, `sagen`); der antwortet (`die`, `gesagt`) und reicht eine Nachricht an einen anderen Arbeitsplatz als
+`worker.prompt` weiter. Den Absender nimmt der Gastgeber aus seinen eigenen Büchern, kein Arbeitsplatz spricht
+für einen anderen. Reden zwei Arbeiter auf demselben Arbeitsplatz, sieht die Lobby es über `worker.says`.
 
 ## Umbrel-App
 

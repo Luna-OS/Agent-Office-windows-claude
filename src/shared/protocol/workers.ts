@@ -217,4 +217,9 @@ export type WorkerServerMsg =
   | { t: 'term.snapshot'; workerId: string; data: string; cols: number; rows: number }
   | { t: 'term.data'; workerId: string; data: string }
   /** Someone else in that terminal (`id`, a PeerInfo id) is typing; only its other viewers get these. */
-  | { t: 'term.typing'; workerId: string; id: string };
+  | { t: 'term.typing'; workerId: string; id: string }
+  /**
+   * Ein Arbeiter sagt einem anderen etwas (tell_worker, auch über die PCs der Spieler hinweg, siehe
+   * server/gespraech.ts): Alle auf der Etage sehen es, mit Sprechblase und Papierflieger.
+   */
+  | { t: 'worker.says'; from: string; to: string; text: string };

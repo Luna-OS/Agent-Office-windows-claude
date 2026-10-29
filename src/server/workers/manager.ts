@@ -24,7 +24,8 @@ import { restoreWorkers, saveWorkers } from './persist.js';
 import { WorkerPrs } from './pr.js';
 import { WIN, binScript, defaultShell, resolveCommand, shellRun, shq, writeOfficeCommands } from './process.js';
 import { CARRY_ON_PROMPT, WorkerTasks } from './tasks.js';
-import { flushScreens, fullScreens, newTerm, offlineBanner, screenText, type HeadlessTerminal } from './terminal.js';
+import { checkBlocked } from './blocked.js';
+import { flushScreens, fullScreens, newTerm, offlineBanner, type HeadlessTerminal } from './terminal.js';
 import type { HookEnv, OpenedPr, RepoSource, RunAs, Worker, WorkerContext, WorkerEvents, WorkerHandle } from './types.js';
 import { clamp, safeEq, truncate } from './util.js';
 import { COLORS, NAMES, newWorker } from './worker.js';
@@ -71,6 +72,8 @@ export class WorkerManager {
   private saveTimer: NodeJS.Timeout;
   /** How many rows the floor's back office is built out: its desks past that aren't there to hire at (see WING). */
   wing: () => number = () => 0;
+  /** Names already taken elsewhere in a lobby (see arbeitsplatz/satellit.ts), so a new worker's is its own there too. */
+  taken: () => string[] = () => [];
 
   constructor(
     private dir: string,
@@ -129,7 +132,7 @@ export class WorkerManager {
     this.drops.prune(new Set(this.workers.keys()));
     // A session may have ended (and written its final tally) while the office was down.
     for (const w of this.workers.values()) this.scanUsage(w);
-    this.screenTimer = setInterval(() => flushScreens(this.workers.values(), this.events, (w) => this.checkBlocked(w)), SCREEN_INTERVAL_MS);
+    this.screenTimer = setInterval(() => flushScreens(this.workers.values(), this.events, (w) => checkBlocked(w, (s) => this.setStatus(w, s))), SCREEN_INTERVAL_MS);
     this.usageTimer = setInterval(() => {
       for (const w of this.workers.values()) {
         this.scanUsage(w);
@@ -247,7 +250,7 @@ export class WorkerManager {
     if (owner && signIn && this.runAs && !this.runAs.claudeReady(owner)) return this.runAs.why(signIn);
     const full = this.capacity?.full();
     if (full) return full;
-    const used = new Set([...this.workers.values()].map((w) => w.info.name.replace(/ 🐚$/, '')));
+    const used = new Set([...[...this.workers.values()].map((w) => w.info.name), ...this.taken()].map((n) => n.replace(/ 🐚$/, '')));
     const agent = seat.station && STATION_AGENT[seat.station];
     const name = agent ? agent.name : (NAMES.find((n) => !used.has(n)) ?? `Worker ${this.workers.size + 1}`);
     const id = randomBytes(6).toString('hex');
@@ -991,30 +994,6 @@ export class WorkerManager {
   /** Full screens for every running worker — sent to people as they walk in. */
   fullScreens() {
     return fullScreens(this.workers.values());
-  }
-
-  /**
-   * An agent can sit at its prompt without being usable: Claude stuck on a first-run screen, or not
-   * signed in on this machine (see ProviderAdapter.screen). Flag that as needing a human, and clear
-   * it once the screen moves on.
-   */
-  private checkBlocked(w: Worker) {
-    const blockedBy = w.info.kind === 'agent' ? providerAdapter(w.info.provider)?.screen?.blocked : undefined;
-    if (!w.term || !blockedBy) return;
-    const s = w.info.status;
-    if (s !== 'starting' && s !== 'idle' && !(w.bootBlocked && s === 'needs_input')) return;
-    // Only this run's output counts: a "Not logged in" in the scrollback from before is old news.
-    const text = screenText(w.term, w.term.buffer.active.type === 'normal' ? Math.max(0, w.fresh?.line ?? 0) : 0);
-    const blocked = blockedBy(text, s === 'starting' || !!w.bootBlocked);
-    if (blocked && s !== 'needs_input') {
-      w.bootBlocked = true;
-      w.info.activity = blocked;
-      this.setStatus(w, 'needs_input');
-    } else if (!blocked && w.bootBlocked && s === 'needs_input') {
-      w.bootBlocked = false;
-      w.info.activity = undefined;
-      this.setStatus(w, 'idle');
-    }
   }
 
   private saveScrollback(w: Worker) {

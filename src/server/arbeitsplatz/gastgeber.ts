@@ -10,8 +10,11 @@ import type { Floor } from '../floor.js';
 import type { Client } from '../office/client.js';
 import type { Ctx } from '../office/context.js';
 import type { FeatureHooks } from '../ws/handlers/types.js';
+import { zeigen } from '../gespraech.js';
 import { Pausen } from './pause.js';
-import { FUER_DIE_ETAGE, FUER_EINEN, type FernEtage, type VomArbeitsplatz, type ZumArbeitsplatz } from './protokoll.js';
+import { FUER_DIE_ETAGE, FUER_EINEN, type FernBrowser, type FernEtage, type VomArbeitsplatz, type ZumArbeitsplatz } from './protokoll.js';
+import { beantworten } from './reden.js';
+import { satellitVon } from './satellit.js';
 
 /** Alle so oft ein Ping an jeden Arbeitsplatz; kommt bis zum nächsten keine Antwort, ist sein PC weg. */
 const HERZ_MS = 20_000;
@@ -41,8 +44,15 @@ function stand(ctx: Ctx): Stand {
   if (!s) {
     const datei = ctx.cfg?.dataDir ? path.join(ctx.cfg.dataDir, 'arbeitsplatz-pausen.json') : undefined;
     staende.set(ctx, (s = { plaetze: new Map(), fern: new Map(), pausen: new Pausen(datei) }));
+    for (const floor of ctx.floors.values()) namenVergeben(ctx, floor);
   }
   return s;
+}
+
+/** Wer hier neu eingestellt wird, heißt anders als die Arbeiter von außen auf der Etage: So kann man jeden ansprechen. */
+function namenVergeben(ctx: Ctx, floor: Floor) {
+  // Ein Arbeitsplatz hört die vergebenen Namen vom Gastgeber (satellit.ts).
+  if (!satellitVon(ctx)) floor.workers.taken = () => fernListe(ctx, floor).map((f) => f.info.name);
 }
 /** Der Stand, wenn es einen gibt oder einer gemerkt ist (ein Office mit Daten), sonst keiner. */
 const standDa = (ctx: Ctx): Stand | undefined => staende.get(ctx) ?? (ctx.cfg?.dataDir ? stand(ctx) : undefined);
@@ -101,6 +111,13 @@ function vomPlatz(ctx: Ctx, p: Platz, m: VomArbeitsplatz) {
     const floor = ctx.floors.get(String(m.etage));
     const msg = m.msg;
     if (!floor || !msg || !FUER_DIE_ETAGE.has(msg.t)) return;
+    // Zwei seiner Arbeiter reden miteinander (bei ihm, gespraech.ts): Alle hier sehen es und lesen es im Chat.
+    if (msg.t === 'worker.says') {
+      const von = s.fern.get(msg.from) === p ? p.arbeiter.get(msg.from)?.info : undefined;
+      const an = s.fern.get(msg.to) === p ? p.arbeiter.get(msg.to)?.info : undefined;
+      if (von && an) zeigen(ctx, floor, von, an, String(msg.text ?? ''));
+      return;
+    }
     if (msg.t === 'worker.update') {
       const info = msg.worker;
       if (!info || typeof info.id !== 'string') return;
@@ -127,6 +144,11 @@ function vomPlatz(ctx: Ctx, p: Platz, m: VomArbeitsplatz) {
     if (!c || !msg || !FUER_EINEN.has(msg.t)) return;
     if ('workerId' in msg && s.fern.get(msg.workerId) !== p) return;
     ctx.sendTo(c, msg);
+  } else if (m?.t === 'wer' || m?.t === 'sagen') {
+    // Einer seiner Arbeiter will wissen, wer sonst hier sitzt, oder einem von ihnen etwas sagen (reden.ts).
+    const floor = ctx.floors.get(String(m.etage));
+    const arbeiter = (wid: string) => (s.fern.get(wid) === p ? p.arbeiter.get(wid)?.info : undefined);
+    if (floor) beantworten(ctx, floor, { account: p.account, name: p.name, arbeiter, antworten: (a) => senden(p, a) }, m);
   } else if (m?.t === 'bestand' && Array.isArray(m.arbeiter)) {
     const da = new Set(m.arbeiter.map(String));
     // Was bei ihm nicht mehr ist (dort nach Hause geschickt, solange er nicht hier war), macht auch keine Pause mehr.
@@ -166,9 +188,9 @@ function abmelden(ctx: Ctx, p: Platz) {
   console.log(`  arbeitsplatz: Der Arbeitsplatz von ${p.name} ist weg; die Arbeiter dort machen Pause, bis er wieder da ist`);
 }
 
-function weitergeben(p: Platz, etage: FernEtage, c: Client, msg: ClientMsg) {
+function weitergeben(p: Platz, etage: FernEtage, c: Client, msg: ClientMsg, vergeben?: string[]) {
   p.browser.add(c.id);
-  senden(p, { t: 'nachricht', etage, wer: { id: c.id, name: c.peer.name }, msg });
+  senden(p, { t: 'nachricht', etage, wer: { id: c.id, name: c.peer.name }, msg, ...(vergeben ? { vergeben } : {}) });
 }
 
 /** Wer an `desk` auf `floor` sitzt, von einem Arbeitsplatz (auch in der Pause): sein Name und von wem. */
@@ -212,6 +234,7 @@ export function fernAbfangen(ctx: Ctx, c: Client, msg: ClientMsg): boolean {
   if (msg.t === 'worker.spawn') {
     const floor = ctx.floorOf(c);
     if (!floor) return false;
+    namenVergeben(ctx, floor);
     const sitzt = besetzt(s, floor, String(msg.deskId ?? ''));
     if (sitzt) {
       ctx.warn(c, `An diesem Platz sitzt schon ${sitzt}`);
@@ -221,7 +244,8 @@ export function fernAbfangen(ctx: Ctx, c: Client, msg: ClientMsg): boolean {
     const etage = fernEtage(floor);
     // Ohne Arbeitsplatz, auf einer Etage ohne GitHub-Repo, oder über mehrere Repos: beim Gastgeber.
     if (!p || !etage || p.ws.readyState !== WebSocket.OPEN || msg.repos?.length) return false;
-    weitergeben(p, etage, c, msg);
+    // Wie die Arbeiter hier schon heißen: Der neue bekommt einen eigenen Namen, damit man ihn ansprechen kann.
+    weitergeben(p, etage, c, msg, [...floor.workers.list(), ...fernListe(ctx, floor).map((f) => f.info)].map((w) => w.name));
     return true;
   }
   const wid = 'workerId' in msg && typeof msg.workerId === 'string' ? msg.workerId : undefined;
@@ -233,6 +257,29 @@ export function fernAbfangen(ctx: Ctx, c: Client, msg: ClientMsg): boolean {
   if (!p || !etage) return false;
   weitergeben(p, etage, c, msg);
   return true;
+}
+
+/** Ein Arbeiter von außen auf einer Etage: wie er aussieht, auf wessen PC er läuft, und wie man ihm etwas schickt (nicht in der Pause). */
+export interface FernArbeiter {
+  info: WorkerInfo;
+  pc: string;
+  account: string;
+  schicken?: (msg: ClientMsg, wer: FernBrowser) => void;
+}
+
+/** Die Arbeiter von außen auf `floor`, auch die in der Pause, für die, die mit ihnen reden (reden.ts). */
+export function fernListe(ctx: Ctx, floor: Floor): FernArbeiter[] {
+  const s = standDa(ctx);
+  const etage = fernEtage(floor);
+  if (!s) return [];
+  const out: FernArbeiter[] = [];
+  for (const p of s.plaetze.values()) {
+    for (const a of p.arbeiter.values()) {
+      if (a.etage === floor.id) out.push({ info: a.info, pc: p.name, account: p.account, schicken: etage && ((msg, wer) => senden(p, { t: 'nachricht', etage, wer, msg })) });
+    }
+  }
+  for (const r of s.pausen.all()) if (r.etage === floor.id) out.push({ info: r.info, pc: r.name, account: r.account });
+  return out;
 }
 
 /** Die Arbeiter von außen auf `floor`, auch die in der Pause, für das, was jemand beim Ankommen sieht (FloorView.workers). */

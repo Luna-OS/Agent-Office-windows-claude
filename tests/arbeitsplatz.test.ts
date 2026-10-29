@@ -49,7 +49,7 @@ async function office(name: string, extra: string[] = []) {
   // Noch einmal gestartet (derselbe PC, wieder an): sein Projekt ist schon da.
   if (!existsSync(path.join(home, 'werkstatt', '.git'))) projekt(path.join(home, 'werkstatt'));
   const port = await freePort();
-  const cfg = loadConfig([path.join(home, 'werkstatt'), '--home', home, '--projects', path.join(home, 'projects'), '--port', String(port), '--password', PASSWORT, '--no-open', '--weather', 'clear', ...extra]);
+  const cfg = loadConfig([path.join(home, 'werkstatt'), '--home', home, '--projects', path.join(home, 'projects'), '--port', String(port), '--password', PASSWORT, '--no-open', '--weather', 'clear', '--agent', path.join(tmp, 'schein-agent'), ...extra]);
   return { cfg, publicDir, port };
 }
 
@@ -82,6 +82,8 @@ async function login(name: string | undefined, password: string) {
 
 before(async () => {
   tmp = mkdtempSync(path.join(tmpdir(), 'agent-office-arbeitsplatz-'));
+  // Ein Agent zum Schein: gibt zurück, was man ihm sagt (die Arbeiter "agent" in den Tests zum Reden).
+  writeFileSync(path.join(tmp, 'schein-agent'), '#!/bin/sh\nexec cat\n', { mode: 0o755 });
   for (const k of Object.keys(process.env)) if (k.startsWith('AGENT_OFFICE_')) delete process.env[k];
   const g = await office('gastgeber');
   gastgeber = await startServer(g.cfg, { publicDir: g.publicDir });
@@ -163,6 +165,77 @@ test('Kims Arbeiter läuft auf ihrem Arbeitsplatz und sitzt trotzdem beim Gastge
   for (let i = 0; i < 100 && platz!.floors()[0].workers.get(wid); i++) await new Promise((r) => setTimeout(r, 50));
   assert.equal(platz!.floors()[0].workers.get(wid), undefined);
   for (const b of [kim, gast, spaeter]) b.ws.close();
+});
+
+/** Was ein Arbeiter (`id`) eines Office über sein office-workers sieht oder tut: list_workers und tell_worker. */
+async function arbeiterFragt(o: Awaited<ReturnType<typeof startServer>>, id: string, tell?: { worker: string; prompt: string }) {
+  const token = (o.floors()[0].workers as any).workers.get(id).hookToken;
+  const r = await fetch(`http://127.0.0.1:${o.hookPort}/office/workers${tell ? '/tell' : ''}?worker=${id}`, {
+    method: tell ? 'POST' : 'GET',
+    headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+    body: tell ? JSON.stringify(tell) : undefined,
+  });
+  return { status: r.status, body: (await r.json()) as any };
+}
+
+test('Arbeiter reden miteinander, auch über die PCs hinweg, und alle sehen es', async () => {
+  const kim = await browser(kimCookie);
+  const gast = await browser(await login(undefined, PASSWORT));
+  // Hanna arbeitet beim Gastgeber, zwei von Kim auf ihrem PC.
+  gast.send({ t: 'worker.spawn', deskId: 'desk-8', kind: 'agent' });
+  const h = (await gast.until((m) => m.t === 'worker.update' && m.worker.deskId === 'desk-8')).worker;
+  kim.send({ t: 'worker.spawn', deskId: 'desk-9', kind: 'agent' });
+  const k = (await kim.until((m) => m.t === 'worker.update' && m.worker.deskId === 'desk-9')).worker;
+  kim.send({ t: 'worker.spawn', deskId: 'desk-10', kind: 'agent' });
+  const k2 = (await kim.until((m) => m.t === 'worker.update' && m.worker.deskId === 'desk-10')).worker;
+  assert.ok(gastgeber.floors()[0].workers.get(h.id), 'Hanna beim Gastgeber');
+  assert.ok(platz!.floors()[0].workers.get(k.id), 'der von Kim bei ihr');
+  // Jeder hat in der Lobby seinen eigenen Namen, auch wenn Kims PC die Namen selbst vergibt.
+  assert.equal(new Set([h.name, k.name, k2.name]).size, 3, `${h.name}, ${k.name}, ${k2.name}`);
+  // Und wer danach beim Gastgeber anfängt, heißt auch nicht wie die von Kim.
+  gast.send({ t: 'worker.spawn', deskId: 'desk-11', kind: 'shell' });
+  const h2 = (await gast.until((m) => m.t === 'worker.update' && m.worker.deskId === 'desk-11')).worker;
+  assert.ok(![k.name, k2.name].includes(h2.name.replace(/ 🐚$/u, '')), h2.name);
+  const warte = async (ob: () => unknown) => {
+    for (let i = 0; i < 100 && !ob(); i++) await new Promise((r) => setTimeout(r, 50));
+    assert.ok(ob());
+  };
+
+  // Beim Gastgeber: list_workers zeigt auch die auf Kims PC.
+  const liste = await arbeiterFragt(gastgeber, h.id);
+  assert.equal(liste.status, 200);
+  assert.equal(liste.body.workers.find((w: any) => w.id === k.id)?.pc, 'Kim');
+
+  // Hanna sagt dem von Kim etwas: Es kommt auf Kims PC an, mit Absender, und alle sehen es.
+  const an = await arbeiterFragt(gastgeber, h.id, { worker: k.name, prompt: 'HALLO_VON_HANNA' });
+  assert.equal(an.status, 200, JSON.stringify(an.body));
+  assert.equal(an.body.worker.id, k.id);
+  await warte(() => platz!.floors()[0].workers.get(k.id)?.lastInput?.by === h.name);
+  assert.match(String(platz!.floors()[0].workers.get(k.id)?.activity), new RegExp(`^💬 Nachricht von ${h.name}`), 'mit Absender, zum Antworten');
+  await gast.until((m) => m.t === 'worker.says' && m.from === h.id && m.to === k.id && m.text === 'HALLO_VON_HANNA');
+  await gast.until((m) => m.t === 'chat' && m.name === `🤖 ${h.name} → ${k.name}` && m.text === 'HALLO_VON_HANNA');
+
+  // Auf Kims PC: list_workers zeigt Hanna beim Gastgeber, und die Antwort geht zu ihr zurück.
+  const dort = await arbeiterFragt(platz!, k.id);
+  assert.equal(dort.body.workers.find((w: any) => w.id === h.id)?.pc, 'Gastgeber');
+  assert.equal(dort.body.workers.filter((w: any) => w.id === k2.id).length, 1, 'die eigenen nur einmal');
+  const zurueck = await arbeiterFragt(platz!, k.id, { worker: h.name, prompt: 'ANTWORT_VON_KIMS_ARBEITER' });
+  assert.equal(zurueck.status, 200, JSON.stringify(zurueck.body));
+  await warte(() => gastgeber.floors()[0].workers.get(h.id)?.lastInput?.by === k.name);
+  await gast.until((m) => m.t === 'worker.says' && m.from === k.id && m.to === h.id);
+
+  // Zwei auf Kims PC reden miteinander: Das sehen auch alle in der Lobby.
+  const unter = await arbeiterFragt(platz!, k.id, { worker: k2.name, prompt: 'UNTER_UNS' });
+  assert.equal(unter.status, 200, JSON.stringify(unter.body));
+  await gast.until((m) => m.t === 'worker.says' && m.from === k.id && m.to === k2.id && m.text === 'UNTER_UNS');
+
+  // Wen es nicht gibt, sagt die Lobby auch.
+  const niemand = await arbeiterFragt(platz!, k.id, { worker: 'Niemand', prompt: 'hallo?' });
+  assert.equal(niemand.status, 404);
+  for (const id of [k.id, k2.id]) kim.send({ t: 'worker.kill', workerId: id });
+  for (const id of [h.id, h2.id]) gast.send({ t: 'worker.kill', workerId: id });
+  await gast.until((m) => m.t === 'worker.remove' && m.workerId === k2.id);
+  for (const b of [kim, gast]) b.ws.close();
 });
 
 test('eine Verbindung zum Schein überlebt den Herzschlag und reicht weiter, was sie bekommt', () => {

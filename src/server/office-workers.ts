@@ -25,6 +25,8 @@ export interface WorkerRow {
   meeting?: true;
   /** The worker asking. */
   you?: true;
+  /** Läuft nicht in diesem Office: auf dem PC dieses Spielers (sein Arbeitsplatz), oder "Gastgeber". */
+  pc?: string;
   /** What it's on, as the office summed it up, else its first prompt. */
   task?: string;
   /** Its latest prompt or tool call. */

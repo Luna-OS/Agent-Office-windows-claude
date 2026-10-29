@@ -1,4 +1,6 @@
 import type http from 'node:http';
+import { andere, fernSagen } from '../arbeitsplatz/reden.js';
+import { mitAbsender, zeigen } from '../gespraech.js';
 import { notLeaving } from '../leave-on-merge.js';
 import { findWorker, readHireRequest, readHomeRequest, workerRow, type PullsView } from '../office-workers.js';
 import { nextFreeSeat } from '../../shared/layout.js';
@@ -37,7 +39,8 @@ export async function officeWorkers(ctx: Ctx, req: http.IncomingMessage, res: ht
       defaultProvider: floor.workers.officeDefault.provider,
       freeDesk: free?.id ?? null,
       ...(ctx.ledger.hiringPaused ? { hiringPaused: ctx.ledger.hiringPaused } : {}),
-      workers: list.map((w) => workerRow(w, view, me.id)),
+      // Dazu, wer auf derselben Etage der Lobby woanders läuft: beim Gastgeber, auf dem PC eines Spielers.
+      workers: [...list.map((w) => workerRow(w, view, me.id)), ...(await andere(ctx, floor, me))],
     });
   }
   if (req.method !== 'POST' || !['', '/home', '/tell'].includes(action)) return send(res, 405, { error: 'GET /office/workers, or POST to /office/workers, /office/workers/home or /office/workers/tell' });
@@ -88,17 +91,25 @@ export async function officeWorkers(ctx: Ctx, req: http.IncomingMessage, res: ht
 
   if (action === '/tell') {
     const b = (body ?? {}) as { worker?: unknown; prompt?: unknown };
-    const w = findWorker(floor.workers.list(), str(b.worker, 64));
+    const key = str(b.worker, 64);
+    const text = str(b.prompt, 20000).replace(/\r\n?/g, '\n').trim();
+    const w = findWorker(floor.workers.list(), key);
+    // Nicht hier (oder hier nur man selbst): vielleicht beim Gastgeber der Lobby oder auf dem PC eines Spielers (arbeitsplatz/reden.ts).
+    const woanders = typeof w === 'string' ? /^No worker here/.test(w) : w.id === me.id && key !== me.id;
+    const fern = woanders && text ? await fernSagen(ctx, floor, me, key, text) : undefined;
+    if (fern) return fern.error ? send(res, 400, { error: fern.error }) : send(res, 200, { ok: true, worker: fern.worker });
     if (typeof w === 'string') return send(res, 404, { error: w });
     if (w.id === me.id) return send(res, 400, { error: "That's you" });
     // A shell would run it as a command, in someone's terminal.
     if (w.kind !== 'agent') return send(res, 400, { error: `${w.name} is a shell, not an agent` });
-    const text = str(b.prompt, 20000).replace(/\r\n?/g, '\n').trim();
     if (!text) return send(res, 400, { error: 'Say what to tell it: prompt' });
-    let err = floor.workers.prompt(w.id, text, who);
+    // Mit Absender, damit er antworten kann; alle auf der Etage sehen das Gespräch (gespraech.ts).
+    const prompt = mitAbsender(me, text);
+    let err = floor.workers.prompt(w.id, prompt, who);
     // Stopped or asleep: it wakes up with this as its next message.
-    if (err === 'Worker is not running') err = floor.workers.resume(w.id, text);
+    if (err === 'Worker is not running') err = floor.workers.resume(w.id, prompt);
     if (err) return send(res, 400, { error: err });
+    zeigen(ctx, floor, me, w, text);
     return send(res, 200, { ok: true, worker: row(w.id) });
   }
 
