@@ -1,8 +1,10 @@
 import { JUKEBOX } from '../../../shared/layout';
-import { STREAM } from '../../../shared/jukebox';
+import { STREAM, youtubeVideo } from '../../../shared/jukebox';
+import type { YoutubeVideo } from '../../../shared/youtube';
 import type { AudioCore } from '../../sound/core';
 import { biquad, rms } from '../../sound/dsp';
 import { TunePlayer } from '../../sound/music';
+import { JukeboxYoutube } from './youtube';
 
 // ---- The jukebox ------------------------------------------------------------------------------
 
@@ -33,6 +35,8 @@ export class Jukebox {
   private jukebox: JukeboxPlay | null = null;
   private tune: TunePlayer | null = null;
   private stream: HTMLAudioElement | null = null;
+  /** A YouTube link: only its sound, from a player nobody sees (see youtube.ts). */
+  private yt: JukeboxYoutube | null = null;
   private musicTimer = 0;
 
   /** `onError` hears about a stream that won't play here. */
@@ -58,6 +62,12 @@ export class Jukebox {
   touched() {
     // A ding can start audio before you've touched the page, when a stream isn't allowed to play yet.
     if (this.stream?.paused) void this.stream.play().catch(() => {});
+    this.yt?.resume();
+  }
+
+  /** The YouTube video's title, once YouTube has told it. */
+  youtubeTitle(): string | undefined {
+    return this.yt?.title;
   }
 
   /** The jukebox's level (RMS) where you stand, after your music volume. A stream doesn't show here. */
@@ -88,7 +98,7 @@ export class Jukebox {
   /** 1 on each beat of the tune, falling to 0 before the next, for the jukebox's lights. */
   beat(): number {
     if (this.tune) return this.tune.beat(this.musicAt());
-    if (this.stream && !this.stream.paused) return 0.35 + 0.25 * Math.sin(performance.now() / 320);
+    if ((this.stream && !this.stream.paused) || this.yt?.playing()) return 0.35 + 0.25 * Math.sin(performance.now() / 320);
     return 0;
   }
 
@@ -110,9 +120,11 @@ export class Jukebox {
   /** Starts what the jukebox plays now, once there's audio; `changed` puts it on again from the top. */
   applyJukebox(changed = false) {
     const ctx = this.a.ctx;
-    if (!ctx || (!changed && (this.tune || this.stream))) return;
+    if (!ctx || (!changed && (this.tune || this.stream || this.yt))) return;
     this.tune?.stop();
     this.tune = null;
+    this.yt?.stop();
+    this.yt = null;
     if (this.stream) {
       this.stream.pause();
       this.stream.removeAttribute('src');
@@ -122,7 +134,10 @@ export class Jukebox {
     clearInterval(this.musicTimer);
     const j = this.jukebox;
     if (!j) return;
-    if (j.track === STREAM && j.url) return this.startStream(j.url);
+    if (j.track === STREAM && j.url) {
+      const video = youtubeVideo(j.url);
+      return video ? this.startYoutube(video) : this.startStream(j.url);
+    }
     const tune = (this.tune = new TunePlayer(ctx, this.musicIn, j.track));
     this.a.count('tune');
     // On a timer rather than every frame, so it carries on in a background tab.
@@ -146,6 +161,12 @@ export class Jukebox {
     this.a.count('stream');
   }
 
+  /** A YouTube link: its sound only, where everyone else is, and round again once it's over. */
+  private startYoutube(video: YoutubeVideo) {
+    this.yt = new JukeboxYoutube(video, () => this.musicAt(), () => 100 * this.streamVolume(), this.onError);
+    this.a.count('youtube');
+  }
+
   /** An audio file (not live radio) picks up where everyone else is. */
   private seekStream(a: HTMLAudioElement) {
     if (Number.isFinite(a.duration) && a.duration > 0) a.currentTime = this.musicAt() % a.duration;
@@ -162,11 +183,16 @@ export class Jukebox {
     this.hearStream();
   }
 
-  /** A stream plays outside Web Audio (most don't allow that), so it gets quieter with distance by hand. */
+  /** A stream (or YouTube) plays outside Web Audio (most don't allow that), so it gets quieter with distance by hand. */
   private hearStream() {
-    if (!this.stream) return;
+    if (this.stream) this.stream.volume = this.streamVolume();
+    this.yt?.hear();
+  }
+
+  /** How loud a stream is where you stand, 0–1: your music volume, and the jukebox's curve with distance. */
+  private streamVolume(): number {
     const d = Math.max(MUSIC_REF, this.jukeboxDistance());
-    this.stream.volume = Math.min(1, this.musicGain() * (MUSIC_REF / (MUSIC_REF + MUSIC_ROLLOFF * (d - MUSIC_REF))));
+    return Math.min(1, this.musicGain() * (MUSIC_REF / (MUSIC_REF + MUSIC_ROLLOFF * (d - MUSIC_REF))));
   }
 
   private jukeboxDistance(): number {

@@ -32,14 +32,14 @@ export function installJukebox(ctx: Ctx, deps: JukeboxDeps) {
     reach: 4,
     hint: () => {
       const j = store.jukebox;
-      const what = j.on ? trackTitle(j) : '';
+      const what = j.on ? (ctx.sound.jukeboxTitle() ?? trackTitle(j)) : '';
       return { k: `${j.on}|${what}`, parts: [hintTitle('🎵 Jukebox'), aside(j.on ? `♪ ${clip(what, 40)}` : 'off'), key('E', j.on ? 'Change the song' : 'Put on a song')] };
     },
     use: onE(() => showJukebox()),
   });
 
   function showJukebox() {
-    openJukebox(ctx.net, () => deps.showSettings('sound'));
+    openJukebox(ctx.net, () => deps.showSettings('sound'), () => ctx.sound.jukeboxTitle());
   }
 
   return { playJukebox };

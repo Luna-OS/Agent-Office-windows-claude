@@ -2,55 +2,11 @@
 // dem Dach bist, an derselben Stelle wie bei allen anderen. Er kommt über YouTubes IFrame-API
 // (www.youtube.com/iframe_api), die erst geladen wird, wenn zum ersten Mal ein Song läuft.
 import type { DjState } from '../../../shared/protocol';
+import { ENDED, PLAYING, destroyPlayer as destroy, youtube, youtubeError, type YtPlayer } from '../../sound/youtube';
 import { h } from '../../ui/dom';
-
-/** Das Nötigste von YouTubes Player (https://developers.google.com/youtube/iframe_api_reference). */
-interface YtPlayer {
-  loadVideoById(o: { videoId: string; startSeconds: number }): void;
-  playVideo(): void;
-  pauseVideo(): void;
-  seekTo(s: number, allowSeekAhead: boolean): void;
-  setVolume(v: number): void;
-  getCurrentTime(): number;
-  getPlayerState(): number;
-  getVideoData?(): { title?: string };
-  destroy(): void;
-}
-interface Yt {
-  Player: new (el: HTMLElement, o: Record<string, unknown>) => YtPlayer;
-}
-const PLAYING = 1;
-const ENDED = 0;
-
-let api: Promise<Yt> | null = null;
-function youtube(): Promise<Yt> {
-  const w = window as unknown as { YT?: Yt; onYouTubeIframeAPIReady?: () => void };
-  if (w.YT?.Player) return Promise.resolve(w.YT);
-  api ??= new Promise<Yt>((resolve, reject) => {
-    const before = w.onYouTubeIframeAPIReady;
-    w.onYouTubeIframeAPIReady = () => {
-      before?.();
-      resolve(w.YT!);
-    };
-    const s = document.createElement('script');
-    s.src = 'https://www.youtube.com/iframe_api';
-    s.async = true;
-    s.onerror = () => {
-      api = null;
-      reject(new Error('YouTube lädt nicht'));
-    };
-    document.head.append(s);
-  });
-  return api;
-}
 
 /** Weicht der Player mehr ab (s), springt er zurück an die Stelle, an der alle sind. */
 const DRIFT = 2;
-
-/** Weg mit einem Player, auch einem, der noch lädt: Dem fehlen seine Methoden womöglich noch. */
-function destroy(p: YtPlayer | null) {
-  if (typeof p?.destroy === 'function') p.destroy();
-}
 
 export class RoofPlayer {
   private readonly box = h('div.dj-player', { hidden: true, role: 'region', 'aria-label': 'Song vom DJ' });
@@ -154,11 +110,7 @@ export class RoofPlayer {
             }
             if (e.data === ENDED) this.over('Zu Ende. Der DJ legt wieder selbst auf.');
           },
-          // 2: kaputte ID, 5: der Browser kann es nicht, 100: gibt es nicht (mehr), 101/150: nur auf YouTube selbst.
-          onError: (e: { data: number }) => {
-            const why = e.data === 101 || e.data === 150 ? 'Dieses Video darf nur auf YouTube selbst laufen' : e.data === 100 ? 'Dieses Video gibt es nicht (mehr)' : 'YouTube kann dieses Video hier nicht abspielen';
-            this.over(`${why}. Der DJ legt wieder selbst auf.`);
-          },
+          onError: (e: { data: number }) => this.over(`${youtubeError(e.data)}. Der DJ legt wieder selbst auf.`),
         },
       });
       this.pending = p;
