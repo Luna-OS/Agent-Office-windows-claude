@@ -22,7 +22,7 @@ description: >-
   Das Passwort unten ist das Passwort des Servers: Gebt es nur Leuten, die mitspielen sollen.
 releaseNotes: >-
   Das Office läuft jetzt auf dem Umbrel selbst, immer offen: Keiner muss mehr gastgeben, und es gibt
-  keine Einladungslinks mehr. Jeder verbindet sich mit Adresse, Passwort und Namen (App ab 0.1.47).
+  keine Einladungslinks mehr. Jeder verbindet sich mit Adresse, Passwort und Namen (App ab 0.1.63).
 developer: Luna-OS
 website: https://github.com/Luna-OS/Agent-Office-windows-claude
 dependencies: []
