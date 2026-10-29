@@ -135,6 +135,23 @@ test('a tick taken out mid-frame still runs the rest of that frame', () => {
   assert.deepEqual(log, ['a', 'b', 'b']);
 });
 
+test('a tick that throws does not stop the frame, and is told once', (t) => {
+  const log: string[] = [];
+  const errors = t.mock.method(console, 'error', () => {});
+  const ticks = new Ticks();
+  ticks.add('pre', () => log.push('pre'));
+  ticks.add('env', () => {
+    throw new TypeError('this.player?.setVolume is not a function');
+  });
+  ticks.add('env', () => log.push('env'));
+  ticks.add('render', () => log.push('render'));
+  const f = { delta: 0, dt: 0, t: 0, now: 0 };
+  ticks.run(f);
+  ticks.run(f);
+  assert.deepEqual(log, ['pre', 'env', 'render', 'pre', 'env', 'render']);
+  assert.equal(errors.mock.callCount(), 1);
+});
+
 type Why = 'trip' | 'walk';
 
 function activity(id: string, log: string[], opts: { on?: boolean; stopsFor?: Why[]; key?: string; camera?: boolean } = {}) {

@@ -47,12 +47,23 @@ function youtube(): Promise<Yt> {
 /** Weicht der Player mehr ab (s), springt er zurück an die Stelle, an der alle sind. */
 const DRIFT = 2;
 
+/** Weg mit einem Player, auch einem, der noch lädt: Dem fehlen seine Methoden womöglich noch. */
+function destroy(p: YtPlayer | null) {
+  if (typeof p?.destroy === 'function') p.destroy();
+}
+
 export class RoofPlayer {
   private readonly box = h('div.dj-player', { hidden: true, role: 'region', 'aria-label': 'Song vom DJ' });
   private readonly frame = h('div.dj-frame');
   private readonly title = h('div.dj-title');
   private readonly go = h('button.btn.primary.dj-go', { type: 'button', hidden: true }, '▶ Ton an');
+  /**
+   * YouTubes Player, sobald er bereit ist. Vorher (zwischen `new YT.Player` und onReady) hat er
+   * setVolume, seekTo und die anderen noch nicht, und wer sie ruft, bekommt einen TypeError.
+   */
   private player: YtPlayer | null = null;
+  /** Der Player, der gerade lädt, bis YouTube ihn bereit meldet. */
+  private pending: YtPlayer | null = null;
   private loading: Promise<void> | null = null;
   private shown: DjState | null = null;
   private timer = 0;
@@ -90,8 +101,9 @@ export class RoofPlayer {
     this.shown = null;
     this.ended = false;
     clearInterval(this.timer);
-    this.player?.destroy();
-    this.player = null;
+    destroy(this.pending);
+    destroy(this.player);
+    this.pending = this.player = null;
     this.loading = null;
     this.frame.replaceChildren();
     this.go.hidden = true;
@@ -112,21 +124,26 @@ export class RoofPlayer {
       if (!yt) this.title.textContent = 'YouTube lädt gerade nicht. Ist dieser Computer online?';
       return;
     }
-    this.player?.destroy();
+    destroy(this.pending);
+    destroy(this.player);
+    this.pending = this.player = null;
     const host = h('div');
     this.frame.replaceChildren(host);
     const at = Math.max(0, this.position(s));
     this.loading = new Promise<void>((ready) => {
-      this.player = new yt.Player(host, {
+      const p: YtPlayer = new yt.Player(host, {
         width: '240',
         height: '135',
         videoId: s.video,
         playerVars: { autoplay: 1, start: Math.floor(at), controls: 0, disablekb: 1, playsinline: 1, rel: 0, iv_load_policy: 3 },
         events: {
           onReady: () => {
+            if (this.pending !== p) return;
+            this.pending = null;
+            this.player = p;
             this.setVolume(volume);
-            this.player?.seekTo(this.position(s), true);
-            this.player?.playVideo();
+            p.seekTo(this.position(s), true);
+            p.playVideo();
             ready();
           },
           onStateChange: (e: { data: number }) => {
@@ -144,6 +161,7 @@ export class RoofPlayer {
           },
         },
       });
+      this.pending = p;
     });
     await this.loading;
     clearInterval(this.timer);
