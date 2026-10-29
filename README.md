@@ -6,8 +6,8 @@
 > Lobby läuft im Office eines Spielers, der in der App **🛰️ Über den Vermittler gastgeben** wählt, und alle anderen
 > treten über den Umbrel bei ([docs/vermittler.md](docs/vermittler.md)). **Und die Arbeiter laufen bei dem, der sie
 > einstellt:** Wer mit eigenem Konto in der Lobby ist, dessen App ist sein Arbeitsplatz; seine Arbeiter laufen auf
-> seinem PC, mit seinem Claude und GitHub, und alle sehen und benutzen sie trotzdem; ist sein PC aus, machen sie an
-> ihren Plätzen Pause ([docs/vermittler.md](docs/vermittler.md#dein-arbeitsplatz-deine-arbeiter-auf-deinem-pc)). Mehr dazu in [ARCHITEKTUR.md](ARCHITEKTUR.md).
+> seinem PC, mit seinem Claude und GitHub, und alle sehen und benutzen sie trotzdem; sie reden über die PCs hinweg
+> miteinander, und ist sein PC aus, machen sie an ihren Plätzen Pause ([docs/vermittler.md](docs/vermittler.md#dein-arbeitsplatz-deine-arbeiter-auf-deinem-pc)). Mehr dazu in [ARCHITEKTUR.md](ARCHITEKTUR.md).
 
 > [!TIP]
 > **Ein Connector für Windows und Mac, das Office im Browser.** Diese Version gibt es als Windows-Installer

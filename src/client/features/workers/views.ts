@@ -27,6 +27,8 @@ import { renderLimits } from '../../ui/limits';
 import { modelBadge, providerLabel } from '../../ui/provider';
 import { renderUsage } from '../../ui/usage';
 import { Worker } from '../../world/character';
+import { onBreak } from '../../world/character/worker-pause';
+import { asleep } from '../../world/character/worker-sleep';
 import { Jail } from './jail';
 import { Laptop } from './laptop';
 import { Arrivals, Departures } from './leaving';
@@ -161,15 +163,17 @@ export function installWorkerViews(ctx: Ctx, core: CoreState, parts: WorkerViews
       v.model.setAction(w.action);
       v.model.setPr(workerPr(w, store.pulls.items, store.queue.tasks));
       v.model.setLost(!!w.lost);
-      // Der PC seines Spielers ist aus: Er macht an seinem Platz Pause, bis der wieder an ist.
-      v.model.setPause(w.pause ? w.id : null);
+      // Der PC seines Spielers ist aus: Er macht an seinem Platz Pause, bis der wieder an ist. Sein
+      // Limit erreicht: Er schläft auf seinem Stuhl, unter einer Decke, bis es weitergeht.
+      if (w.pause) v.model.setRest(`pause|${w.id}`, onBreak(w.id));
+      else v.model.setRest(w.limit ? `schlaf|${w.limit.until ?? ''}` : null, asleep(w.limit?.until));
       const engineBadge = w.kind === 'agent' ? modelBadge(w.provider, w.model, w.effort) : undefined;
       v.model.setTask(meetingCard(w) ?? (w.task && w.kind === 'agent' ? { ...w.task, name: `${providerLabel(w.provider, store.project)}${engineBadge ? ` · ${engineBadge}` : ''} · ${w.task.name}` } : w.task));
       const deskDef = plan().byId.get(w.deskId);
       // Keys clack while it types, not while it reads, watches its tests or browses.
       if (deskDef) sound.setTyping(w.id, deskDef.x, deskDef.z, w.status === 'working' && (!w.action || w.action === 'edit'));
       const again = w.kind === 'shell' ? 'restart' : 'resume';
-      v.laptop.setPlaceholder(w.pause ? `☕ ${w.name} macht Pause: Der PC von ${w.pause} ist gerade aus` : w.lost ? `🌿 ${w.name}'s worktree was deleted — press E to fix it` : w.status === 'offline' ? `💤 ${w.name} is asleep — press R to ${again}` : w.status === 'exited' ? `${w.name} exited` : 'booting…');
+      v.laptop.setPlaceholder(w.pause ? `☕ ${w.name} macht Pause: Der PC von ${w.pause} ist gerade aus` : w.limit ? `💤 ${w.name} schläft: Limit erreicht` : w.lost ? `🌿 ${w.name}'s worktree was deleted — press E to fix it` : w.status === 'offline' ? `💤 ${w.name} is asleep — press R to ${again}` : w.status === 'exited' ? `${w.name} exited` : 'booting…');
     }
     for (const [id, v] of workerViews) {
       if (store.workers.has(id)) continue;

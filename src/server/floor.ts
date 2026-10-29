@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 import path from 'node:path';
-import type { ChangesState, FloorInfo, PeerInfo, ProjectInfo, ServerMsg, WorkerInfo } from '../shared/protocol.js';
+import type { ChangesState, FloorInfo, PeerInfo, PlanLimits, ProjectInfo, ServerMsg, WorkerInfo } from '../shared/protocol.js';
 import { isBusy } from '../shared/status.js';
 import { DESK_BY_ID } from '../shared/layout.js';
 import type { FloorDef } from './building.js';
@@ -70,6 +70,8 @@ export interface FloorContext {
   lent(floor: Floor): boolean;
   /** Whether the building's map locks up workers sent home (see MapPlan.sendHome), instead of letting them go. */
   locksUp(): boolean;
+  /** Die Claude-Limits eines Kontos mit eigener Claude-Anmeldung, sonst die des Office (workers/limit.ts). */
+  planOf?(owner: string | undefined): PlanLimits | undefined;
 }
 
 /** The open pull request on a floor's board whose head is `branch`. */
@@ -197,6 +199,7 @@ export class Floor {
         data: (workerId, data, viewers) => ctx.termData(workerId, data, viewers),
         screen: (workerId, frame) => ctx.emit(this, { t: 'screen', workerId, ...frame }, true),
         toast: (text, level) => ctx.toast(this, text, level),
+        plan: (owner) => ctx.planOf?.(owner),
       },
       ctx.ledger,
       ctx.capacity,

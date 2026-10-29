@@ -44,6 +44,7 @@ import { installDog } from './features/dog';
 import { installEmotes } from './features/emotes';
 import { installGolf } from './features/golf';
 import { installGraphics } from './features/graphics';
+import { installGespraech } from './features/gespraech';
 import { installGong } from './features/gong';
 import { installGallery, installHanging } from './features/hanging';
 import { installHerald } from './features/herald';
@@ -167,6 +168,7 @@ parts.cards = installCarrying(ctx, {
 });
 parts.seating = installSeating(ctx, { shares: () => parts.talk.currentShares(), watchShare: () => parts.talk.watchShare(), arcade: parts.arcade, showBar: parts.bar.showBar, usable: () => parts.pointer.usable() });
 installGong(ctx, { burstOver: parts.views.burstOver, workerViews: parts.views.workerViews, court: () => parts.worlds.court(), idleAgents: () => parts.worlds.idleAgents() });
+installGespraech(ctx, { workerViews: parts.views.workerViews });
 
 parts.hintbar = installHintBar(ctx, core, parts);
 parts.emotes = installEmotes(ctx, { personOf });

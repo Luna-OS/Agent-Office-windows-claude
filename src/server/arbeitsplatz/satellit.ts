@@ -28,6 +28,19 @@ const STILL_MS = 60_000;
 /** So lange darf das Klonen eines Repos dauern. */
 const KLONEN_MS = 10 * 60_000;
 
+/** Ein Arbeitsplatz, für die Arbeiter darauf, die mit denen in der Lobby reden (reden.ts). */
+export interface Satellit {
+  /** Die Etage des Gastgebers, zu der die Etage `hier` gehört. */
+  dort(hier: string): string | undefined;
+  /** Fragt den Gastgeber (`wer`, `sagen`) und wartet auf seine Antwort; undefined, wenn keine kommt. */
+  fragen(m: Extract<VomArbeitsplatz, { t: 'wer' } | { t: 'sagen' }>): Promise<ZumArbeitsplatz | undefined>;
+}
+const satelliten = new WeakMap<object, Satellit>();
+/** Der Arbeitsplatz, der dieses Office ist, wenn es einer ist. */
+export const satellitVon = (ctx: Ctx): Satellit | undefined => satelliten.get(ctx);
+/** So lange wartet ein Arbeiter höchstens auf die Antwort des Gastgebers. */
+const ANTWORT_MS = 8000;
+
 export function arbeitsplatzSein(ctx: Ctx, opts: ArbeitsplatzOpts) {
   const log = opts.log ?? ((t: string) => console.log(`arbeitsplatz: ${t}`));
   const lobbyUrl = new URL(/^[a-z]+:\/\//i.test(opts.url) ? opts.url : `http://${opts.url}`);
@@ -53,6 +66,22 @@ export function arbeitsplatzSein(ctx: Ctx, opts: ArbeitsplatzOpts) {
     if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(m));
   };
   const etageDort = (hier: string) => [...zuordnung].find(([, l]) => l === hier)?.[0];
+  /** Welche Namen auf jeder Etage des Gastgebers schon vergeben sind (zuletzt gehört): Ein neuer hier heißt anders. */
+  const vergeben = new Map<string, string[]>();
+  /** Was die Arbeiter hier den Gastgeber gefragt haben, nach Nummer: wer die Antwort bekommt. */
+  const offen = new Map<number, (a: ZumArbeitsplatz | undefined) => void>();
+  let fragen = 0;
+  satelliten.set(ctx, {
+    dort: etageDort,
+    fragen: (m) =>
+      new Promise((resolve) => {
+        if (ws?.readyState !== WebSocket.OPEN) return resolve(undefined);
+        const id = ++fragen;
+        const zuLange = setTimeout(() => (offen.delete(id), resolve(undefined)), ANTWORT_MS);
+        offen.set(id, (a) => (clearTimeout(zuLange), offen.delete(id), resolve(a)));
+        senden({ ...m, id });
+      }),
+  });
   const etageHier = (repo: string) => [...ctx.floors.values()].find((f) => f.def.repo?.toLowerCase() === repo.toLowerCase())?.id;
 
   /** Was auf der Etage `hier` sitzt, dem Gastgeber zeigen: die Arbeiter und ihre Laptops. */
@@ -67,6 +96,8 @@ export function arbeitsplatzSein(ctx: Ctx, opts: ArbeitsplatzOpts) {
   /** Die Etage `hier` gehört zur Etage `dort` des Gastgebers: Alles für alle dort geht an ihn. */
   function zuordnen(hier: string, dort: string) {
     zuordnung.set(dort, hier);
+    const floor = ctx.floors.get(hier);
+    if (floor) floor.workers.taken = () => vergeben.get(etageDort(hier) ?? '') ?? [];
     if (!spiegel.has(hier)) {
       const c = scheinBrowser(`spiegel-${hier}`, 'Arbeitsplatz', hier, (msg: ServerMsg) => {
         const d = etageDort(hier);
@@ -138,6 +169,7 @@ export function arbeitsplatzSein(ctx: Ctx, opts: ArbeitsplatzOpts) {
   }
 
   async function nachricht(m: Extract<ZumArbeitsplatz, { t: 'nachricht' }>) {
+    if (Array.isArray(m.vergeben)) vergeben.set(m.etage.id, m.vergeben.map(String));
     const c = browserFuer(m.wer);
     const msg = m.msg;
     if (msg.t !== 'worker.spawn') return dispatch(ctx, c, msg);
@@ -190,6 +222,7 @@ export function arbeitsplatzSein(ctx: Ctx, opts: ArbeitsplatzOpts) {
         // Alle gemeldet: Wer beim Gastgeber noch in der Pause sitzt und hier nicht mehr ist, geht dort.
         senden({ t: 'bestand', arbeiter: [...new Set(zuordnung.values())].flatMap((hier) => ctx.floors.get(hier)?.workers.list().map((w) => w.id) ?? []) });
       } else if (m.t === 'nachricht') void nachricht(m);
+      else if (m.t === 'die' || m.t === 'gesagt') offen.get(Number(m.id))?.(m);
       else if (m.t === 'weg') weg(String(m.id));
     });
     sock.on('error', (e) => {
@@ -197,6 +230,7 @@ export function arbeitsplatzSein(ctx: Ctx, opts: ArbeitsplatzOpts) {
     });
     sock.on('close', (code: number) => {
       clearInterval(wache);
+      for (const antworten of [...offen.values()]) antworten(undefined);
       for (const id of [...browser.keys()]) weg(id);
       if (gestoppt) return;
       // Ein anderer Computer mit demselben Konto ist jetzt der Arbeitsplatz: nicht zurückdrängeln (bis zum nächsten Start).
@@ -225,6 +259,7 @@ export function arbeitsplatzSein(ctx: Ctx, opts: ArbeitsplatzOpts) {
     stand: (): ArbeitsplatzStand => stand,
     stop() {
       gestoppt = true;
+      satelliten.delete(ctx);
       clearTimeout(wieder);
       clearInterval(bildschirme);
       ws?.close();

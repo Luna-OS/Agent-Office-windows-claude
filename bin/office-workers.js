@@ -158,7 +158,8 @@ export function buildRequest(what, office, body) {
 export function refusal(status, body) {
   const said = body && typeof body.error === 'string' ? body.error : '';
   if (status === 401) return `The office didn't accept this worker's token (401)${said ? `: ${said}` : ''}. Is this a worker's terminal that's still running?`;
-  if (status === 404) return "The office doesn't know office-workers (404): it's running an older Agent Office than this command. Restart or upgrade it.";
+  // A worker it doesn't know is a 404 too, with the office's own words for it.
+  if (status === 404) return said || "The office doesn't know office-workers (404): it's running an older Agent Office than this command. Restart or upgrade it.";
   return said || `The office said no (${status}).`;
 }
 
@@ -249,7 +250,8 @@ export const TOOLS = [
     description:
       "Lists the coding agents (the office's workers) at the desks on this Agent Office floor, and shells: each one's id, name, status, desk, task, git worktree branch and pull request. " +
       'merged: true means a pull request of its merged and none is open: its work landed and it can go home. staying says why the office would not send it home by itself yet ' +
-      '(still working, someone has its terminal open, a board agent...). worktree.deleted: true means its folder was deleted outside the office, so it cannot start until a person rebuilds it at its desk. you: true is you.',
+      '(still working, someone has its terminal open, a board agent...). worktree.deleted: true means its folder was deleted outside the office, so it cannot start until a person rebuilds it at its desk. you: true is you. ' +
+      'pc is set for agents that run elsewhere in the lobby: on that player\'s own PC, or "Gastgeber" (the host\'s office). You can talk to them with tell_worker all the same.',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
     annotations: { readOnlyHint: true, openWorldHint: false },
   },
@@ -300,7 +302,10 @@ export const TOOLS = [
   {
     name: 'tell_worker',
     title: 'Tell a worker',
-    description: "Types a message into another agent's (worker's) terminal as its next prompt; one that stopped starts again with it. " + WORKER_NOTE,
+    description:
+      "Types a message into another agent's (worker's) terminal as its next prompt; one that stopped starts again with it. It reaches every agent on this floor of the lobby, " +
+      "also those on other players' PCs. Your message arrives with your name, so it can answer you the same way, and everyone in the office sees you talk. " +
+      WORKER_NOTE,
     inputSchema: {
       type: 'object',
       properties: {
@@ -319,6 +324,7 @@ const INSTRUCTIONS =
   'the other agents: whenever you are asked about the agents or workers (who is working on what, whose pull request merged, hiring one, sending them home), use them, ' +
   "rather than looking for the agents with git, ps or HTTP calls. list_workers says where each one's pull request stands (merged: true means it merged), hire_worker " +
   'puts a new agent to work, send_home sends agents home and deletes their worktrees and branches, and tell_worker gives one a prompt. Everyone in the office sees who did what. ' +
+  'Work together: ask the others with tell_worker, hand them parts of a job, and answer a message from one of them with tell_worker to whoever sent it. ' +
   'The office-workers command on your PATH does the same from a shell.';
 
 /** Runs a tool; resolves to its text, and whether nothing it was asked came off, or throws with why it failed. */
