@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { mesh, textSprite, toon } from '../toon';
 import { ease, popIn } from './curves';
 import { undress } from './props';
-import type { WorkerRig } from './rig';
+import type { Rest, WorkerRig } from './rig';
 
 // A worker on a break at its desk, while the PC of the player it runs on is off (WorkerInfo.pause):
 // leaning back with a mug of coffee and taking a sip now and then, scrolling on its phone and having a
@@ -244,3 +244,11 @@ export function unwind(rig: WorkerRig, p: Pausing, dt: number, t: number): numbe
   });
   return s.lid;
 }
+
+/** A break, for Worker.setRest. Its `id` (its own) spreads breaks out across workers. */
+export const onBreak =
+  (id: string) =>
+  (rig: WorkerRig): Rest => {
+    const p = takeBreak(rig, id);
+    return { bulb: PAUSE_BULB, frame: (dt, t) => unwind(rig, p, dt, t), bubble: () => pauseBubble(p), end: () => endBreak(p) };
+  };

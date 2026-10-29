@@ -34,3 +34,18 @@ export interface WorkerRig {
   /** What it acts out with: the papers in its hands and the globe beside its laptop (see worker-props.ts). */
   props: THREE.Object3D[];
 }
+
+/**
+ * A worker at rest at its desk instead of working: on a break while its player's PC is off
+ * (worker-pause.ts), or asleep under a blanket once it's hit its limit (worker-sleep.ts).
+ */
+export interface Rest {
+  /** Its status light meanwhile. */
+  bulb: string;
+  /** A frame of it: poses the rig, and says how open its eyes are. */
+  frame(dt: number, t: number): number;
+  /** The bubble over its head, and a key that changes when it would look different. */
+  bubble(): { key: string; draw(): THREE.Sprite };
+  /** Back to work: what it brought goes away. */
+  end(): void;
+}

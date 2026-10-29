@@ -3,9 +3,8 @@ import type { Theme, WorkerAction, WorkerStatus, WorkerTask } from '../../../sha
 import { isAsleep, type WorkerPr } from '../../../shared/status';
 import { beard, grime, peasantGarb, type Beard, type PeasantGarb } from '../costumes';
 import { disposeSprite, textSprite, toonUnique } from '../toon';
-import type { WorkerRig } from './rig';
+import type { Rest, WorkerRig } from './rig';
 import { buildBody } from './worker-body';
-import { PAUSE_BULB, endBreak, pauseBubble, takeBreak, unwind, type Pausing } from './worker-pause';
 import { ease, popIn } from './curves';
 import { undress } from './props';
 import { ACT_MIN, DESPAIR_MIN, TWIRL_TIME, WAIT_CYCLE, WAIT_HOPS, blendStance, type Act, type Stance } from './worker-stance';
@@ -48,8 +47,9 @@ export class Worker {
   private cheerT = 0;
   /** Up on its desk dancing (a pull request merged): where, and how many seconds in. */
   private dancing: Dancing | null = null;
-  /** On a break while its player's PC is off (see setPause): coffee, its phone or a doughnut. */
-  private pausing: Pausing | null = null;
+  /** At rest at its desk instead of working (see setRest): on a break, or asleep after hitting its limit. */
+  private resting: Rest | null = null;
+  private restKey = '';
   private pupils: THREE.Mesh[];
   private feet: THREE.Mesh[];
   /** Sent home: the box of its things in its arms, and how far into its waddle it is. */
@@ -218,7 +218,7 @@ export class Worker {
   }
 
   private paintBulb() {
-    const c = this.pausing ? PAUSE_BULB : (STATUS_BULB[this.status] ?? '#adb5bd');
+    const c = this.resting ? this.resting.bulb : (STATUS_BULB[this.status] ?? '#adb5bd');
     this.bulb.color.set(c);
     this.bulb.emissive.set(c).multiplyScalar(0.7);
   }
@@ -268,11 +268,15 @@ export class Worker {
     this.drawBubble();
   }
 
-  /** Its player's PC is off: it takes a break at its desk (see worker-pause.ts) until it's back (null). */
-  setPause(seed: string | null) {
-    if (!seed === !this.pausing || this.leaving || this.jailed) return;
-    if (this.pausing) endBreak(this.pausing);
-    this.pausing = seed ? takeBreak(this.rig, seed) : null;
+  /**
+   * Rests at its desk, as `make` has it (a break, see worker-pause.ts; asleep, see worker-sleep.ts), or
+   * gets back to work (null). A different `key` is a different rest.
+   */
+  setRest(key: string | null, make?: (rig: WorkerRig) => Rest) {
+    if ((key ?? '') === this.restKey || this.leaving || this.jailed) return;
+    this.resting?.end();
+    this.restKey = key ?? '';
+    this.resting = key && make ? make(this.rig) : null;
     this.paintBulb();
     this.drawBubble();
   }
@@ -280,7 +284,7 @@ export class Worker {
   /** Sent home: its light goes out, its face falls, and its things pop into a box in its arms. `farewell` goes over its head. */
   leave(farewell: string) {
     if (this.leaving) return;
-    this.setPause(null);
+    this.setRest(null);
     this.bouncing = false;
     this.cheerT = 0;
     this.bounceT = 0;
@@ -319,7 +323,7 @@ export class Worker {
   private drawBubble() {
     if (this.leaving) return;
     const { status, bouncing: bounce, task, pr, lost } = this;
-    const { key, draw } = this.pausing ? pauseBubble(this.pausing) : bubbleFor(status, bounce, task, pr, lost);
+    const { key, draw } = this.resting ? this.resting.bubble() : bubbleFor(status, bounce, task, pr, lost);
     if (key === this.bubbleKey) return;
     this.bubbleKey = key;
     if (this.bubble) {
@@ -406,7 +410,7 @@ export class Worker {
     if (this.jailed) return this.languish(dt, t);
     if (this.leaving) return this.carry(this.leaving, dt, t);
     if (this.dancing) return this.boogie(this.dancing, dt, t);
-    if (this.pausing) return this.relax(this.pausing, dt, t);
+    if (this.resting) return this.rest(this.resting, dt, t);
     this.cheerT = Math.max(0, this.cheerT - dt);
     // Waiting on you: a couple of seconds of jumping, then arms crossed and a tapping foot, and round again.
     this.waitT = this.status === 'needs_input' ? this.waitT + dt : 0;
@@ -515,11 +519,10 @@ export class Worker {
     }
   }
 
-  /** On its break: its coffee, phone or doughnut (see worker-pause.ts), the bubble over its head saying which. */
-  private relax(p: Pausing, dt: number, t: number) {
-    const was = p.kind;
-    this.blink(dt, unwind(this.rig, p, dt, t));
-    if (p.kind !== was) this.drawBubble();
+  /** At rest: on its break or asleep (see setRest), the bubble over its head saying how. */
+  private rest(r: Rest, dt: number, t: number) {
+    this.blink(dt, r.frame(dt, t));
+    if (r.bubble().key !== this.bubbleKey) this.drawBubble();
     if (this.bubble) this.bubble.position.y = 1.95 + this.body.position.y + Math.sin(t * 3) * 0.03;
     if (this.nameTag) this.nameTag.position.y = 1.55 + this.body.position.y;
   }
@@ -569,7 +572,7 @@ export class Worker {
   }
 
   dispose() {
-    if (this.pausing) endBreak(this.pausing);
+    this.resting?.end();
     if (this.bubble) disposeSprite(this.bubble);
     if (this.nameTag) disposeSprite(this.nameTag);
     undress(this.crosses);

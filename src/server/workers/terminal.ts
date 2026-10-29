@@ -6,6 +6,7 @@ import type { Run, WorkerInfo } from '../../shared/protocol.js';
 import { FLAG_BOLD, FLAG_DIM, FLAG_INVERSE, RGB_FLAG } from '../../shared/protocol.js';
 import { SCROLLBACK } from '../ptys.js';
 import { screenSnapshot } from '../screen.js';
+import { checkLimit } from './limit.js';
 import type { Worker, WorkerEvents } from './types.js';
 
 export type HeadlessTerminal = InstanceType<typeof headless.Terminal>;
@@ -67,6 +68,8 @@ export function flushScreens(workers: Iterable<Worker>, events: WorkerEvents, ch
     if (!w.screenDirty) continue;
     w.screenDirty = false;
     check(w);
+    // Sein Limit erreicht: Er schläft an seinem Platz, bis es weitergeht (limit.ts).
+    checkLimit(w, events);
     const frame = snapshotScreen(w.term, w.lastLines);
     if (frame) events.screen(w.info.id, frame);
   }

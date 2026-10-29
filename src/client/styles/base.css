@@ -56,6 +56,7 @@ button { font-family: inherit; }
 .pill.done { background: var(--good); color: #fff; }
 .pill.exited, .pill.offline { background: #dee2e6; }
 .pill.pause { background: #ffe8cc; }
+.pill.limit { background: #dbe4ff; }
 .pill.lost { background: #ffb703; }
 .empty { color: var(--muted); font-size: 13px; font-weight: 600; }
 @keyframes pulse { 50% { transform: scale(1.08); } }
